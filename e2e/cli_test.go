@@ -2,9 +2,9 @@ package e2e_test
 
 import (
 	"fmt"
-	"regexp"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
