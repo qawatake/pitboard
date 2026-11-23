@@ -247,6 +247,19 @@ func (v *viewer) WaitFor(texts ...string) {
 	})
 }
 
+// WaitForJoined waits until text is on screen, allowing it to wrap
+// (lines are trimmed and joined).
+func (v *viewer) WaitForJoined(text string) {
+	v.t.Helper()
+	v.Until(fmt.Sprintf("%q on screen (wrapped)", text), func() bool {
+		var b strings.Builder
+		for _, l := range v.Lines() {
+			b.WriteString(strings.TrimSpace(l))
+		}
+		return strings.Contains(b.String(), text)
+	})
+}
+
 // WaitGone waits until no text is on screen.
 func (v *viewer) WaitGone(texts ...string) {
 	v.t.Helper()
@@ -299,18 +312,31 @@ func (v *viewer) WaitCursorOn(sub string) {
 	})
 }
 
-// helpMarker is on screen only while the key list (?) is open.
+// helpMarker is on screen only while the key list (?) is open (when it is
+// wide and tall enough to show the first description).
 const helpMarker = "上下に動く"
+
+// helpOpen says whether the key list is open: its title "キー" stands
+// alone on a row (the guide's "? キー" never does).
+func (v *viewer) helpOpen() bool {
+	for _, l := range v.Lines() {
+		if strings.TrimSpace(l) == "キー" {
+			return true
+		}
+	}
+	return false
+}
 
 // Sync makes sure every key sent so far has been handled: it opens the key
 // list with ? and closes it again (the only keys that close it are q, esc
-// and ?), waiting for each to show.
+// and ?), waiting for each to show. Not for use inside the editor, where ?
+// is text.
 func (v *viewer) Sync() {
 	v.t.Helper()
 	v.Keys("?")
-	v.WaitFor(helpMarker)
+	v.Until("the key list to open", v.helpOpen)
 	v.Keys("?")
-	v.WaitGone(helpMarker)
+	v.Until("the key list to close", func() bool { return !v.helpOpen() })
 }
 
 // In rebinds the viewer's failures to t (a subtest sharing the viewer).
