@@ -4,77 +4,53 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
-	"time"
 
-	"github.com/qawatake/pitboard/internal/board"
+	"github.com/qawatake/pitboard/internal/page"
 	"github.com/qawatake/pitboard/internal/report"
 )
 
-// right is what goes on the right end of a line: the state of the
-// person's latest input on it (a reaction, or a comment), then the status
-// the AI wrote. Colors mean: yellow needs the person (not sent, wait="you"),
-// green moves (a doing Item's status), faint waits or is done.
+// toneColor is the color of a Tone: yellow needs the person, green moves,
+// faint waits or is done.
+func toneColor(t page.Tone) string {
+	switch t {
+	case page.ToneNeed:
+		return yellow
+	case page.ToneMove:
+		return green
+	}
+	return dim
+}
+
+// wordText is a Word drawn in its color.
+func wordText(w page.Word) text {
+	if w.Text == "" {
+		return nil
+	}
+	return plainText(w.Text, toneColor(w.Tone))
+}
+
+// right is what goes on the right end of a line (page.Right): the state of
+// the person's latest input on it (a reaction, or a comment), then the
+// status the AI wrote.
 func (a *app) right(pv *view, n *report.Node) text {
-	var st text
-	switch {
-	case n.Status == "" && n.Kind == report.KindDoing:
-		// The mark at the head no longer tells how far it is: the words do.
-		st = plainText("作業中", green)
-	case n.Status == "":
-	case n.Wait == "you":
-		st = plainText(n.Status, yellow)
-	case n.Kind == report.KindDoing:
-		st = plainText(n.Status, green)
-	default:
-		st = plainText(n.Status, dim)
+	r := a.b.RightOf(n)
+	st := wordText(r.Status)
+	if !r.At.IsZero() {
+		st = plainText(page.AtWord(r.At, clock()), dim) // when the AI put it up
 	}
-	if n.Kind == report.KindNotice && !n.At.IsZero() {
-		st = plainText(atWord(n.At), dim) // when the AI put it up
-	}
-	id := report.Target(n)
-	if id == "" {
-		return st
-	}
-	// The reaction, while the line is what it was reacted to.
 	var re text
-	e, reacted := a.state.React[id]
-	reacted = reacted && e.Line == n.Sig()
-	if reacted {
-		switch e.Value {
-		case "y":
-			re = plainText("y", bold+green)
-		case "n":
-			re = plainText("n", bold+red)
-		default:
-			re = plainText(e.Value, bold+cyan)
-		}
+	switch r.Reaction {
+	case "":
+	case "y":
+		re = plainText("y", bold+green)
+	case "n":
+		re = plainText("n", bold+red)
+	default:
+		re = plainText(r.Reaction, bold+cyan)
 	}
-	// The state of the latest input: the reaction's, or the latest
-	// comment's (with how many comments there are, when more than one).
-	cs := a.state.On(id)
-	var last *board.Thought
-	for _, t := range cs {
-		if last == nil || t.LastN > last.LastN {
-			last = t
-		}
-	}
-	var word text
-	switch {
-	case a.state.Undoing[id] || a.state.UndoingKey[report.HideKey(n)]:
-		// A sent reaction (or hide) taken back, the taking back not sent.
-		re, word = nil, plainText("取消 未送信", yellow)
-	case reacted && (last == nil || e.N > last.LastN):
-		w, color := statusWord(a.state.SentStatus(e.N)), dim
-		if w == "未送信" {
-			color = yellow
-		}
-		word = plainText(w, color)
-	case last != nil:
-		w, color := a.statusOf(last)
-		word = plainText(w, color)
-		if len(cs) > 1 {
-			word = append(plainText(fmt.Sprintf("%d ", len(cs)), dim), word...)
-		}
+	word := wordText(r.Input)
+	if r.Count > 0 {
+		word = append(plainText(fmt.Sprintf("%d ", r.Count), dim), word...)
 	}
 	mine := func(re text) text {
 		switch {
@@ -85,28 +61,17 @@ func (a *app) right(pv *view, n *report.Node) text {
 		}
 		return append(append(append(text{}, re...), plainText(" ", "")...), word...)
 	}
-	if n.Kind == report.KindQuestion && len(re) > 0 && !pv.open[n.Key] {
+	if n.Kind == report.KindQuestion && len(re) > 0 && r.Option != "" && !pv.open[n.Key] {
 		// A closed question shows the head of the chosen option too, if
 		// the line has room for it.
-		if ch := n.Choice(re.plain()); ch != nil {
-			head := append(append(text{}, re...), plainText(" ", "")...)
-			head = append(head, plainText(report.PlainOf(ch.Text), dim).trunc(answerHead)...)
-			ind := indentOf(n)
-			if long := join(mine(head), st); inline(n.Text, "").width() <= a.room(ind, long) {
-				return long
-			}
+		head := append(append(text{}, re...), plainText(" ", "")...)
+		head = append(head, plainText(r.Option, dim).trunc(answerHead)...)
+		ind := indentOf(n)
+		if long := join(mine(head), st); inline(n.Text, "").width() <= a.room(ind, long) {
+			return long
 		}
 	}
 	return join(mine(re), st)
-}
-
-// atWord is when a notice was put up: the time today, else the day too.
-func atWord(t time.Time) string {
-	now := clock()
-	if y, m, d := now.Date(); t.Year() == y && t.Month() == m && t.Day() == d {
-		return t.Format("15:04")
-	}
-	return t.Format("1/2 15:04")
 }
 
 // indentOf is how far n's mark is indented: what a Fold holds goes 4 past
@@ -158,31 +123,39 @@ func (a *app) rows(pv *view) []row {
 		return append(rows, a.para(0, plainText(msgNoBoard, dim))...)
 	case a.st == nil:
 		return append(rows, a.para(0, plainText(msgNoSession, dim))...)
-	case a.noSession:
-		return append(rows, a.para(0, plainText(fmt.Sprintf("セッション %s の報告はまだありません", a.st.Session), dim))...)
-	case pv.missing:
+	case a.b.NoSession:
+		return append(rows, a.para(0, plainText(page.MsgNoSuchSession(a.st.Session), dim))...)
+	case pv.Missing:
 		return append(rows, a.para(0, plainText(msgNoReport, dim))...)
-	case pv.err != "":
-		rows = append(rows, a.para(0, plainText("読めませんでした: "+pv.err, magenta))...)
+	case pv.Err != "":
+		rows = append(rows, a.para(0, plainText("読めませんでした: "+pv.Err, magenta))...)
 		blank()
 	}
-	if pv.err == "" && pv.readErr == "" && len(pv.nodes) == 0 && len(pv.probs) == 0 {
+	if pv.Err == "" && pv.ReadErr == "" && len(pv.Nodes) == 0 && len(pv.Probs) == 0 {
 		return append(rows, a.para(0, plainText(msgEmpty, dim))...)
 	}
-	if pv.readErr != "" {
-		rows = append(rows, a.para(0, plainText(pv.readErr, magenta+bold))...)
+	if pv.ReadErr != "" {
+		rows = append(rows, a.para(0, plainText(pv.ReadErr, magenta+bold))...)
 		blank()
 	}
-	if len(pv.probs) > 0 {
-		head := "報告に書き方の誤りがあります"
-		if report.Partial(pv.probs) {
-			head += " (読めた所までを出しています)"
+	if len(pv.Probs) > 0 {
+		head := page.MsgProblems
+		if report.Partial(pv.Probs) {
+			head += page.MsgPartial
 		}
 		rows = append(rows, a.para(0, plainText(head, magenta+bold))...)
-		for _, pr := range pv.probs {
-			rows = append(rows, a.para(0, plainText(fmt.Sprintf("%d 行目: %s", pr.Line, pr.Msg), magenta))...)
+		for _, pr := range pv.Probs {
+			rows = append(rows, a.para(0, plainText(page.ProblemLine(pr), magenta))...)
 		}
 		blank()
+	}
+	// A Fold at the top level is a division of the page as a Section is:
+	// its title is drawn as a Section's heading.
+	outer := map[*report.Node]bool{}
+	for _, n := range pv.Nodes {
+		if n.Kind == report.KindDetails {
+			outer[n] = true
+		}
 	}
 	chosen := "" // the answered Option of the Ask being drawn
 	var curAsk *report.Node
@@ -241,7 +214,7 @@ func (a *app) rows(pv *view) []row {
 			}
 			if n.Kind == report.KindQuestion {
 				chosen, curAsk = "", n
-				if e, ok := a.state.React[n.ID]; ok && n.ID != "" && e.Line == n.Sig() {
+				if e, ok := a.b.State.React[n.ID]; ok && n.ID != "" && e.Line == n.Sig() {
 					chosen = e.Value
 				}
 			}
@@ -253,8 +226,12 @@ func (a *app) rows(pv *view) []row {
 				base = blue
 			}
 			hidden := pv.isHidden(n) // drawn only while H shows hidden lines
-			if hidden {
+			heading := outer[n] && !hidden
+			switch {
+			case hidden:
 				base = dim
+			case heading:
+				base = bold + blue
 			}
 			body, right := inline(n.Text, base).capped(titleCap), a.right(pv, n)
 			nav := pv.navigable(n)
@@ -270,8 +247,11 @@ func (a *app) rows(pv *view) []row {
 			// what it holds is always shown.
 			shown := (can && open) || (!nav && n.Kind != report.KindDetails)
 			mark := markOf(n.Kind, can, open)
-			if hidden {
+			switch {
+			case hidden:
 				mark = plainText("⌀", dim)
+			case heading:
+				mark = plainText(mark.plain(), bold+blue)
 			}
 			var lns []row
 			if n.Kind == report.KindPlain {
@@ -289,6 +269,7 @@ func (a *app) rows(pv *view) []row {
 			if n.Kind == report.KindDetails {
 				lns[0].jump = n
 			}
+			rows = append(rows, a.quote(n, ind)...)
 			rows = append(rows, lns...)
 			if n.Kind == report.KindLink {
 				rows = append(rows, a.linkTarget(n, ind)...)
@@ -317,6 +298,35 @@ func (a *app) rows(pv *view) []row {
 		}
 	})
 	return rows
+}
+
+// quoteRows is how many rows a quoted thought takes at most.
+const quoteRows = 3
+
+// quote is the thought an Item answers (re="N"), quoted above its title:
+// a faint > in the column of the title's first character, and the text
+// faint after it, wrapped, 3 rows at most (the last ending in …). Nothing
+// when there is no such thought (taken back, a wrong number). The rows are
+// part of the Item: the cursor never stops on them.
+func (a *app) quote(n *report.Node, ind int) []row {
+	th := a.b.Quote(n)
+	if th == nil {
+		return nil
+	}
+	head := plainText("> ", dim)
+	w := max(a.room(ind, nil)-head.width(), 4)
+	body := withImages(strings.Join(strings.Fields(th.Text), " "), dim).capped(titleCap)
+	lns := body.wrap(w)
+	if len(lns) > quoteRows {
+		last := append(append(text{}, lns[quoteRows-1]...), plainText(" ", dim)...)
+		last = append(last, lns[quoteRows]...)
+		lns = append(lns[:quoteRows-1:quoteRows-1], last.trunc(w))
+	}
+	var out []row
+	for _, l := range lns {
+		out = append(out, row{line: a.compose(false, ind, nil, append(append(text{}, head...), l...), nil), lead: true})
+	}
+	return out
 }
 
 // paraText is a paragraph as drawn: a small heading is bold in the color of
@@ -414,7 +424,7 @@ func (a *app) contents(pv *view, n *report.Node, ind int) []row {
 func (a *app) thoughtRows(n *report.Node, ind int) []row {
 	var rows []row
 	if id := report.Target(n); id != "" {
-		for _, t := range a.state.On(id) {
+		for _, t := range a.b.State.On(id) {
 			word, color := a.statusOf(t)
 			for i, l := range strings.Split(strings.TrimSpace(t.Text), "\n") {
 				if i == 0 {

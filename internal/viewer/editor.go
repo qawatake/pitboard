@@ -1,6 +1,8 @@
 package viewer
 
-import "unicode"
+import (
+	"unicode"
+)
 
 // edit is the text being written and the cursor in it, apart from the
 // screen: each editing key is a method. pos is a rune index (0..len). goal

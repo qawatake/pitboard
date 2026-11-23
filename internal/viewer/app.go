@@ -1,13 +1,12 @@
 package viewer
 
 import (
-	"fmt"
 	"os"
-	"strings"
 	"syscall"
 	"time"
 
 	"github.com/qawatake/pitboard/internal/board"
+	"github.com/qawatake/pitboard/internal/page"
 	"github.com/qawatake/pitboard/internal/report"
 )
 
@@ -23,13 +22,7 @@ const (
 
 // view is the report on screen.
 type view struct {
-	path     string
-	mtime    time.Time
-	err      string
-	missing  bool // the report does not exist yet
-	nodes    []*report.Node
-	probs    []report.Problem // what is wrong with the report
-	readErr  string           // the last read failed (a bug); the previous screen is kept
+	*page.Report
 	open     map[string]bool
 	cur      string         // key of the node under the cursor
 	ends     map[string]int // where each stop's rows end (its contents too), from rows
@@ -44,10 +37,11 @@ type view struct {
 	// start, or when stops appear on a page that had none). The person has
 	// not pointed at that line, so y, n and options wait for j/k.
 	placed bool
-	// hidden is the lines the person hid (by report.HideKey); showHidden draws them
-	// faintly instead of leaving them out (H).
-	hidden     map[string]bool
+	// showHidden draws the lines the person hid faintly instead of leaving
+	// them out (H).
 	showHidden bool
+	// b is the board the report is on: what is hidden, marked, ...
+	b *page.Board
 	// auto is the line the viewer moved the cursor to by itself (after x or
 	// H took the cursor's line away), and autoAt when a frame first showed
 	// the cursor there. Until settleDelay has passed since, x y n and options
@@ -100,14 +94,9 @@ type app struct {
 	// sending failed and how to fix it takes two.
 	msgLines int
 
-	evMod, seenMod time.Time
-	// viewed is the hashes of what the person has looked at (see marks.go and board.Store.Viewed).
-	viewed    map[string]bool
-	viewedMod time.Time
-	state     *board.State
-	unsent    int  // what the person has not sent yet (reactions, thoughts, hides)
-	unread    int  // what was sent and the AI has not read yet
-	waiter    bool // a 'pitboard wait' is waiting: sending reaches the AI
+	// b is the board as any screen shows it: the record, the marks, what
+	// the person can do (internal/page). Its Report is rep's.
+	b *page.Board
 
 	in *input // the editor at the bottom, while writing
 	// inAt is where the editor's input position is among the bottom lines
@@ -121,8 +110,6 @@ type app struct {
 	kbd  bool
 	htop int // how far the list of keys is scrolled
 
-	noSession bool // the session given with -s does not exist (yet)
-
 	// unpinned is the notices opened too tall to pin above the page: they
 	// head the page instead (see notice.go).
 	unpinned map[string]bool
@@ -131,11 +118,9 @@ type app struct {
 	// sending).
 	dropBefore time.Time
 
-	// hist is what the person did since the viewer opened, oldest first:
-	// what u takes back, newest first. tauto is the thought the viewer
-	// moved the cursor to after x, and tautoAt when a frame first showed it
-	// (see settling).
-	hist    []done
+	// tauto is the thought the viewer moved the cursor to after x, and
+	// tautoAt when a frame first showed it (see settling). (What u takes
+	// back is a.b.Hist.)
 	tauto   int
 	tautoAt time.Time
 
@@ -181,25 +166,8 @@ func Run(base string, st *board.Store) (exit int, err error) {
 
 func (a *app) setStore(st *board.Store) {
 	a.st = st
-	path := ""
-	a.noSession = false
-	if st != nil {
-		path = st.ReportPath()
-		if _, err := os.Stat(st.Dir); err != nil {
-			a.noSession = true
-		}
-	}
-	rep := &view{path: path, open: map[string]bool{}}
-	rep.load()
-	a.rep = rep
-	a.loadEvents()
-}
-
-func modTime(p string) time.Time {
-	if fi, err := os.Stat(p); err == nil {
-		return fi.ModTime()
-	}
-	return time.Time{}
+	a.b = page.Open(st)
+	a.rep = &view{Report: a.b.Report, b: a.b, open: map[string]bool{}}
 }
 
 func isDir(p string) bool {
@@ -207,70 +175,11 @@ func isDir(p string) bool {
 	return err == nil && fi.IsDir()
 }
 
-func (pv *view) load() {
-	if pv.path == "" {
-		pv.missing = true
-		return
-	}
-	pv.mtime = modTime(pv.path)
-	b, err := os.ReadFile(pv.path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			pv.missing, pv.err, pv.nodes, pv.probs = true, "", nil, nil
-			return
-		}
-		pv.err = err.Error()
-		return
-	}
-	pv.err, pv.missing = "", false
-	src := strings.ReplaceAll(string(b), "\r\n", "\n")
-	// Whatever goes wrong while reading, the viewer stays up and keeps what
-	// it showed before.
-	err = safely(func() error {
-		nodes, probs, err := report.Parse(src)
-		if err != nil {
-			return err
-		}
-		pv.nodes, pv.probs = nodes, probs
-		return nil
-	})
-	pv.readErr = ""
-	if err != nil {
-		pv.readErr = "報告を読めませんでした (前の画面を出しています): " + err.Error()
-	}
-}
-
 // safely runs f and turns a panic into an error.
-func safely(f func() error) (err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("%v", r)
-		}
-	}()
-	return f()
-}
+func safely(f func() error) error { return page.Safely(f) }
 
-func (a *app) loadEvents() {
-	if a.st == nil {
-		a.state, a.unsent, a.unread = board.Replay(nil, 0), 0, 0
-		a.viewed = map[string]bool{}
-		return
-	}
-	a.loadViewed()
-	a.waiter = a.st.Waiter() != 0
-	a.evMod, a.seenMod = modTime(a.st.EventsPath()), modTime(a.st.SeenPath())
-	evs, seen := a.st.Events(), a.st.Seen()
-	a.state = board.Replay(evs, seen)
-	a.unsent, a.unread = board.Unsent(evs), board.SentUnread(evs, seen)
-	if a.rep != nil {
-		a.rep.hidden = a.state.Hidden
-	}
-}
-
-func (a *app) loadViewed() {
-	a.viewedMod = modTime(a.st.ViewedPath())
-	a.viewed = a.st.Viewed()
-}
+// loadEvents reads the record again.
+func (a *app) loadEvents() { a.b.Load() }
 
 func (a *app) top() *view { return a.rep }
 
@@ -307,21 +216,16 @@ func (a *app) loop() os.Signal {
 				}
 				break
 			}
-			if a.noSession {
+			if a.b.NoSession {
 				if _, err := os.Stat(a.st.Dir); err == nil {
 					a.setStore(a.st)
 				}
 				break
 			}
-			if pv := a.top(); !modTime(pv.path).Equal(pv.mtime) {
+			if pv := a.top(); pv.Stale() {
 				a.reload(pv)
 			}
-			if !modTime(a.st.EventsPath()).Equal(a.evMod) || !modTime(a.st.SeenPath()).Equal(a.seenMod) {
-				a.loadEvents()
-			} else if !modTime(a.st.ViewedPath()).Equal(a.viewedMod) {
-				a.loadViewed() // another viewer of the same board
-			}
-			a.waiter = a.st.Waiter() != 0
+			a.b.Poll()
 		}
 		a.render()
 	}
@@ -343,7 +247,7 @@ func (a *app) render() {
 // point at.
 func (a *app) reload(pv *view) {
 	old := pv.nodeAt(pv.cur)
-	pv.load()
+	pv.Load()
 	if old == nil {
 		return
 	}

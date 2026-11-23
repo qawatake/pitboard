@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/qawatake/pitboard/internal/board"
+	"github.com/qawatake/pitboard/internal/page"
 )
 
 func TestWakeMessageIsShort(t *testing.T) {
@@ -20,7 +21,7 @@ func TestWakeMessageIsShort(t *testing.T) {
 		os.MkdirAll(board.Open(base, s).Dir, 0o755)
 	}
 	st := board.Open(base, "38d12f95-0b22-4d64-88fb-17ed69d428cb")
-	if got := wakeMessage(st, 4); got != "pitboard: 4 sent. Run: pitboard -s 38d12f95-0 changes" {
+	if got := page.WakeMessage(st, 4); got != "pitboard: 4 sent. Run: pitboard -s 38d12f95-0 changes" {
 		t.Errorf("%q", got)
 	}
 }
@@ -91,7 +92,7 @@ func TestSendThroughHerdr(t *testing.T) {
 		t.Fatalf("msg %q", a.msg)
 	}
 	b, _ := os.ReadFile(prompted)
-	want := "w1:p2\n" + wakeMessage(st, 2) + "\n"
+	want := "w1:p2\n" + page.WakeMessage(st, 2) + "\n"
 	if string(b) != want {
 		t.Errorf("prompted %q, want %q", b, want)
 	}
@@ -162,7 +163,7 @@ func TestSendCommand(t *testing.T) {
 		t.Fatalf("enter then s must write and send: %+v", st.Events())
 	}
 	b, _ := os.ReadFile(out)
-	if string(b) != "s1|"+wakeMessage(st, 1) {
+	if string(b) != "s1|"+page.WakeMessage(st, 1) {
 		t.Errorf("PITBOARD_SEND got %q", b)
 	}
 	if a.msg != "送りました" {
@@ -188,9 +189,9 @@ func TestSendFailsAndTimesOut(t *testing.T) {
 	if !strings.Contains(a.msg, "送れませんでした") || !strings.Contains(a.msg, "first line") || strings.Contains(a.msg, "second") {
 		t.Errorf("failure: %q", a.msg)
 	}
-	prev := sendTimeout
-	sendTimeout = 200 * time.Millisecond
-	t.Cleanup(func() { sendTimeout = prev })
+	prev := page.SendTimeout
+	page.SendTimeout = 200 * time.Millisecond
+	t.Cleanup(func() { page.SendTimeout = prev })
 	t.Setenv("PITBOARD_SEND", "sleep 5")
 	st.Append(board.Event{Op: "thought", Text: "b"})
 	start := time.Now()
@@ -293,7 +294,7 @@ func TestWaitWaitsForASend(t *testing.T) {
 		t.Errorf("out %q", out.String())
 	}
 	a.loadEvents()
-	if a.waiter || st.Waiter() != 0 {
+	if a.b.Waiter || st.Waiter() != 0 {
 		t.Error("still shown as waiting")
 	}
 }

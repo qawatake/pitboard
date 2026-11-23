@@ -14,23 +14,10 @@ import (
 
 // jumpTargets is where g can go, in the order of the report, 26 at most.
 func (a *app) jumpTargets(pv *view) []*report.Node {
-	if pv == nil || a.st == nil || a.noSession || pv.missing {
+	if pv == nil || a.st == nil || a.b.NoSession || pv.Missing {
 		return nil
 	}
-	top := map[*report.Node]bool{}
-	for _, n := range pv.nodes {
-		top[n] = true
-	}
-	var out []*report.Node
-	pv.walk(func(n *report.Node) {
-		switch {
-		case len(out) == 26:
-		case n.Kind == report.KindNotice, n.Kind == report.KindSection,
-			n.Kind == report.KindDetails && top[n]:
-			out = append(out, n)
-		}
-	})
-	return out
+	return a.b.Jumps(pv.showHidden)
 }
 
 // jumpLetter is the letter of the i-th place.

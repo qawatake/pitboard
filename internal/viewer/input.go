@@ -87,52 +87,22 @@ func (a *app) editWidth() int {
 // (empty text closes it without recording). It reports false when the
 // thought could not be recorded; the editor then stays open.
 func (a *app) write(text string) bool {
-	text = strings.TrimSpace(text)
-	if text == "" {
-		a.in = nil // to take a thought back, x
-		return true
-	}
-	e := board.Event{Op: "thought", ID: a.in.id, Text: text, Title: a.in.title}
-	undoMsg := "コメントを取り消しました: "
+	var err error
 	if n := a.in.edit; n != 0 {
-		if t := a.thoughtN(n); t == nil || strings.TrimSpace(t.Text) == text {
-			a.in = nil // gone, or not changed: nothing to record
-			return true
-		}
-		e = board.Event{Op: "edit", Thought: n, Text: text}
-		undoMsg = "コメントの直しを取り消しました: "
+		_, err = a.b.Edit(n, text)
+	} else {
+		_, err = a.b.Comment(a.in.id, a.in.title, text)
 	}
-	rec, err := a.st.Append(e)
 	if err != nil {
-		a.msg = "記録できませんでした: " + err.Error()
+		a.msg = err.Error()
 		return false
 	}
-	a.did(rec, undoMsg+textHead(text))
-	if e.Op == "thought" && e.ID != "" {
-		// A comment on a line: the line is read, as it is when reacted to.
-		if n := report.ByID(a.rep.nodes, e.ID); n != nil && n.Title() == e.Title {
-			if n.Kind == report.KindDetails {
-				// A Fold's mark is what it holds too: it goes, as with r.
-				a.markViewed(a.unreadIn(a.top(), n)...)
-			} else {
-				a.markViewed(n)
-			}
-		}
-	}
-	a.in = nil
-	a.loadEvents()
+	a.in = nil // empty text closes it too (to take a thought back, x)
 	return true
 }
 
 // thoughtN is the thought numbered n on the board, or nil.
-func (a *app) thoughtN(n int) *board.Thought {
-	for _, t := range a.state.Thoughts {
-		if t.N == n {
-			return t
-		}
-	}
-	return nil
-}
+func (a *app) thoughtN(n int) *board.Thought { return a.b.Thought(n) }
 
 // rewrite opens the editor on thought n's text (e in the pane or the list).
 func (a *app) rewrite(n int) {
@@ -213,7 +183,7 @@ func (a *app) editorLines(pad bool) []string {
 	// (sending still works: what was written is never lost).
 	var changed text
 	if a.in.id != "" {
-		if n := report.ByID(a.rep.nodes, a.in.id); n == nil || n.Title() != a.in.title {
+		if n := report.ByID(a.rep.Nodes, a.in.id); n == nil || n.Title() != a.in.title {
 			changed = plainText("この行は書き換わりました", magenta)
 		}
 	}
@@ -301,7 +271,7 @@ func (a *app) drawEditing() {
 	// cursor on one) is written right under it, among them.
 	var pins pinning
 	key := a.in.id
-	if n := report.ByID(a.rep.nodes, key); n != nil && n.Key != "" {
+	if n := report.ByID(a.rep.Nodes, key); n != nil && n.Key != "" {
 		key = n.Key // a Fold without an id: its comments go by its title
 	}
 	if key == "" {

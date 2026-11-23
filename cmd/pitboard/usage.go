@@ -39,12 +39,15 @@ never edit their record.
 Starting:
   1. Your session id is your Claude Code session id: the last directory but
      one of your scratchpad path (.../<project>/<session-id>/scratchpad).
+     In commands, write only its first 8 characters (ID below), e.g.
+     -s 0a1b2c3d for 0a1b2c3d-4e5f-...: the form pitboard itself prints.
   2. 'pitboard -s ID path' prints where the report goes (the first call
      makes the board). Write that file with Edit/Write.
   3. Ask the person to open the viewer beside the chat: pitboard -s ID
 
 SESSION is -s or $PITBOARD_SESSION ([A-Za-z0-9_-]+; an existing session may be
-given by a unique prefix). Use your Claude Code session id. The board lives in
+given by a unique prefix). Use the first 8 characters of your Claude Code
+session id. The board lives in
 .pitboard/SESSION/, found from the current directory upwards (not above your
 home directory), so commands and hooks work from subdirectories too. 'path'
 makes a new board in the nearest .pitboard/ above, or here if there is none.
@@ -97,8 +100,8 @@ Writing report.md:
         Installing it touches ~/.claude/settings.json.
       </Item>
 
-      <Item id="why-cwd" look="y">Why keep the data in the working directory?
-        So that each project has its own board.
+      <Item id="a-cwd" re="7" look="y">Each project gets its own board.
+        The data lives in the working directory, so boards never mix.
       </Item>
     </Section>
 
@@ -136,7 +139,11 @@ Writing report.md:
               ask="y" (you want a y / n on it; not on a done Item),
               wait="you" (it cannot move on until the person does
               something; not on a done Item),
-              look="y" (you want the person to read it: see Marks).
+              look="y" (you want the person to read it: see Marks),
+              re="N" (it answers the person's thought N, the number
+              'changes' gives; digits only): the board quotes that
+              thought above the title, faint after a >, 3 rows at most
+              (nothing when the thought was taken back).
               The status is colored by attributes, not by its words:
               yellow with wait="you" (needs the person), green when
               state="doing" (moving), faint otherwise (queued, on hold).
@@ -186,8 +193,9 @@ A layout to start from:
     2. Notices, only when there is one (see Manners).
     3. "For you": first what the person is to answer or do (Ask, Item with
        ask="y" or wait="you"); under them, your answers to what they asked,
-       each an Item with look="y" whose title is the question and contents
-       the answer (they hide it with x once read). (When it is empty, they
+       each <Item id="a-..." re="N" look="y">the answer in one sentence,
+       with the details as its contents (the board quotes their thought
+       above it; they hide it with x once read). (When it is empty, they
        know they need do nothing.)
     4. "In progress": what you are doing now (state="doing"; the board
        says 作業中 itself) and next, with a status only for something else:
@@ -204,6 +212,9 @@ A layout to start from:
   "Decided".
 
 Manners:
+  - Give -s the first 8 characters of your session id (e.g. -s 0a1b2c3d),
+    the form pitboard prints in its own lines; never the whole id. (A unique
+    prefix is enough, and the full id only costs words in every command.)
   - The layout is yours (which sections, what goes in them), but the report
     is skimmed, not read. One item per line; details go in the item's
     following lines (shown when the person opens it).
@@ -255,12 +266,19 @@ Manners:
   - Questions and answers: when the person asks you something on the board
     (a thought), answer in the report, so that the board alone tells them
     where things stand when they come back. Put one Item per question at
-    the bottom of "For you": its title is the question (short, close to
-    their words), its contents the answer, with look="y". The person hides
-    it with x once read; when "hide:" for it arrives, drop that Item the
-    next time you rewrite the report. You may
+    the bottom of "For you", with re="N" (N: the thought's number) and
+    look="y". The board quotes their words above it, so do not restate the
+    question: the title is the conclusion of your answer in one sentence,
+    the contents the full answer. The person hides
+    it with x once read; when "hide" for it arrives, drop that Item from
+    report.md (always; see the next manner). You may
     also drop an answer the person replied to, once you judge it settled.
     When a thought was a question, settle it with "answered (in For you)".
+  - When 'changes' brings "hide" for a line, drop that line from report.md
+    unless you still need it yourself: a hidden line left in the report
+    only spends your context every time you read it. Always drop an answer
+    the person hid. A line you still use (progress you keep updating, a
+    line still in progress) may stay.
   - Mark with wait="you" every Item that needs the person's hand (its
     status words alone get no color).
   - Put look="y" only on lines you want the person to read: an answer you
@@ -309,8 +327,9 @@ Manners:
   A line the person reacted to more than once (y, then n; one option, then
   another) is told once, with the last.
   hide / unhide come last, all on one line (titles cut to 20 characters).
-  hide means the person decided they no longer need to see that line. Nothing
-  needs doing; you may drop the line the next time you rewrite the report.
+  hide means the person decided they no longer need to see that line. Drop it
+  from report.md unless you still need it (always drop an answer; see
+  Manners).
   unhide means they want to see it again.
   edit thought N means the person rewrote a thought you already received:
   the text is the whole new thought. Act on the new text; if you had

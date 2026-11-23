@@ -65,7 +65,7 @@ func TestCommentOnAFold(t *testing.T) {
 		// The pane says which line it is on; u takes it back.
 		if d := plainLines(func() []string {
 			var out []string
-			for _, r := range a.thoughtDetails(a.state.Thoughts[0], 0) {
+			for _, r := range a.thoughtDetails(a.b.State.Thoughts[0], 0) {
 				out = append(out, r.line)
 			}
 			return out
@@ -73,8 +73,8 @@ func TestCommentOnAFold(t *testing.T) {
 			t.Errorf("%q: details %q", attr, d)
 		}
 		a.handle(key{r: 'u'})
-		if len(a.state.Thoughts) != 0 {
-			t.Errorf("%q: u left %d thoughts", attr, len(a.state.Thoughts))
+		if len(a.b.State.Thoughts) != 0 {
+			t.Errorf("%q: u left %d thoughts", attr, len(a.b.State.Thoughts))
 		}
 	}
 }
@@ -169,6 +169,31 @@ func TestFoldIndent(t *testing.T) {
 			if visibleWidth(l) > w {
 				t.Errorf("w %d: too wide %q", w, l)
 			}
+		}
+	}
+}
+
+// A Fold at the top level has its title and mark drawn as a Section's
+// heading (bold blue); a Fold inside a Section or a Fold does not, nor a
+// hidden one shown with H.
+func TestOuterFoldLikeASection(t *testing.T) {
+	st := testStore(t)
+	os.WriteFile(st.ReportPath(), []byte("<Title>題</Title>\n\n<Section title=\"節\">\n<Fold title=\"節の中\">\n- x\n</Fold>\n</Section>\n\n<Fold title=\"決まったこと\">\n<Fold title=\"中の中\">\n- y\n</Fold>\n</Fold>\n"), 0o644)
+	a := testApp(t, st)
+	a.render()
+	pv := a.top()
+	pv.open["fold:2"] = true
+	_, raw := screen(t, a)
+	heading := bold + blue
+	if !strings.Contains(raw, heading+"▸") && !strings.Contains(raw, heading+"▾") {
+		t.Errorf("mark not in the heading's color:\n%q", raw)
+	}
+	for _, c := range []struct {
+		title string
+		want  bool
+	}{{"節", true}, {"決まったこと", true}, {"節の中", false}, {"中の中", false}} {
+		if got := strings.Contains(raw, heading+c.title) || strings.Contains(raw, heading+bold+c.title); got != c.want {
+			t.Errorf("%s: heading color %v", c.title, got)
 		}
 	}
 }

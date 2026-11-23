@@ -21,7 +21,7 @@ func TestInputStateOnTheLine(t *testing.T) {
 		want string
 	}{
 		{func() {
-			st.Append(board.Event{Op: "react", ID: "hook", Value: "y", Line: report.ByID(a.top().nodes, "hook").Sig()})
+			st.Append(board.Event{Op: "react", ID: "hook", Value: "y", Line: report.ByID(a.top().Nodes, "hook").Sig()})
 		}, "y 未送信  作業中"},
 		{func() { sendAll(st) }, "y 送信済  作業中"},
 		{func() { st.Changes() }, "y 既読  作業中"},
@@ -228,8 +228,8 @@ func TestEditKey(t *testing.T) {
 	if len(evs) != 2 || evs[1].Op != "edit" || evs[1].Text != "途中で出した文" || evs[1].Thought != 1 {
 		t.Errorf("events %+v", evs)
 	}
-	if a.state.Thoughts[0].Text != "途中で出した文" {
-		t.Errorf("shown text %q", a.state.Thoughts[0].Text)
+	if a.b.State.Thoughts[0].Text != "途中で出した文" {
+		t.Errorf("shown text %q", a.b.State.Thoughts[0].Text)
 	}
 }
 

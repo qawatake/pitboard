@@ -162,14 +162,14 @@ func TestRetractInPaneAndUndo(t *testing.T) {
 	}
 	// x again at once: the viewer moved the cursor, so it waits.
 	a.handle(key{r: 'x'})
-	if len(a.state.Thoughts) != 2 {
+	if len(a.b.State.Thoughts) != 2 {
 		t.Fatal("x pressed twice took back the next thought")
 	}
 	// u takes it back, even after other keys; the cursor stays.
 	a.handle(key{r: 'k'})
 	a.handle(key{r: 'u'})
-	if len(a.state.Thoughts) != 3 || a.pcur != 2 || a.msg != "取り消したコメントを戻しました: three" {
-		t.Errorf("u must undo: thoughts %d pcur %d msg %q", len(a.state.Thoughts), a.pcur, a.msg)
+	if len(a.b.State.Thoughts) != 3 || a.pcur != 2 || a.msg != "取り消したコメントを戻しました: three" {
+		t.Errorf("u must undo: thoughts %d pcur %d msg %q", len(a.b.State.Thoughts), a.pcur, a.msg)
 	}
 	evs := st.Events()
 	if e := evs[len(evs)-1]; e.Op != "undo" || e.Undo != evs[len(evs)-2].N {
@@ -182,12 +182,12 @@ func TestRetractInPaneAndUndo(t *testing.T) {
 	// ✎ on the line goes too.
 	th, _ := st.Append(board.Event{Op: "thought", ID: "hook", Text: "on hook"})
 	a.loadEvents()
-	if c := len(a.state.On("hook")); c != 1 {
+	if c := len(a.b.State.On("hook")); c != 1 {
 		t.Fatalf("on hook %d", c)
 	}
 	st.Append(board.Event{Op: "retract", Thought: th.N})
 	a.loadEvents()
-	if c := len(a.state.On("hook")); c != 0 {
+	if c := len(a.b.State.On("hook")); c != 0 {
 		t.Errorf("✎ still counts a taken-back thought")
 	}
 }
@@ -203,7 +203,7 @@ func TestRetractInList(t *testing.T) {
 	}
 	a.handle(key{r: 'x'})
 	a.render()
-	if len(a.state.Thoughts) != 0 {
+	if len(a.b.State.Thoughts) != 0 {
 		t.Fatal("x in the list must take the thought back")
 	}
 	msg := a.msg
@@ -213,8 +213,8 @@ func TestRetractInList(t *testing.T) {
 	}
 	a.msg = msg
 	a.handle(key{r: 'u'})
-	if len(a.state.Thoughts) != 1 || a.lcur != 1 {
-		t.Errorf("u in the list: %d lcur %d", len(a.state.Thoughts), a.lcur)
+	if len(a.b.State.Thoughts) != 1 || a.lcur != 1 {
+		t.Errorf("u in the list: %d lcur %d", len(a.b.State.Thoughts), a.lcur)
 	}
 }
 

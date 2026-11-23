@@ -67,7 +67,7 @@ func (pv *view) notices() []*report.Node {
 func (a *app) pin(pv *view, h int, must string) pinning {
 	a.unpinned = map[string]bool{}
 	out := pinning{ends: map[string]int{}}
-	if a.st == nil || a.noSession || pv.missing {
+	if a.st == nil || a.b.NoSession || pv.Missing {
 		return out
 	}
 	if must == "" && !a.inPane {

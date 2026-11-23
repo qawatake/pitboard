@@ -234,7 +234,7 @@ func to(t *testing.T, a *app, id string) {
 	}
 }
 
-func unreadOf(a *app, id string) bool { return a.isNew(report.ByID(a.top().nodes, id)) }
+func unreadOf(a *app, id string) bool { return a.isNew(report.ByID(a.top().Nodes, id)) }
 
 func TestReadOnlyByKeys(t *testing.T) {
 	_, a := fix8App(t)
@@ -282,9 +282,9 @@ func TestReadFold(t *testing.T) {
 	to(t, a, "a")
 	a.handle(key{r: 'r'})
 	// r on a line without a green mark does nothing (nothing to take back).
-	n := len(a.hist)
+	n := len(a.b.Hist)
 	a.handle(key{r: 'r'})
-	if len(a.hist) != n {
+	if len(a.b.Hist) != n {
 		t.Error("r on a read line was recorded")
 	}
 	// r on the Fold: its mark goes, what it holds included.

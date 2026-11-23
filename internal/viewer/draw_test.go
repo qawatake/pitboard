@@ -93,7 +93,7 @@ func TestHeadMarksAndDoingWord(t *testing.T) {
 	}
 	// 作業中 is green, as a doing status is.
 	pv := a.top()
-	if r := a.right(pv, report.ByID(pv.nodes, "b")); r.plain() != "作業中" || r[0].st != green {
+	if r := a.right(pv, report.ByID(pv.Nodes, "b")); r.plain() != "作業中" || r[0].st != green {
 		t.Errorf("right %q", r.plain())
 	}
 }

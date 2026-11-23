@@ -145,7 +145,7 @@ func TestChangedItemShowsAgain(t *testing.T) {
 	st := testStore(t)
 	os.WriteFile(st.ReportPath(), []byte(hideReport), 0o644)
 	a := testApp(t, st)
-	n := report.ByID(a.rep.nodes, "a")
+	n := report.ByID(a.rep.Nodes, "a")
 	st.Append(board.Event{Op: "hide", Key: report.HideKey(n), Title: n.Title()})
 	a.loadEvents()
 	if s := shown(a); strings.Contains(s, "題 A") {

@@ -3,6 +3,7 @@ package viewer
 import (
 	"time"
 
+	"github.com/qawatake/pitboard/internal/page"
 	"github.com/qawatake/pitboard/internal/report"
 )
 
@@ -84,20 +85,11 @@ func (pv *view) moveFrom(before []string, i int) {
 
 // isHidden says whether the person hid n.
 func (pv *view) isHidden(n *report.Node) bool {
-	k := report.HideKey(n)
-	return k != "" && pv.hidden[k]
+	return pv.b.IsHidden(n)
 }
 
 // hiddenCount is how many lines of the report are hidden.
-func (pv *view) hiddenCount() int {
-	c := 0
-	report.WalkAll(pv.nodes, func(n *report.Node) {
-		if pv.isHidden(n) {
-			c++
-		}
-	})
-	return c
-}
+func (pv *view) hiddenCount() int { return pv.b.HiddenCount() }
 
 // settleCursor puts the cursor on the first stop when it is on none. The
 // person did not choose that line, so it is marked placed.
@@ -112,9 +104,7 @@ func (pv *view) settleCursor() {
 // navigable says whether the cursor stops at n: a Fold, a part with an id,
 // or a plain "- " line (which can only be hidden; not a numbered one, and
 // never a nested one).
-func (pv *view) navigable(n *report.Node) bool {
-	return n.Kind == report.KindDetails || n.ID != "" || (n.Kind == report.KindPlain && n.Num == "")
-}
+func (pv *view) navigable(n *report.Node) bool { return page.Stops(n) }
 
 // step moves the cursor d stops and reports whether it moved. When it did
 // not (no stop in that direction), j/k scroll the page instead.
@@ -146,16 +136,7 @@ func index(xs []string, x string) int {
 	return -1
 }
 
-func (a *app) canOpen(pv *view, n *report.Node) bool {
-	if n.Kind == report.KindLink || n.Kind == report.KindChoice {
-		return false
-	}
-	if n.Kind == report.KindDetails || n.Kind == report.KindQuestion || len(n.Body) > 0 || n.Reason != "" {
-		return true
-	}
-	id := report.Target(n)
-	return id != "" && len(a.state.On(id)) > 0
-}
+func (a *app) canOpen(pv *view, n *report.Node) bool { return a.b.CanOpen(n) }
 
 // ---- walking the visible tree ----
 
@@ -178,8 +159,8 @@ func (pv *view) walk(f func(n *report.Node)) {
 	}
 	// Notices first: they are drawn above the page, so the cursor meets
 	// them first (and starts on them).
-	rec(pv.nodes, true)
-	rec(pv.nodes, false)
+	rec(pv.Nodes, true)
+	rec(pv.Nodes, false)
 }
 
 // allHidden says whether every one of ns is hidden (a Section whose lines

@@ -157,7 +157,7 @@ func keyHints(hs []hint) text {
 func (a *app) bottom() []string {
 	var right text
 	switch {
-	case a.st == nil || a.noSession:
+	case a.st == nil || a.b.NoSession:
 		// Waiting for a board: say where the viewer is looking.
 		// A long path keeps its end (the directory's own name).
 		p, room := homeTilde(a.base), a.textWidth()-markW-len("? キー")-4
@@ -206,7 +206,7 @@ func (a *app) bottom() []string {
 	pv := a.top()
 	n := pv.nodeAt(pv.cur)
 	if n == nil || !pv.curShown {
-		if pv.err == "" && !pv.missing {
+		if pv.Err == "" && !pv.Missing {
 			keys = append(keys, hint{k: "j k ↑↓", d: "スクロール", rank: rankEnter})
 		}
 		// Where the cursor's line went (reacting brings it back first).
@@ -307,14 +307,14 @@ const (
 func (a *app) oneLine(keys []hint, right text) []string {
 	q := hint{k: "?", d: "キー"}
 	var tail []hint
-	if a.canWrite() && a.unsent > 0 {
+	if a.canWrite() && a.b.Unsent > 0 {
 		tail = append(tail, hint{k: "s", d: "送る"}) // kept to the end, as m and ?
 	}
 	if a.canWrite() {
 		tail = append(tail, hint{k: "m", d: "書く"})
 	}
 	tail = append(tail, q)
-	if a.canWrite() && len(a.hist) > 0 {
+	if a.canWrite() && len(a.b.Hist) > 0 {
 		// Something to take back: dropped first when narrow.
 		keys = append(append([]hint{}, keys...), hint{k: "u", d: "取り消す", rank: rankU})
 	}

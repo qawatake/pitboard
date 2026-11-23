@@ -453,3 +453,29 @@ func TestPartNamesListEveryPart(t *testing.T) {
 		t.Errorf("problems %v", probs)
 	}
 }
+
+// re is the number of the thought an Item answers: digits only, on an Item
+// only, and part of what the line is for hiding.
+func TestReAttribute(t *testing.T) {
+	for _, c := range []struct{ src, want string }{
+		{`<Item id="a" re="12">x</Item>`, ""},
+		{`<Item id="a" re="t12">x</Item>`, `re "t12"`},
+		{`<Item id="a" re="">x</Item>`, `re ""`},
+		{`<Link id="a" path="p" re="1">x</Link>`, "no attribute"},
+	} {
+		_, probs, _ := Parse(c.src)
+		got := ""
+		for _, p := range probs {
+			got += p.Msg
+		}
+		if (c.want == "") != (got == "") || !strings.Contains(got, c.want) {
+			t.Errorf("%s: %q (want %q)", c.src, got, c.want)
+		}
+	}
+	a, _, _ := Parse(`<Item id="a" re="1">x</Item>`)
+	b, _, _ := Parse(`<Item id="a" re="2">x</Item>`)
+	c, _, _ := Parse(`<Item id="a">x</Item>`)
+	if a[0].Re != "1" || HideKey(a[0]) == HideKey(b[0]) || HideKey(c[0]) != "Item|a|x|todo|" {
+		t.Errorf("keys %q %q %q", HideKey(a[0]), HideKey(b[0]), HideKey(c[0]))
+	}
+}

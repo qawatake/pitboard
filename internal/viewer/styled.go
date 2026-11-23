@@ -1,8 +1,9 @@
 package viewer
 
 import (
-	"regexp"
 	"strings"
+
+	"github.com/qawatake/pitboard/internal/page"
 )
 
 // Styled text: one style per rune, so that wrapping and truncating can work
@@ -24,27 +25,23 @@ func plainText(s, st string) text {
 	return t
 }
 
-var reInline = regexp.MustCompile("`([^`]+)`|\\[([^\\]]+)\\]\\([^)]*\\)|\\*\\*([^*]+)\\*\\*")
-
-// inline renders code spans (colored, no backticks), links (title only) and
-// **bold** (no asterisks).
+// inline renders inline Markdown (page.Spans): code spans colored (no
+// backticks), links (title only) and **bold** (no asterisks).
 func inline(s, base string) text {
 	var t text
-	for {
-		m := reInline.FindStringSubmatchIndex(s)
-		if m == nil {
-			return append(t, plainText(s, base)...)
+	for _, sp := range page.Spans(s) {
+		st := base
+		switch sp.Style {
+		case page.StyleCode:
+			st += cyan
+		case page.StyleLink:
+			st += blue
+		case page.StyleBold:
+			st += bold
 		}
-		t = append(t, plainText(s[:m[0]], base)...)
-		if m[2] >= 0 {
-			t = append(t, plainText(s[m[2]:m[3]], base+cyan)...)
-		} else if m[4] >= 0 {
-			t = append(t, plainText(s[m[4]:m[5]], base+blue)...)
-		} else {
-			t = append(t, plainText(s[m[6]:m[7]], base+bold)...)
-		}
-		s = s[m[1]:]
+		t = append(t, plainText(sp.Text, st)...)
 	}
+	return t
 }
 
 func (t text) width() int {

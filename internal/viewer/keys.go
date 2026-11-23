@@ -1,12 +1,12 @@
 package viewer
 
 import (
-	"os"
+	"errors"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/qawatake/pitboard/internal/board"
+	"github.com/qawatake/pitboard/internal/page"
 	"github.com/qawatake/pitboard/internal/report"
 )
 
@@ -144,21 +144,8 @@ func imeFree(k key) key {
 	return k
 }
 
-// keysFor lists what the reaction keys do on n, in the order shown. An
-// Option whose key the viewer uses itself (a check error) cannot be chosen.
-func keysFor(n *report.Node) (yn bool, choices []string, thought bool) {
-	switch n.Kind {
-	case report.KindTodo, report.KindDoing, report.KindDone, report.KindLink, report.KindNotice:
-		yn = true
-	case report.KindQuestion:
-		for _, c := range n.Kids {
-			if c.Kind == report.KindChoice && len(c.Label) == 1 && !strings.Contains(report.ViewerKeys+"?", c.Label) {
-				choices = append(choices, c.Label)
-			}
-		}
-	}
-	return yn, choices, true
-}
+// keysFor lists what the reaction keys do on n, in the order shown.
+func keysFor(n *report.Node) (yn bool, choices []string, thought bool) { return page.KeysFor(n) }
 
 func (a *app) react(pv *view, r rune) {
 	n := a.target(pv)
@@ -189,38 +176,22 @@ func (a *app) react(pv *view, r rune) {
 	if pv.settling() {
 		return // dropped, not kept for later
 	}
-	// Read the report again: the reaction is recorded only if the line is
-	// still what the person is looking at.
-	b, err := os.ReadFile(pv.path)
-	if err != nil {
-		a.msg = "記録できませんでした: " + err.Error()
-		return
+	if _, err := a.b.React(page.SeenOf(n), value); err != nil {
+		a.failed(pv, err)
 	}
-	fresh, _, perr := report.Parse(string(b))
-	now := report.ByID(fresh, report.Target(n))
-	if perr != nil || now == nil || now.Sig() != n.Sig() {
+}
+
+// failed says why an action was not recorded. When the line changed under
+// the cursor, the page is read again first.
+func (a *app) failed(pv *view, err error) {
+	if errors.Is(err, page.ErrChanged) {
 		a.reload(pv)
 		if !pv.lock {
 			a.msg = msgChanged
 		}
 		return
 	}
-	e := board.Event{Op: "react", ID: report.Target(n), Value: value, Line: n.Sig(), Title: n.Title()}
-	if ch := n.Choice(value); n.Kind == report.KindQuestion && ch != nil {
-		e.Option = report.PlainOf(ch.Text)
-	}
-	rec, err := a.st.Append(e)
-	if err != nil {
-		a.msg = "記録できませんでした: " + err.Error()
-	} else {
-		what := value + " "
-		if n.Kind == report.KindQuestion {
-			what = "答え " + value + " "
-		}
-		a.did(rec, what+"を取り消しました: "+report.PlainOf(n.Title()))
-	}
-	a.markViewed(n)
-	a.loadEvents()
+	a.msg = err.Error()
 }
 
 // hideTarget is the line x acts on: the cursor's line under the same rules
@@ -244,48 +215,16 @@ func (a *app) hide(pv *view) {
 	if n == nil || pv.settling() {
 		return
 	}
-	// As with y and n: read the report again, and record only if the line
-	// is still what the screen shows.
-	b, err := os.ReadFile(pv.path)
-	if err != nil {
-		a.msg = "記録できませんでした: " + err.Error()
-		return
-	}
-	fresh, _, perr := report.Parse(string(b))
-	var now *report.Node
-	report.WalkAll(fresh, func(x *report.Node) {
-		if now == nil && x.Key == n.Key {
-			now = x
-		}
-	})
-	if perr != nil || now == nil || now.Sig() != n.Sig() || report.HideKey(now) != report.HideKey(n) {
-		a.reload(pv)
-		if !pv.lock {
-			a.msg = msgChanged
-		}
-		return
-	}
-	op, msg := "hide", "隠しました (H で表示)"
-	switch {
-	case pv.isHidden(n):
-		op, msg = "unhide", "表示に戻しました"
-	case pv.showHidden:
-		msg = "隠しました"
-	}
-	a.markViewed(n)
 	before, i := pv.navKeys(), index(pv.navKeys(), pv.cur)
-	rec, err := a.st.Append(board.Event{Op: op, Key: report.HideKey(n), Title: n.Title()})
+	msg, hidden, err := a.b.Hide(page.SeenOf(n))
 	if err != nil {
-		a.msg = "記録できませんでした: " + err.Error()
+		a.failed(pv, err)
 		return
 	}
-	undoMsg := "隠したのを取り消しました: "
-	if op == "unhide" {
-		undoMsg = "表示に戻したのを取り消しました: "
-	}
-	a.did(rec, undoMsg+report.PlainOf(n.Title()))
-	a.loadEvents()
 	pv.moveFrom(before, i)
+	if hidden && !pv.showHidden {
+		msg += " (H で表示)"
+	}
 	a.msg = msg
 }
 
@@ -301,14 +240,7 @@ func (a *app) enter(pv *view) {
 // ---- the thoughts list ----
 
 // listed is the thoughts, newest first.
-func (a *app) listed() []*board.Thought {
-	ts := a.state.Thoughts
-	out := make([]*board.Thought, 0, len(ts))
-	for i := len(ts) - 1; i >= 0; i-- {
-		out = append(out, ts[i])
-	}
-	return out
-}
+func (a *app) listed() []*board.Thought { return a.b.Newest() }
 
 func (a *app) handleList(k key) (quit bool) {
 	ts := a.listed()
@@ -421,17 +353,11 @@ func (a *app) retract(order []*board.Thought, n int, move func(n int)) {
 	if !a.canWrite() || a.tsettling(n) {
 		return
 	}
-	head := ""
-	if t := a.thoughtN(n); t != nil {
-		head = textHead(t.Text)
-	}
-	rec, err := a.st.Append(board.Event{Op: "retract", Thought: n})
+	msg, err := a.b.Retract(n)
 	if err != nil {
-		a.msg = "取り消せませんでした: " + err.Error()
+		a.msg = err.Error()
 		return
 	}
-	a.did(rec, "取り消したコメントを戻しました: "+head)
-	a.loadEvents()
 	for j, t := range order {
 		if t.N != n {
 			continue
@@ -448,49 +374,21 @@ func (a *app) retract(order []*board.Thought, n int, move func(n int)) {
 			a.tauto, a.tautoAt = next, time.Time{}
 		}
 	}
-	a.msg = "取り消しました (u で戻す)"
+	a.msg = msg + " (u で戻す)"
 }
-
-// done is one thing the person did, for u: an event recorded (n), or the
-// lines A marked as read (viewed). desc is what u says it took back.
-type done struct {
-	n      int
-	viewed []string
-	desc   string
-}
-
-// did remembers an event the person caused, for u.
-func (a *app) did(e board.Event, desc string) {
-	a.hist = append(a.hist, done{n: e.N, desc: desc})
-}
-
-// textHead is the start of a comment, on one line, for messages.
-func textHead(s string) string { return board.CutTitle(s, 30) }
 
 // undoLast takes back the newest thing the person did since the viewer
 // opened (u). The record only grows: an undo is recorded, never a line
 // removed. The cursor stays where it is; the message says what was taken
 // back.
 func (a *app) undoLast() {
-	if !a.canWrite() || len(a.hist) == 0 {
-		a.msg = "取り消せる操作がありません"
-		return
-	}
-	h := a.hist[len(a.hist)-1]
 	pv := a.top()
 	before, i := pv.navKeys(), index(pv.navKeys(), pv.cur)
-	if h.viewed != nil {
-		if err := a.st.RemoveViewed(h.viewed); err != nil {
-			a.msg = "記録できませんでした: " + err.Error()
-			return
-		}
-		a.loadViewed()
-	} else if _, err := a.st.Append(board.Event{Op: "undo", Undo: h.n}); err != nil {
-		a.msg = "記録できませんでした: " + err.Error()
+	desc, err := a.b.Undo()
+	if err != nil {
+		a.msg = err.Error()
 		return
 	}
-	a.hist = a.hist[:len(a.hist)-1]
-	a.loadEvents()
 	// A line hidden again, or a comment gone: the cursor goes to what is
 	// next, as when it is hidden or taken back with x.
 	pv.moveFrom(before, i)
@@ -502,10 +400,10 @@ func (a *app) undoLast() {
 			a.pcur = ts[0].N
 		}
 	}
-	if ts := a.state.Thoughts; a.list && a.thoughtIn(ts, a.lcur) < 0 && len(ts) > 0 {
+	if ts := a.b.State.Thoughts; a.list && a.thoughtIn(ts, a.lcur) < 0 && len(ts) > 0 {
 		a.lcur = ts[len(ts)-1].N
 	}
-	a.msg = h.desc
+	a.msg = desc
 }
 
 func (a *app) thoughtIn(ts []*board.Thought, n int) int {
@@ -525,7 +423,7 @@ func (a *app) tsettling(n int) bool {
 
 // canWrite says whether thoughts can be recorded: the session must exist
 // (the viewer never creates one).
-func (a *app) canWrite() bool { return a.st != nil && !a.noSession }
+func (a *app) canWrite() bool { return a.b.CanWrite() }
 
 // handleHelp scrolls the list of keys; q, esc and ? close it.
 func (a *app) handleHelp(k key) {

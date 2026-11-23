@@ -18,15 +18,15 @@ func TestUndoReactionNotSent(t *testing.T) {
 	if a.msg != "y を取り消しました: hook を入れるか決める" {
 		t.Errorf("msg %q", a.msg)
 	}
-	if e := a.state.React["hook"]; e.Value != "n" {
+	if e := a.b.State.React["hook"]; e.Value != "n" {
 		t.Errorf("after u: %q, want n back", e.Value)
 	}
 	if a.top().cur != "hook" {
 		t.Error("the cursor moved")
 	}
 	a.handle(key{r: 'u'})
-	if _, ok := a.state.React["hook"]; ok || a.unsent != 0 {
-		t.Errorf("after u u: %+v unsent %d", a.state.React, a.unsent)
+	if _, ok := a.b.State.React["hook"]; ok || a.b.Unsent != 0 {
+		t.Errorf("after u u: %+v unsent %d", a.b.State.React, a.b.Unsent)
 	}
 	a.handle(key{r: 'u'})
 	if a.msg != "取り消せる操作がありません" {
@@ -51,8 +51,8 @@ func TestUndoReactionSent(t *testing.T) {
 	}
 	a.loadEvents()
 	a.handle(key{r: 'u'})
-	if a.unsent != 1 {
-		t.Errorf("unsent %d", a.unsent)
+	if a.b.Unsent != 1 {
+		t.Errorf("unsent %d", a.b.Unsent)
 	}
 	if r := rightOf(a, "hook"); r != "取消 未送信" {
 		t.Errorf("right %q", r)
@@ -87,16 +87,16 @@ func TestUndoAnswerAndHide(t *testing.T) {
 	a.handle(key{name: "enter"})
 	a.render()
 	a.handle(key{r: 'a'})
-	if e := a.state.React["unit"]; e.Value != "a" {
+	if e := a.b.State.React["unit"]; e.Value != "a" {
 		t.Fatalf("answer %+v", e)
 	}
 	a.handle(key{r: 'u'})
-	if _, ok := a.state.React["unit"]; ok || a.msg != "答え a を取り消しました: ページの単位" {
+	if _, ok := a.b.State.React["unit"]; ok || a.msg != "答え a を取り消しました: ページの単位" {
 		t.Errorf("after u: %q", a.msg)
 	}
 	// Hide, sent and read; u shows it again and tells the AI.
 	a.handle(key{r: 'x'})
-	if !pv.isHidden(report.ByID(pv.nodes, "unit")) {
+	if !pv.isHidden(report.ByID(pv.Nodes, "unit")) {
 		t.Fatal("not hidden")
 	}
 	if got := changes(t, st); got != "hide (1): ページの単位" {
@@ -104,8 +104,8 @@ func TestUndoAnswerAndHide(t *testing.T) {
 	}
 	a.loadEvents()
 	a.handle(key{r: 'u'})
-	if pv.isHidden(report.ByID(pv.nodes, "unit")) || a.msg != "隠したのを取り消しました: ページの単位" {
-		t.Errorf("after u: hidden %v msg %q", pv.isHidden(report.ByID(pv.nodes, "unit")), a.msg)
+	if pv.isHidden(report.ByID(pv.Nodes, "unit")) || a.msg != "隠したのを取り消しました: ページの単位" {
+		t.Errorf("after u: hidden %v msg %q", pv.isHidden(report.ByID(pv.Nodes, "unit")), a.msg)
 	}
 	if got := changes(t, st); got != "retract hide: ページの単位" {
 		t.Errorf("changes %q", got)
@@ -120,14 +120,14 @@ func TestUndoComments(t *testing.T) {
 	a.in = newInput("", "", "コメントを書く")
 	a.write("one")
 	a.handle(key{r: 'u'})
-	if len(a.state.Thoughts) != 0 || a.msg != "コメントを取り消しました: one" {
-		t.Fatalf("thoughts %d msg %q", len(a.state.Thoughts), a.msg)
+	if len(a.b.State.Thoughts) != 0 || a.msg != "コメントを取り消しました: one" {
+		t.Fatalf("thoughts %d msg %q", len(a.b.State.Thoughts), a.msg)
 	}
 	// Put and read by the AI, then rewritten and read: u on the rewrite
 	// tells the text before; u on the comment takes it back.
 	a.in = newInput("", "", "コメントを書く")
 	a.write("two")
-	n := a.state.Thoughts[0].N
+	n := a.b.State.Thoughts[0].N
 	if got := changes(t, st); got != "thought "+itoa(n)+": two" {
 		t.Fatalf("changes %q", got)
 	}
@@ -150,7 +150,7 @@ func TestUndoComments(t *testing.T) {
 	}
 	a.loadEvents()
 	a.handle(key{r: 'u'})
-	if len(a.state.Thoughts) != 0 {
+	if len(a.b.State.Thoughts) != 0 {
 		t.Error("the comment is still there")
 	}
 	if got := changes(t, st); got != "retract thought "+itoa(n)+": two" {
@@ -184,7 +184,7 @@ func TestUndoHint(t *testing.T) {
 		t.Errorf("hints %q", s)
 	}
 	a.handle(key{r: 'u'}) // works in the list too
-	if _, ok := a.state.React["hook"]; ok {
+	if _, ok := a.b.State.React["hook"]; ok {
 		t.Error("u in the list did nothing")
 	}
 }

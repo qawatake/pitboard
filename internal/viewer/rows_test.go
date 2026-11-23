@@ -24,7 +24,7 @@ func TestStatusColors(t *testing.T) {
 	a := testApp(t, st)
 	pv := a.top()
 	for id, color := range map[string]string{"you": yellow, "run": green, "queue": dim, "old": dim} {
-		n := report.ByID(pv.nodes, id)
+		n := report.ByID(pv.Nodes, id)
 		r := a.right(pv, n)
 		if len(r) == 0 || r[0].st != color {
 			t.Errorf("%s: status color %q, want %q", id, r, color)
@@ -39,7 +39,7 @@ func TestStatusColors(t *testing.T) {
 	if pv.cur != "plan" {
 		t.Fatalf("first space: %q", pv.cur)
 	}
-	st.Append(board.Event{Op: "react", ID: "plan", Value: "y", Line: report.ByID(pv.nodes, "plan").Sig()})
+	st.Append(board.Event{Op: "react", ID: "plan", Value: "y", Line: report.ByID(pv.Nodes, "plan").Sig()})
 	a.loadEvents()
 	a.viewAll(pv)
 	a.handle(key{r: ' '})
@@ -51,7 +51,7 @@ func TestStatusColors(t *testing.T) {
 // rightOf is what a line shows at its right end, without styles.
 func rightOf(a *app, id string) string {
 	pv := a.top()
-	return a.right(pv, report.ByID(pv.nodes, id)).plain()
+	return a.right(pv, report.ByID(pv.Nodes, id)).plain()
 }
 
 // squeeze drops spaces and line ends, to find a text however it wrapped.
@@ -149,7 +149,7 @@ func TestWrappedTitleRows(t *testing.T) {
 		t.Errorf("the second row carries the right part or the cursor: %q", next)
 	}
 	// A long title alone does not open.
-	if a.canOpen(pv, report.ByID(pv.nodes, "a")) {
+	if a.canOpen(pv, report.ByID(pv.Nodes, "a")) {
 		t.Error("a long title opens without contents")
 	}
 }
@@ -393,7 +393,7 @@ func TestNoticeAt(t *testing.T) {
 		t.Errorf("with a comment: %q", l)
 	}
 	// Hidden, then put up again with only a new time: still hidden.
-	n := report.ByID(a.top().nodes, "n")
+	n := report.ByID(a.top().Nodes, "n")
 	st.Append(board.Event{Op: "hide", Key: report.HideKey(n), Title: n.Title()})
 	a.loadEvents()
 	os.WriteFile(st.ReportPath(), []byte("<Notice id=\"n\" at=\"2026-11-23 22:30\">開き直してください</Notice>\n<Item id=\"a\">項目</Item>\n"), 0o644)

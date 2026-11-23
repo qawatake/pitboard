@@ -2,30 +2,16 @@ package viewer
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/qawatake/pitboard/internal/board"
-	"github.com/qawatake/pitboard/internal/report"
 )
 
 // ---- the thoughts at the bottom of the report ----
 
 // paneOrder is the thoughts the pane shows first: those not 対応済 yet
 // (newest first), then those 対応済 (most recently settled first).
-func (a *app) paneOrder() []*board.Thought {
-	var open, done []*board.Thought
-	for i := len(a.state.Thoughts) - 1; i >= 0; i-- {
-		t := a.state.Thoughts[i]
-		if !t.Finished() {
-			open = append(open, t)
-		} else {
-			done = append(done, t)
-		}
-	}
-	sort.SliceStable(done, func(i, j int) bool { return done[i].SettledN > done[j].SettledN })
-	return append(open, done...)
-}
+func (a *app) paneOrder() []*board.Thought { return a.b.Pending() }
 
 const (
 	paneMax     = 3  // thoughts shown in the pane
@@ -155,32 +141,16 @@ func headed(head, s string) text {
 // on (and its title then), the whole text, and what the AI did with it.
 func (a *app) thoughtDetails(t *board.Thought, ind int) []row {
 	var rows []row
-	var nodes []*report.Node
-	if a.rep != nil {
-		nodes = a.rep.nodes
-	}
-	if t.ID != "" {
-		about := "(報告にもうない行)"
-		if n := report.ByID(nodes, t.ID); n != nil {
-			about = n.Title()
-		}
-		if t.Title != "" && t.Title != about {
-			about += " (書いたときは: " + t.Title + ")"
-		}
+	if about := a.b.About(t); about != "" {
 		rows = append(rows, a.para(ind, headed("行: ", about))...)
 	}
 	for _, l := range strings.Split(strings.TrimSpace(t.Text), "\n") {
 		rows = append(rows, a.para(ind, withImages(l, ""))...)
 	}
-	switch {
-	case t.SettledState != "":
+	if t.SettledState != "" {
 		rows = append(rows, a.para(ind, headed(settleHead(t.SettledState), t.Settled))...)
-	case t.LastN > a.state.Sent:
-		rows = append(rows, a.para(ind, plainText("まだ送っていません (s で送る)", dim))...)
-	case t.LastN > a.state.Seen:
-		rows = append(rows, a.para(ind, plainText("送りました。AI はまだ読んでいません", dim))...)
-	default:
-		rows = append(rows, a.para(ind, plainText("AI は読みました。対応はまだです", dim))...)
+	} else {
+		rows = append(rows, a.para(ind, plainText(a.b.ThoughtNote(t), dim))...)
 	}
 	return rows
 }
