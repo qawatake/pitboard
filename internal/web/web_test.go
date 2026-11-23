@@ -1,0 +1,501 @@
+package web
+
+import (
+	"bufio"
+	"bytes"
+	"encoding/base64"
+	"encoding/json"
+	"image"
+	"image/png"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"os"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/qawatake/pitboard/internal/board"
+	"github.com/qawatake/pitboard/internal/page"
+)
+
+const src = `<Notice id="note" at="2026-11-23 21:46">開き直してください</Notice>
+<Title>題</Title>
+
+<Section title="あなたへ">
+  <Ask id="unit">ページの単位
+    <Option key="a">セッションごと</Option>
+    <Option key="b">プロジェクトごと</Option>
+  </Ask>
+  <Item id="hook" ask="y">hook を入れるか決める
+    中身
+  </Item>
+  <Item id="impl" state="doing" look="y">実装する</Item>
+  - ただの行
+</Section>
+`
+
+type fixture struct {
+	t    *testing.T
+	st   *board.Store
+	s    *Server
+	ts   *httptest.Server
+	host string
+	// things is the lines of the last page fetched, by key.
+	things map[string]*thingJSON
+}
+
+func setup(t *testing.T) *fixture {
+	t.Helper()
+	t.Setenv("PITBOARD_SEND", "")
+	base := t.TempDir()
+	st := board.Open(base, "sess1234")
+	if err := os.MkdirAll(st.Dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(st.ReportPath(), []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s, err := New(Options{Base: base, Store: st})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts := httptest.NewServer(s)
+	u, _ := url.Parse(ts.URL)
+	port, _ := strconv.Atoi(u.Port())
+	s.SetPort(port)
+	t.Cleanup(func() { s.Close(); ts.Close() })
+	return &fixture{t: t, st: st, s: s, ts: ts, host: u.Host}
+}
+
+// req sends a request with the cookie (auth), the right Origin on POST,
+// and tab as the browser tab.
+func (f *fixture) req(method, path string, body any, mod func(*http.Request)) *http.Response {
+	f.t.Helper()
+	var rd io.Reader
+	if body != nil {
+		b, _ := json.Marshal(body)
+		rd = bytes.NewReader(b)
+	}
+	r, _ := http.NewRequest(method, f.ts.URL+path, rd)
+	r.AddCookie(&http.Cookie{Name: f.s.CookieName(), Value: f.s.Token()})
+	r.Header.Set(TabHeader, "tab1")
+	if method == http.MethodPost {
+		r.Header.Set("Origin", "http://"+f.host)
+		r.Header.Set("Content-Type", "application/json")
+	}
+	if mod != nil {
+		mod(r)
+	}
+	c := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	resp, err := c.Do(r)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	f.t.Cleanup(func() { resp.Body.Close() })
+	return resp
+}
+
+func (f *fixture) page(tab string) PageJSON {
+	f.t.Helper()
+	resp := f.req("GET", "/api/page", nil, func(r *http.Request) { r.Header.Set(TabHeader, tab) })
+	if resp.StatusCode != 200 {
+		f.t.Fatalf("page: %d", resp.StatusCode)
+	}
+	var p struct {
+		PageJSON
+		Notices, Things []*thingJSON
+	}
+	b, _ := io.ReadAll(resp.Body)
+	if err := json.Unmarshal(b, &p); err != nil {
+		f.t.Fatal(err)
+	}
+	f.things = map[string]*thingJSON{}
+	var walk func([]*thingJSON)
+	walk = func(ts []*thingJSON) {
+		for _, t := range ts {
+			f.things[t.Key] = t
+			walk(t.Kids)
+		}
+	}
+	walk(p.Notices)
+	walk(p.Things)
+	return p.PageJSON
+}
+
+// thingJSON is a Thing as the browser gets it.
+type thingJSON struct {
+	Kind, Key, Token string
+	Stop             bool
+	Kids             []*thingJSON
+	Actions          page.Actions
+}
+
+func (f *fixture) thing(key string) *thingJSON {
+	f.t.Helper()
+	t := f.things[key]
+	if t == nil {
+		f.t.Fatalf("no line %q", key)
+	}
+	return t
+}
+
+func (f *fixture) act(tab string, a Act) Result {
+	f.t.Helper()
+	resp := f.req("POST", "/api/act", a, func(r *http.Request) { r.Header.Set(TabHeader, tab) })
+	var res Result
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		f.t.Fatalf("act %s: %d %v", a.Action, resp.StatusCode, err)
+	}
+	return res
+}
+
+func (f *fixture) ops() []string {
+	var out []string
+	for _, e := range f.st.Events() {
+		out = append(out, e.Op)
+	}
+	return out
+}
+
+func checkHeaders(t *testing.T, resp *http.Response) {
+	t.Helper()
+	want := map[string]string{
+		"Content-Security-Policy": CSP,
+		"X-Content-Type-Options":  "nosniff",
+		"Referrer-Policy":         "no-referrer",
+		"Cache-Control":           "no-store",
+	}
+	for k, v := range want {
+		if got := resp.Header.Get(k); got != v {
+			t.Errorf("%s %s: %s = %q, want %q", resp.Request.Method, resp.Request.URL.Path, k, got, v)
+		}
+	}
+}
+
+func TestHeadersOnEveryResponse(t *testing.T) {
+	f := setup(t)
+	noCookie := func(r *http.Request) { r.Header.Del("Cookie") }
+	for _, resp := range []*http.Response{
+		f.req("GET", "/", nil, nil),
+		f.req("GET", "/app.js", nil, nil),
+		f.req("GET", "/api/page", nil, nil),
+		f.req("GET", "/nope", nil, nil),
+		f.req("GET", "/", nil, noCookie),
+		f.req("GET", "/", nil, func(r *http.Request) { r.Host = "evil.example:80" }),
+		f.req("POST", "/api/act", Act{Action: "undo"}, func(r *http.Request) { r.Header.Set("Origin", "http://evil.example") }),
+		f.req("GET", "/?t=wrong", nil, noCookie),
+	} {
+		checkHeaders(t, resp)
+	}
+	if ct := f.req("GET", "/app.js", nil, nil).Header.Get("Content-Type"); !strings.HasPrefix(ct, "text/javascript") {
+		t.Errorf("app.js: %s", ct)
+	}
+}
+
+func TestAuth(t *testing.T) {
+	f := setup(t)
+	noCookie := func(r *http.Request) { r.Header.Del("Cookie") }
+	for _, p := range []string{"/", "/app.js", "/api/page", "/api/events", "/api/image/1"} {
+		resp := f.req("GET", p, nil, noCookie)
+		b, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != 403 || !strings.Contains(string(b), "pitboard serve") {
+			t.Errorf("%s without cookie: %d %q", p, resp.StatusCode, b)
+		}
+	}
+	bad := f.req("GET", "/api/page", nil, func(r *http.Request) {
+		r.Header.Del("Cookie")
+		r.AddCookie(&http.Cookie{Name: f.s.CookieName(), Value: strings.Repeat("0", 64)})
+	})
+	if bad.StatusCode != 403 {
+		t.Errorf("wrong cookie: %d", bad.StatusCode)
+	}
+	if resp := f.req("GET", "/?t=wrong", nil, noCookie); resp.StatusCode != 403 {
+		t.Errorf("wrong token: %d", resp.StatusCode)
+	}
+	resp := f.req("GET", "/?t="+f.s.Token(), nil, noCookie)
+	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/" {
+		t.Fatalf("login: %d %s", resp.StatusCode, resp.Header.Get("Location"))
+	}
+	sc := resp.Header.Get("Set-Cookie")
+	for _, w := range []string{f.s.CookieName() + "=" + f.s.Token(), "HttpOnly", "SameSite=Strict", "Path=/"} {
+		if !strings.Contains(sc, w) {
+			t.Errorf("Set-Cookie %q lacks %q", sc, w)
+		}
+	}
+	if len(f.s.Token()) < 32 {
+		t.Errorf("token too short: %d hex", len(f.s.Token()))
+	}
+	if !strings.HasPrefix(f.s.URL(), "http://127.0.0.1:") {
+		t.Errorf("URL %s", f.s.URL())
+	}
+}
+
+func TestHostAndOrigin(t *testing.T) {
+	f := setup(t)
+	port := strings.Split(f.host, ":")[1]
+	for host, ok := range map[string]bool{
+		"127.0.0.1:" + port: true, "localhost:" + port: true,
+		"evil.example:" + port: false, "127.0.0.1:1": false, "localhost": false, "[::1]:" + port: false,
+	} {
+		resp := f.req("GET", "/api/page", nil, func(r *http.Request) { r.Host = host })
+		if (resp.StatusCode == 200) != ok {
+			t.Errorf("Host %s: %d", host, resp.StatusCode)
+		}
+	}
+	for origin, ok := range map[string]bool{
+		"http://127.0.0.1:" + port: true, "http://localhost:" + port: true,
+		"": false, "null": false, "http://evil.example": false, "http://127.0.0.1:1": false, "https://127.0.0.1:" + port: false,
+	} {
+		resp := f.req("POST", "/api/act", Act{Action: "undo"}, func(r *http.Request) { r.Header.Set("Origin", origin) })
+		if (resp.StatusCode == 200) != ok {
+			t.Errorf("Origin %q: %d", origin, resp.StatusCode)
+		}
+	}
+	if resp := f.req("POST", "/api/act", Act{Action: "undo"}, func(r *http.Request) { r.Header.Set("Content-Type", "text/plain") }); resp.StatusCode != http.StatusUnsupportedMediaType {
+		t.Errorf("text/plain POST: %d", resp.StatusCode)
+	}
+	if resp := f.req("GET", "/api/act", nil, nil); resp.StatusCode != http.StatusMethodNotAllowed {
+		t.Errorf("GET /api/act: %d", resp.StatusCode)
+	}
+}
+
+func TestPageJSON(t *testing.T) {
+	f := setup(t)
+	resp := f.req("GET", "/api/page", nil, nil)
+	b, _ := io.ReadAll(resp.Body)
+	s := string(b)
+	for _, w := range []string{`"Kind":"notice"`, `"Kind":"ask"`, `"Kind":"item"`, `"Kind":"option"`, `"Kind":"section"`,
+		`"Mark":"waiting"`, `"Mark":"new"`, `"Tone":"move"`, `"Style":"plain"`, `"Token":"`, `"Open":false`,
+		`"AtText":"`, `"反応待ち 2"`, `"未読 1"`, `"JumpTo":["note","unit"]`, `"Session":"sess1234"`, `"Next":[`} {
+		if !strings.Contains(s, w) {
+			t.Errorf("page lacks %s", w)
+		}
+	}
+	for _, w := range []string{`"Node"`, `"Seen"`, `"Sig"`, `"Jumps"`} {
+		if strings.Contains(s, w) {
+			t.Errorf("page has %s", w)
+		}
+	}
+}
+
+func TestActRoundTrips(t *testing.T) {
+	f := setup(t)
+	f.page("tab1")
+	hook := f.thing("hook")
+	if !hook.Actions.YN || !hook.Actions.Comment || !hook.Actions.Hide {
+		t.Fatalf("hook actions %+v", hook.Actions)
+	}
+	steps := []struct {
+		a    Act
+		op   string
+		want string
+	}{
+		{Act{Action: "react", Target: "hook", Seen: hook.Token, Value: "y"}, "react", ""},
+		{Act{Action: "react", Target: "unit", Seen: f.thing("unit").Token, Value: "b"}, "react", ""},
+		{Act{Action: "comment", Target: "hook", Seen: hook.Token, Text: "なぜ?"}, "thought", ""},
+		{Act{Action: "comment", Text: "宛先なし"}, "thought", ""},
+		{Act{Action: "edit", N: 3, Text: "なぜ? (直した)"}, "edit", ""},
+		{Act{Action: "retract", N: 4}, "retract", "取り消しました (u で戻す)"},
+		{Act{Action: "hide", Target: "-1:ただの行", Seen: f.thing("-1:ただの行").Token}, "hide", "隠しました (H で表示)"},
+	}
+	for _, st := range steps {
+		r := f.act("tab1", st.a)
+		if !r.OK || r.Message != st.want {
+			t.Fatalf("%s: %+v", st.a.Action, r)
+		}
+		ops := f.ops()
+		if ops[len(ops)-1] != st.op {
+			t.Fatalf("%s: last op %v", st.a.Action, ops)
+		}
+	}
+	ev := f.st.Events()
+	if ev[0].Value != "y" || ev[0].ID != "hook" || ev[1].Value != "b" || ev[2].ID != "hook" || ev[2].Title != "hook を入れるか決める" || ev[3].ID != "" {
+		t.Errorf("events %+v", ev)
+	}
+	// read: the unread line's green mark goes.
+	p := f.page("tab1")
+	if !f.thing("impl").Actions.Read {
+		t.Fatal("impl cannot be read")
+	}
+	if r := f.act("tab1", Act{Action: "read", Target: "impl", Seen: f.thing("impl").Token}); !r.OK {
+		t.Fatalf("read %+v", r)
+	}
+	if p = f.page("tab1"); f.thing("impl").Actions.Read {
+		t.Error("impl still unread")
+	}
+	if r := f.act("tab1", Act{Action: "readall"}); !r.OK || r.Message != "いまある行をすべて読んだことにしました" {
+		t.Errorf("readall %+v", r)
+	}
+	// undo: the newest first, in this tab only.
+	if r := f.act("tab2", Act{Action: "undo"}); r.OK || r.Message != page.ErrNothingToUndo.Error() {
+		t.Errorf("undo in another tab: %+v", r)
+	}
+	if r := f.act("tab1", Act{Action: "undo"}); !r.OK || !strings.HasPrefix(r.Message, "A (") {
+		t.Errorf("undo readall: %+v", r)
+	}
+	r := f.act("tab1", Act{Action: "undo"})
+	if !r.OK || !strings.Contains(r.Message, "r (読んだ)") {
+		t.Errorf("undo: %+v", r)
+	}
+	if r := f.act("tab1", Act{Action: "undo"}); !r.OK || !strings.HasPrefix(r.Message, "隠したのを取り消しました") {
+		t.Errorf("undo hide: %+v", r)
+	}
+	if ops := f.ops(); ops[len(ops)-1] != "undo" {
+		t.Errorf("ops %v", ops)
+	}
+	// send: marks what is unsent as sent ($PITBOARD_SEND is a no-op here).
+	t.Setenv("PITBOARD_SEND", "true")
+	resp := f.req("POST", "/api/send", struct{}{}, nil)
+	var sr Result
+	json.NewDecoder(resp.Body).Decode(&sr)
+	if !sr.OK || sr.Message != "送りました" {
+		t.Errorf("send %+v", sr)
+	}
+	if p = f.page("tab1"); p.Unsent != 0 {
+		t.Errorf("unsent %d after send", p.Unsent)
+	}
+	if r := f.act("tab1", Act{Action: "nope"}); r.OK {
+		t.Error("unknown action done")
+	}
+}
+
+func TestStaleSeen(t *testing.T) {
+	f := setup(t)
+	f.page("tab1")
+	old := f.thing("hook").Token
+	n := len(f.st.Events())
+	// The AI rewrites the line after the page was shown.
+	os.WriteFile(f.st.ReportPath(), []byte(strings.Replace(src, "hook を入れるか決める", "hook を入れない", 1)), 0o644)
+	future := time.Now().Add(2 * time.Second)
+	os.Chtimes(f.st.ReportPath(), future, future)
+	for _, a := range []Act{
+		{Action: "react", Target: "hook", Seen: old, Value: "y"},
+		{Action: "hide", Target: "hook", Seen: old},
+		{Action: "comment", Target: "hook", Seen: "made-up", Text: "x"},
+		{Action: "react", Target: "unit", Seen: old, Value: "a"}, // another line's token
+		{Action: "read", Target: "impl", Seen: old},
+	} {
+		r := f.act("tab1", a)
+		if r.OK || !r.Changed || r.Message != page.MsgChanged {
+			t.Errorf("%s %s: %+v", a.Action, a.Target, r)
+		}
+	}
+	if len(f.st.Events()) != n {
+		t.Errorf("recorded on a stale line: %v", f.ops())
+	}
+	// A comment begun before the rewrite keeps the title it was begun on.
+	f2 := setup(t)
+	f2.page("tab1")
+	tok := f2.thing("hook").Token
+	os.WriteFile(f2.st.ReportPath(), []byte(strings.Replace(src, "hook を入れるか決める", "hook を入れない", 1)), 0o644)
+	os.Chtimes(f2.st.ReportPath(), future, future)
+	if r := f2.act("tab1", Act{Action: "comment", Target: "hook", Seen: tok, Text: "書いた"}); !r.OK {
+		t.Fatalf("comment %+v", r)
+	}
+	if e := f2.st.Events()[0]; e.Title != "hook を入れるか決める" {
+		t.Errorf("comment title %q", e.Title)
+	}
+}
+
+func pngBytes(t *testing.T) []byte {
+	var b bytes.Buffer
+	if err := png.Encode(&b, image.NewRGBA(image.Rect(0, 0, 2, 2))); err != nil {
+		t.Fatal(err)
+	}
+	return b.Bytes()
+}
+
+func TestImages(t *testing.T) {
+	f := setup(t)
+	up := func(data []byte) Result {
+		resp := f.req("POST", "/api/image", ImageUpload{Data: base64.StdEncoding.EncodeToString(data)}, nil)
+		var r Result
+		if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
+			t.Fatalf("image: %d %v", resp.StatusCode, err)
+		}
+		return r
+	}
+	r := up(pngBytes(t))
+	if !r.OK || r.Image != 1 {
+		t.Fatalf("upload %+v", r)
+	}
+	if r := up([]byte("<svg xmlns='http://www.w3.org/2000/svg'></svg>")); r.OK || r.Message != page.ErrNotImage.Error() {
+		t.Errorf("svg %+v", r)
+	}
+	if r := up([]byte("<html><script>alert(1)</script>")); r.OK {
+		t.Errorf("html taken %+v", r)
+	}
+	big := append(pngBytes(t), make([]byte, board.ImageMax)...)
+	if r := up(big); r.OK || r.Message != board.ErrTooLarge.Error() {
+		t.Errorf("big %+v", r)
+	}
+	resp := f.req("GET", "/api/image/1", nil, nil)
+	if resp.StatusCode != 200 || resp.Header.Get("Content-Type") != "image/png" {
+		t.Errorf("get 1: %d %s", resp.StatusCode, resp.Header.Get("Content-Type"))
+	}
+	checkHeaders(t, resp)
+	// Something not an image placed among the images is not served.
+	os.WriteFile(f.st.Dir+"/images/2.png", []byte("<html>"), 0o600)
+	for _, p := range []string{"/api/image/2", "/api/image/3", "/api/image/01", "/api/image/-1", "/api/image/..%2freport.md", "/api/image/1.png"} {
+		if resp := f.req("GET", p, nil, nil); resp.StatusCode != 404 {
+			t.Errorf("%s: %d", p, resp.StatusCode)
+		}
+	}
+}
+
+func TestEvents(t *testing.T) {
+	old := PollInterval
+	PollInterval = 20 * time.Millisecond
+	defer func() { PollInterval = old }()
+	f := setup(t)
+	go f.s.watchLoop()
+	resp := f.req("GET", "/api/events", nil, nil)
+	if ct := resp.Header.Get("Content-Type"); ct != "text/event-stream" {
+		t.Fatalf("events: %s", ct)
+	}
+	checkHeaders(t, resp)
+	lines := make(chan string, 16)
+	go func() {
+		sc := bufio.NewScanner(resp.Body)
+		for sc.Scan() {
+			lines <- sc.Text()
+		}
+		close(lines)
+	}()
+	time.Sleep(100 * time.Millisecond)
+	f.act("tab1", Act{Action: "comment", Text: "x"})
+	deadline := time.After(3 * time.Second)
+	for {
+		select {
+		case l, ok := <-lines:
+			if !ok {
+				t.Fatal("stream ended")
+			}
+			if l == "event: changed" {
+				f.s.Close()
+				return
+			}
+		case <-deadline:
+			t.Fatal("no changed event")
+		}
+	}
+}
+
+func TestStaticHasNoInnerHTML(t *testing.T) {
+	b, err := staticFS.ReadFile("static/app.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, w := range []string{"innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "new Function"} {
+		if bytes.Contains(b, []byte(w)) {
+			t.Errorf("app.js uses %s", w)
+		}
+	}
+	idx, _ := staticFS.ReadFile("static/index.html")
+	if bytes.Contains(idx, []byte("<script>")) || bytes.Contains(idx, []byte("style=")) || bytes.Contains(idx, []byte("http")) {
+		t.Error("index.html has inline script/style or an external URL")
+	}
+}

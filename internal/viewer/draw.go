@@ -217,22 +217,12 @@ func (a *app) sendMark() text {
 		}
 		t = append(t, part...)
 	}
-	if w, f := a.counts(a.top()); w > 0 || f > 0 {
-		if w > 0 {
-			add(fmt.Sprintf("反応待ち %d", w), yellow)
-		}
-		if f > 0 {
-			add(fmt.Sprintf("未読 %d", f), green)
-		}
+	showHidden := false
+	if pv := a.top(); pv != nil {
+		showHidden = pv.showHidden
 	}
-	if a.b.Waiter {
-		add("AI 待機中", dim)
-	}
-	if a.b.Unread > 0 {
-		add(fmt.Sprintf("送信済 %d", a.b.Unread), dim)
-	}
-	if a.b.Unsent > 0 {
-		add(fmt.Sprintf("● 未送信 %d", a.b.Unsent), yellow)
+	for _, w := range a.b.Summary(showHidden) {
+		add(w.Text, toneColor(w.Tone))
 	}
 	return t
 }

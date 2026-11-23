@@ -113,6 +113,8 @@ type Right struct {
 	// At is, on a Notice, when the AI put it up (shown in place of
 	// Status; see AtWord).
 	At time.Time
+	// AtText is At as shown (AtWord, now); set by Page.
+	AtText string
 }
 
 // WorkingWord is what a doing Item without a status says.

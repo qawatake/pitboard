@@ -15,6 +15,8 @@ const usageText = `pitboard - a board beside an AI session: the AI reports, the 
 Usage:
   pitboard [-s SESSION] [view]     the viewer (without -s: the most recently updated session)
                                    (-s may also come after the command)
+  pitboard [-s SESSION] serve [--port N] [--no-open]
+                                   the same board in a browser (see Browser)
   pitboard -s SESSION path         print the path of the session's report.md (write the report there)
   pitboard -s SESSION changes      print what the person has sent since the last call, one per line
   pitboard -s SESSION settle N [--doing|--hold|--done] TEXT
@@ -380,6 +382,16 @@ Thoughts:
   The board shows, at the right end of a line, the state of the person's
   latest input on it: 未送信 (not sent), 送信済 (sent), 既読 (you read it),
   then for a thought 対応中 / 保留 / 対応済 (doing / hold / done).
+
+Browser:
+  'pitboard -s ID serve' shows the same board in the person's browser: the
+  same parts, words, marks and rules as the viewer, and the two may run at
+  once (each sees what the other does). It prints one URL and opens it
+  (--no-open: only prints it). It listens on 127.0.0.1 only, and the URL
+  holds a key that changes each time it starts. If the person would rather
+  use a browser than a terminal pane, tell them to run:
+    pitboard -s ID serve
+  It does not change what you do: write report.md, read 'changes'.
 
 Hooks:
   (A second way, when 'wait' cannot be used.) With hooks, what the person

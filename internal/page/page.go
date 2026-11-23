@@ -39,8 +39,17 @@ type Page struct {
 	CanUndo    bool // there is something to take back
 	CanSend    bool // there is something to send
 	// Jumps are the places to go straight to (notices, Sections, top-level
-	// Folds), each a Thing of Notices or Things.
-	Jumps []*Thing
+	// Folds), each a Thing of Notices or Things. JumpTo is, for each, the
+	// line to go to: its own, or a Section's first (a Thing's Jump says
+	// which place it is).
+	Jumps  []*Thing `json:"-"`
+	JumpTo []string
+	// Next is the lines "next marked line" walks through, in the order of
+	// the page (see Board.Lines): those with a mark or waiting on the
+	// person.
+	Next []Next
+	// Summary is the counts at the top right, in order (Board.Summary).
+	Summary []Word
 	// Comments are all the person's comments, in the order to show them
 	// under the report (Board.Pending); Newest is the same, newest first.
 	Comments []*Comment
@@ -84,7 +93,7 @@ type Span struct {
 // Thing is one line of the page (and what it holds).
 type Thing struct {
 	Kind Kind
-	Node *report.Node // what it was built from
+	Node *report.Node `json:"-"` // what it was built from
 	// Key says which line it is (the cursor follows it); Target is what
 	// reactions and comments on it are recorded against ("" when none).
 	Key, Target string
@@ -98,13 +107,18 @@ type Thing struct {
 	// does something). Not a mark, but a place to be taken to.
 	You    bool
 	Hidden bool // hidden by the person (shown only with showHidden)
-	Seen   Seen // what an action on it must carry
-	Right  Right
-	State  string    // an Item's: todo, doing, done
-	Note   string    // an Item's note: why its status (shown when opened)
-	Path   string    // a Link's file path, as written
-	URL    string    // a Link's URL
-	At     time.Time // a Notice's: when the AI put it up
+	Seen   Seen `json:"-"` // what an action on it must carry
+	// Token stands for Seen (Seen.Token): a screen that cannot keep Seen
+	// itself carries this instead.
+	Token string
+	// Open says whether it starts open (StartsOpen).
+	Open  bool
+	Right Right
+	State string    // an Item's: todo, doing, done
+	Note  string    // an Item's note: why its status (shown when opened)
+	Path  string    // a Link's file path, as written
+	URL   string    // a Link's URL
+	At    time.Time // a Notice's: when the AI put it up
 	// Comments are the comments written on it, oldest first.
 	Comments []*Comment
 	// Body is what opening an Item or Notice shows (paragraphs, list
@@ -120,6 +134,22 @@ type Thing struct {
 	Lang             string   // Code: its language ("diff" is colored)
 	Code             []string // Code: its lines
 	Depth            int      // how deep in Folds (and Asks, for options)
+	// Jump is which of Page.Jumps it is (1 for the first; 0 none).
+	Jump int
+}
+
+// firstStop is the key of the line going to t goes to: t's, or the first
+// a Section holds ("" none).
+func firstStop(t *Thing) string {
+	if t.Stop {
+		return t.Key
+	}
+	for _, k := range t.Kids {
+		if f := firstStop(k); f != "" {
+			return f
+		}
+	}
+	return ""
 }
 
 // Comment is one of the person's comments, as shown.
@@ -170,6 +200,7 @@ func (b *Board) Page(showHidden bool) *Page {
 	}
 	p.Partial = report.Partial(r.Probs)
 	p.Waiting, p.Unread = b.Counts(showHidden)
+	p.Summary = b.Summary(showHidden)
 	p.Hidden = b.HiddenCount()
 	comments := map[int]*Comment{}
 	for _, t := range b.Pending() {
@@ -207,7 +238,19 @@ func (b *Board) Page(showHidden bool) *Page {
 	for _, n := range b.Jumps(showHidden) {
 		if t := byNode[n]; t != nil {
 			p.Jumps = append(p.Jumps, t)
+			t.Jump = len(p.Jumps)
+			p.JumpTo = append(p.JumpTo, firstStop(t))
 		}
+	}
+	for _, l := range b.Lines(showHidden) {
+		if l.Mark == MarkNone && !l.You {
+			continue
+		}
+		nx := Next{Key: l.Node.Key}
+		for _, f := range l.Folds {
+			nx.Folds = append(nx.Folds, f.Key)
+		}
+		p.Next = append(p.Next, nx)
 	}
 	return p
 }
@@ -247,11 +290,16 @@ func (b *Board) thing(n *report.Node, comments map[int]*Comment) *Thing {
 	}
 	t.Stop = true
 	t.Seen = SeenOf(n)
+	t.Token = t.Seen.Token()
+	t.Open = StartsOpen(n)
 	t.CanOpen = b.CanOpen(n)
 	t.Actions = b.ActionsOf(n)
 	t.Mark = b.MarkOf(n)
 	t.You = n.Wait == "you" && !t.Hidden
 	t.Right = b.RightOf(n)
+	if !t.Right.At.IsZero() {
+		t.Right.AtText = AtWord(t.Right.At, time.Now())
+	}
 	if t.Target != "" {
 		for _, th := range b.State.On(t.Target) {
 			if c := comments[th.N]; c != nil {

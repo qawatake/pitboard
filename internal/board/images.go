@@ -175,3 +175,7 @@ func ImageFileOf(pasted string) string {
 	}
 	return p
 }
+
+// ImageFile is the absolute path of the session's image n, or "" if there
+// is none.
+func (s *Store) ImageFile(n int) string { return s.imagePath(n) }

@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pitboard</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/app.css">
+<script type="module" src="/app.js"></script>
+</head>
+<body>
+<a class="skip" href="#board">報告へ</a>
+<header id="top">
+  <div id="summary" aria-label="状況"></div>
+  <div id="notices" aria-label="お知らせ"></div>
+</header>
+<main id="board" tabindex="-1" aria-label="報告"></main>
+<section id="pane" aria-label="コメント"></section>
+<footer id="foot">
+<div id="status" role="status" aria-live="polite"></div>
+<nav id="bar" aria-label="操作">
+  <button type="button" id="b-write" aria-keyshortcuts="m">書く <kbd>m</kbd></button>
+  <button type="button" id="b-send" aria-keyshortcuts="s">送る <kbd>s</kbd></button>
+  <button type="button" id="b-undo" aria-keyshortcuts="u">取り消す <kbd>u</kbd></button>
+  <button type="button" id="b-list">コメント一覧</button>
+  <button type="button" id="b-keys" aria-keyshortcuts="?">キー <kbd>?</kbd></button>
+</nav>
+</footer>
+<div id="help" class="overlay" role="dialog" aria-modal="true" aria-labelledby="help-title" hidden>
+  <div class="sheet">
+    <h2 id="help-title">キー</h2>
+    <dl id="help-keys"></dl>
+    <button type="button" id="help-close">閉じる <kbd>esc</kbd></button>
+  </div>
+</div>
+<div id="viewer" class="overlay" role="dialog" aria-modal="true" aria-label="画像" hidden>
+  <img id="viewer-img" alt="">
+  <button type="button" id="viewer-close">閉じる <kbd>esc</kbd></button>
+</div>
+</body>
+</html>
