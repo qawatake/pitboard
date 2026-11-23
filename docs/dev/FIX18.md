@@ -23,4 +23,9 @@ User's concern about FIX16: 「運用方法の問題がツールに染み出し�
 - Keep the two cases (unanswered ask/look row; row with a sent, not-done comment). Keep `rows.json` minimal (ids + what is needed for the title) or fold it into an existing state file if that is simpler.
 - `-h`: one sentence in Manners, not a section.
 
+## C. `-h` manners (one or two sentences)
+
+User: 「せっかくセクションとか自由にかけるんだから長い文を書きたいときはそちらに書いたらいい。すでにあるセクションだけに書こうとせずに」「長すぎるし読みにくい」 (an Item whose body was a 40-line log).
+- The layout is free: when something needs a long explanation, add a Section for that topic (paragraphs, list, Items) and point to it from a short line in "For you"; do not pile it into one Item's contents. An Item's contents should fit one screen. Remove the Section when it has served.
+
 vet/test/build (+ `scripts/check.sh` if it exists by then). No git. Report `docs/dev/FIX18-result.md` ≤12 lines. Reply on screen: one line.
