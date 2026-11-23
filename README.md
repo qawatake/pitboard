@@ -15,7 +15,7 @@ AI のセッションの横のペインに置く報告の画面。チャット�
 ## 入れる
 
 ```sh
-go install github.com/qawatake/pitboard@latest
+go install github.com/qawatake/pitboard/cmd/pitboard@latest
 ```
 
 AI に使わせるには skill を入れる。skill は「`pitboard -h` を読む」と要点を数行だけ書いた薄いもので、AI は入っている版の `-h` から使い方を読む。

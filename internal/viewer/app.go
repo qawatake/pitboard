@@ -1,0 +1,369 @@
+package viewer
+
+import (
+	"fmt"
+	"os"
+	"strings"
+	"syscall"
+	"time"
+
+	"github.com/qawatake/pitboard/internal/board"
+	"github.com/qawatake/pitboard/internal/report"
+)
+
+const (
+	margin = 2 // the right gutter
+	// The left gutter: the cursor's > in column 0, the marks (●) in column
+	// markCol, so neither moves or hides the other.
+	lgutter = 4
+	markCol = 2
+	maxText = 76 // width between the gutters, including the 2-cell mark field
+	markW   = 2  // the mark field every line has (▸ ▾ → ? · ✓ ! ⌀)
+)
+
+// view is the report on screen.
+type view struct {
+	path     string
+	mtime    time.Time
+	err      string
+	missing  bool // the report does not exist yet
+	nodes    []*report.Node
+	probs    []report.Problem // what is wrong with the report
+	readErr  string           // the last read failed (a bug); the previous screen is kept
+	open     map[string]bool
+	cur      string         // key of the node under the cursor
+	ends     map[string]int // where each stop's rows end (its contents too), from rows
+	top      int
+	follow   bool // scroll the cursor into view on the next render
+	curRow   int
+	curShown bool
+	// lock is set when a reload could not find the cursor's line: the cursor
+	// went to the nearest stop, and nothing is recorded until j/k.
+	lock bool
+	// placed is set when the viewer put the cursor on a line by itself (at
+	// start, or when stops appear on a page that had none). The person has
+	// not pointed at that line, so y, n and options wait for j/k.
+	placed bool
+	// hidden is the lines the person hid (by report.HideKey); showHidden draws them
+	// faintly instead of leaving them out (H).
+	hidden     map[string]bool
+	showHidden bool
+	// auto is the line the viewer moved the cursor to by itself (after x or
+	// H took the cursor's line away), and autoAt when a frame first showed
+	// the cursor there. Until settleDelay has passed since, x y n and options
+	// are dropped: a key pressed twice, or pressed before the screen showed
+	// the new line, must not act on a line the person has not seen.
+	auto   string
+	autoAt time.Time
+	// atEnd says whether the last frame showed the end of the page: j past
+	// the last stop then goes into the thoughts pane.
+	atEnd bool
+}
+
+// settleDelay is how long a line the viewer moved the cursor to must have
+// been on screen before x y n and options work on it.
+const settleDelay = 400 * time.Millisecond
+
+// clock is the time (tests replace it).
+var clock = time.Now
+
+type input struct {
+	edit  int    // the thought being rewritten (e), or 0 for a new one
+	paste int    // where a paste began (rune index), -1 outside one
+	id    string // the line the thought is about, if any
+	title string // that line's title when writing began
+	label string
+	ed    edit // the text and the cursor in it
+	etop  int  // the first row of the text in view, when it is taller than the editor
+	// at is the report line the editor goes under when it is not about a
+	// line (m: the cursor's line when it opened).
+	at string
+	// Laid out by drawEditing: how far the editor is indented (to the
+	// title of the line it goes under), and whether it shows its label.
+	ind       int
+	showLabel bool
+}
+
+func newInput(id, title, label string) *input {
+	return &input{id: id, title: title, label: label, ed: newEdit(""), paste: -1}
+}
+
+type app struct {
+	t    *term
+	base string
+	st   *board.Store // nil until a session exists
+	rep  *view
+	msg  string // shown on the bottom line until the next key
+	// msgLines is how many lines msg may take (0: one). Only what says why
+	// sending failed and how to fix it takes two.
+	msgLines int
+
+	evMod, seenMod time.Time
+	// viewed is the hashes of what the person has looked at (see marks.go and board.Store.Viewed).
+	viewed    map[string]bool
+	viewedMod time.Time
+	state     *board.State
+	unsent    int  // what the person has not sent yet (reactions, thoughts, hides)
+	unread    int  // what was sent and the AI has not read yet
+	waiter    bool // a 'pitboard wait' is waiting: sending reaches the AI
+
+	in *input // the editor at the bottom, while writing
+	// inAt is where the editor's input position is among the bottom lines
+	// (line, column; 0-based), set when they are laid out.
+	inAt [2]int
+	help bool // the list of all keys
+	// kbd is set when the terminal answered that it tells keys apart
+	// (kitty keyboard protocol): shift+enter is then a key of its own.
+	kbd  bool
+	htop int // how far the list of keys is scrolled
+
+	noSession bool // the session given with -s does not exist (yet)
+
+	// unpinned is the notices opened too tall to pin above the page: they
+	// head the page instead (see notice.go).
+	unpinned map[string]bool
+
+	// dropBefore: keys read before this time are dropped (pressed while
+	// sending).
+	dropBefore time.Time
+
+	// hist is what the person did since the viewer opened, oldest first:
+	// what u takes back, newest first. tauto is the thought the viewer
+	// moved the cursor to after x, and tautoAt when a frame first showed it
+	// (see settling).
+	hist    []done
+	tauto   int
+	tautoAt time.Time
+
+	// inPane is set while the cursor is in the thoughts pane under the
+	// report (reached with j from the report's end): the pane grows to half
+	// the screen. pcur is the thought under the cursor, popen the thoughts
+	// opened there, ptop how far the pane is scrolled.
+	inPane bool
+	pcur   int
+	popen  map[int]bool
+	ptop   int
+
+	list      bool        // the thoughts list instead of the report
+	lcur      int         // thought number under the cursor in the list
+	lends     map[int]int // where each thought's rows end in the list, from listRows
+	lopen     map[int]bool
+	ltop      int
+	lfollow   bool
+	lcurShown bool
+}
+
+// Run opens the board of st, or (st nil) waits for the first session
+// to appear under base and opens it.
+// When a signal stops it, exit is the code to end the program with.
+func Run(base string, st *board.Store) (exit int, err error) {
+	t, err := openTerm()
+	if err != nil {
+		return 0, err
+	}
+	defer t.close()
+	a := &app{t: t, base: base, lopen: map[int]bool{}}
+	a.setStore(st)
+	if sig := a.loop(); sig != nil {
+		// Stopped by a signal: the terminal is given back by the deferred
+		// close, then the exit code says which signal it was.
+		if s, ok := sig.(syscall.Signal); ok {
+			return 128 + int(s), nil
+		}
+		return 1, nil
+	}
+	return 0, nil
+}
+
+func (a *app) setStore(st *board.Store) {
+	a.st = st
+	path := ""
+	a.noSession = false
+	if st != nil {
+		path = st.ReportPath()
+		if _, err := os.Stat(st.Dir); err != nil {
+			a.noSession = true
+		}
+	}
+	rep := &view{path: path, open: map[string]bool{}}
+	rep.load()
+	a.rep = rep
+	a.loadEvents()
+}
+
+func modTime(p string) time.Time {
+	if fi, err := os.Stat(p); err == nil {
+		return fi.ModTime()
+	}
+	return time.Time{}
+}
+
+func isDir(p string) bool {
+	fi, err := os.Stat(p)
+	return err == nil && fi.IsDir()
+}
+
+func (pv *view) load() {
+	if pv.path == "" {
+		pv.missing = true
+		return
+	}
+	pv.mtime = modTime(pv.path)
+	b, err := os.ReadFile(pv.path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			pv.missing, pv.err, pv.nodes, pv.probs = true, "", nil, nil
+			return
+		}
+		pv.err = err.Error()
+		return
+	}
+	pv.err, pv.missing = "", false
+	src := strings.ReplaceAll(string(b), "\r\n", "\n")
+	// Whatever goes wrong while reading, the viewer stays up and keeps what
+	// it showed before.
+	err = safely(func() error {
+		nodes, probs, err := report.Parse(src)
+		if err != nil {
+			return err
+		}
+		pv.nodes, pv.probs = nodes, probs
+		return nil
+	})
+	pv.readErr = ""
+	if err != nil {
+		pv.readErr = "報告を読めませんでした (前の画面を出しています): " + err.Error()
+	}
+}
+
+// safely runs f and turns a panic into an error.
+func safely(f func() error) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%v", r)
+		}
+	}()
+	return f()
+}
+
+func (a *app) loadEvents() {
+	if a.st == nil {
+		a.state, a.unsent, a.unread = board.Replay(nil, 0), 0, 0
+		a.viewed = map[string]bool{}
+		return
+	}
+	a.loadViewed()
+	a.waiter = a.st.Waiter() != 0
+	a.evMod, a.seenMod = modTime(a.st.EventsPath()), modTime(a.st.SeenPath())
+	evs, seen := a.st.Events(), a.st.Seen()
+	a.state = board.Replay(evs, seen)
+	a.unsent, a.unread = board.Unsent(evs), board.SentUnread(evs, seen)
+	if a.rep != nil {
+		a.rep.hidden = a.state.Hidden
+	}
+}
+
+func (a *app) loadViewed() {
+	a.viewedMod = modTime(a.st.ViewedPath())
+	a.viewed = a.st.Viewed()
+}
+
+func (a *app) top() *view { return a.rep }
+
+// loop runs the viewer until q, or until a signal stops it (returned).
+func (a *app) loop() os.Signal {
+	tick := time.NewTicker(500 * time.Millisecond)
+	defer tick.Stop()
+	a.render()
+	for {
+		select {
+		case sig := <-a.t.stop:
+			return sig
+		case k, ok := <-a.t.keys:
+			if !ok {
+				return nil
+			}
+			if !k.at.IsZero() && k.at.Before(a.dropBefore) {
+				continue
+			}
+			quit := false
+			if err := safely(func() error { quit = a.handle(k); return nil }); err != nil {
+				a.msg = "できませんでした: " + err.Error()
+			}
+			if quit {
+				return nil
+			}
+		case <-a.t.winch:
+			a.t.resize()
+			a.keepCursor()
+		case <-tick.C:
+			if a.st == nil {
+				if ss := board.Sessions(a.base); len(ss) > 0 {
+					a.setStore(board.Open(a.base, ss[0]))
+				}
+				break
+			}
+			if a.noSession {
+				if _, err := os.Stat(a.st.Dir); err == nil {
+					a.setStore(a.st)
+				}
+				break
+			}
+			if pv := a.top(); !modTime(pv.path).Equal(pv.mtime) {
+				a.reload(pv)
+			}
+			if !modTime(a.st.EventsPath()).Equal(a.evMod) || !modTime(a.st.SeenPath()).Equal(a.seenMod) {
+				a.loadEvents()
+			} else if !modTime(a.st.ViewedPath()).Equal(a.viewedMod) {
+				a.loadViewed() // another viewer of the same board
+			}
+			a.waiter = a.st.Waiter() != 0
+		}
+		a.render()
+	}
+}
+
+// render draws the screen; if drawing fails, it says so instead of
+// taking the viewer down.
+func (a *app) render() {
+	if err := safely(func() error { a.draw(); return nil }); err != nil {
+		a.t.draw([]string{"", "  描画できませんでした: " + clean(err.Error()), "", "  q 終了"}, nil)
+	}
+}
+
+// ---- reloading ----
+
+// reload reads the file again and keeps the cursor on the same id. When the
+// id is gone, the cursor goes to the nearest stop and reactions are locked
+// until j/k, so nothing is ever recorded against a line the person did not
+// point at.
+func (a *app) reload(pv *view) {
+	old := pv.nodeAt(pv.cur)
+	pv.load()
+	if old == nil {
+		return
+	}
+	// Lines added or removed above must not carry the cursor's line off the
+	// screen: if it was in view, the screen follows it.
+	if pv.curShown {
+		pv.follow = true
+	}
+	if now := pv.nodeAt(pv.cur); now != nil {
+		// The same id now naming something else (another title, or another
+		// kind of part) is a change the person must look at before reacting.
+		// A Fold's title is only a label, and status, note and state are not
+		// what the line is.
+		if now.Part() != old.Part() || (old.Kind != report.KindDetails && now.Title() != old.Title()) {
+			pv.follow, pv.lock = true, true
+		}
+		return
+	}
+	pv.cur, pv.follow, pv.lock = a.nearest(pv, pv.curRow), true, true
+}
+
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
