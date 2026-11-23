@@ -15,7 +15,6 @@ type row struct {
 	key   string // set on the first line of a stop
 	isCur bool
 	cont  bool // the rest of a line wrapped (or its right part below it)
-	lead  bool // drawn above the line after it, as part of it (a quote)
 	// jump is set on the first row of a place g goes to (a Section's
 	// heading, a top-level Fold, a notice).
 	jump *report.Node
@@ -119,13 +118,8 @@ func (a *app) draw() {
 			if ce >= *top+h-1 {
 				*top = ce - h + 2
 			}
-			// What is drawn above it as its part (a quote) too.
-			cs := ci
-			for cs > 0 && rows[cs-1].lead {
-				cs--
-			}
-			if cs < *top+1 {
-				*top = max(cs-1, 0)
+			if ci < *top+1 {
+				*top = max(ci-1, 0)
 			}
 		}
 		*top = max(min(*top, len(rows)-h), 0)

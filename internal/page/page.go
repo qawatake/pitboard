@@ -105,7 +105,7 @@ type Thing struct {
 	Path   string    // a Link's file path, as written
 	URL    string    // a Link's URL
 	At     time.Time // a Notice's: when the AI put it up
-	Quote  *Comment  // the comment an Item answers (re="N")
+	Quote  *Comment  // the comment an Item answers (re="N"); drawn as QuoteText says
 	// Comments are the comments written on it, oldest first.
 	Comments []*Comment
 	// Body is what opening an Item or Notice shows (paragraphs, list

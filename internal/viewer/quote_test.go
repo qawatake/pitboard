@@ -10,9 +10,10 @@ import (
 	"github.com/qawatake/pitboard/internal/board"
 )
 
-// An Item with re="N" shows thought N above its title, faint, after a >
-// in the title's column; long thoughts end in … on the 3rd row. No such
-// thought, no quote. The cursor stops on the title only.
+// An Item with re="N" shows thought N on its first line (the cursor's):
+// > and the text, in the title's color; the title follows on the next
+// rows, aligned with the text. Long thoughts end in … on the 3rd row. No
+// such thought: a plain Item. Nothing is drawn above the first line.
 func TestQuoteAThought(t *testing.T) {
 	for _, w := range []int{80, 40} {
 		st := testStore(t)
@@ -27,28 +28,31 @@ func TestQuoteAThought(t *testing.T) {
 		wait(t, time.Hour)
 		a.render()
 		ls, raw := screen(t, a)
-		title := rowOf(ls, "要ります")
-		if title < 1 || !strings.Contains(ls[title-1], "> これは要る？ [Image #1]") {
-			t.Fatalf("w=%d: no quote above the title:\n%s", w, strings.Join(ls, "\n"))
+		q := rowOf(ls, "> これは要る？ [Image #1]")
+		if q < 1 || !strings.Contains(ls[q+1], "要ります") || !strings.Contains(ls[q-1], "あなたへ") {
+			t.Fatalf("w=%d: quote line:\n%s", w, strings.Join(ls, "\n"))
 		}
-		// The > of the quote is where the title's text starts.
+		if !strings.Contains(ls[q], "▸") || !strings.Contains(ls[q], "●") {
+			t.Errorf("w=%d: mark not on the quote line:\n%s", w, ls[q])
+		}
+		// The title starts where the quote's text starts.
 		col := func(l, s string) int { return visibleWidth(l[:strings.Index(l, s)]) }
-		if col(ls[title-1], "> これ") != col(ls[title], "要ります") {
-			t.Errorf("w=%d: quote column:\n%s\n%s", w, ls[title-1], ls[title])
+		if col(ls[q], "これ") != col(ls[q+1], "要ります") {
+			t.Errorf("w=%d: title column:\n%s\n%s", w, ls[q], ls[q+1])
 		}
-		if !strings.Contains(raw, dim+"> ") {
-			t.Errorf("w=%d: the quote is not faint", w)
+		if strings.Contains(raw, dim+"> ") {
+			t.Errorf("w=%d: the quote is faint", w)
 		}
-		lt := rowOf(ls, "長い答え")
-		if !strings.HasSuffix(strings.TrimRight(ls[lt-1], " "), "…") || !strings.Contains(ls[lt-3], "> 長い質問") || strings.Contains(ls[lt-4], "長い質問") {
+		lq := rowOf(ls, "> 長い質問")
+		if !strings.HasSuffix(strings.TrimRight(ls[lq+2], " "), "…") || !strings.Contains(ls[lq+3], "長い答え") || strings.Contains(ls[lq+3], "長い質問") {
 			t.Errorf("w=%d: long quote:\n%s", w, strings.Join(ls, "\n"))
 		}
 		for _, s := range []string{"消えた問い", "無い問い"} {
-			if r := rowOf(ls, s); strings.Contains(ls[r-1], "> ") {
-				t.Errorf("w=%d: quote over %s:\n%s", w, s, strings.Join(ls, "\n"))
+			if r := rowOf(ls, s); strings.Contains(ls[r], "> ") || strings.Contains(ls[r-1], "> ") {
+				t.Errorf("w=%d: quote on %s:\n%s", w, s, strings.Join(ls, "\n"))
 			}
 		}
-		// j from a1 goes to a2's title, not its quote.
+		// j from a1 goes to a2's quote line.
 		pv := a.top()
 		pv.cur = "a1"
 		a.handle(key{r: 'j'})
@@ -57,7 +61,7 @@ func TestQuoteAThought(t *testing.T) {
 			t.Errorf("w=%d: cursor %q", w, pv.cur)
 		}
 		ls, _ = screen(t, a)
-		if r := rowOf(ls, "長い答え"); !strings.HasPrefix(ls[r], ">") || strings.HasPrefix(ls[r-1], ">") {
+		if r := rowOf(ls, "> 長い質問"); !strings.HasPrefix(ls[r], ">") || strings.HasPrefix(ls[r+1], ">") {
 			t.Errorf("w=%d: cursor row:\n%s", w, strings.Join(ls, "\n"))
 		}
 	}

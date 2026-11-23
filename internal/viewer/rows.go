@@ -259,6 +259,8 @@ func (a *app) rows(pv *view) []row {
 					mark = nil // the list's own mark
 				}
 				lns = a.listItem(sel, ind, n, base, mark, right)
+			} else if q := a.b.Quote(n); q != nil {
+				lns = a.quoted(sel, ind, mark, page.QuoteText(q.Text), base, body, right)
 			} else {
 				lns = a.line(sel, ind, mark, body, right)
 			}
@@ -269,7 +271,6 @@ func (a *app) rows(pv *view) []row {
 			if n.Kind == report.KindDetails {
 				lns[0].jump = n
 			}
-			rows = append(rows, a.quote(n, ind)...)
 			rows = append(rows, lns...)
 			if n.Kind == report.KindLink {
 				rows = append(rows, a.linkTarget(n, ind)...)
@@ -300,31 +301,31 @@ func (a *app) rows(pv *view) []row {
 	return rows
 }
 
-// quoteRows is how many rows a quoted thought takes at most.
-const quoteRows = 3
-
-// quote is the thought an Item answers (re="N"), quoted above its title:
-// a faint > in the column of the title's first character, and the text
-// faint after it, wrapped, 3 rows at most (the last ending in …). Nothing
-// when there is no such thought (taken back, a wrong number). The rows are
-// part of the Item: the cursor never stops on them.
-func (a *app) quote(n *report.Node, ind int) []row {
-	th := a.b.Quote(n)
-	if th == nil {
-		return nil
+// quoted is an Item that answers a comment (re="N"), as page.QuoteText
+// says: its first row (the cursor's, with the mark and the right part) is
+// > and the comment, in the color of the title, wrapped and page.QuoteRows
+// rows at most (the last ending in …); the title follows on rows of its
+// own, starting where the comment's text starts, wrapped.
+func (a *app) quoted(sel bool, ind int, mark text, q, base string, title, right text) []row {
+	head := plainText("> ", base)
+	var below []row
+	if len(right) > 0 && !a.rightFits(ind, right) {
+		below, right = a.rightRows(right), nil
 	}
-	head := plainText("> ", dim)
-	w := max(a.room(ind, nil)-head.width(), 4)
-	body := withImages(strings.Join(strings.Fields(th.Text), " "), dim).capped(titleCap)
-	lns := body.wrap(w)
-	if len(lns) > quoteRows {
-		last := append(append(text{}, lns[quoteRows-1]...), plainText(" ", dim)...)
-		last = append(last, lns[quoteRows]...)
-		lns = append(lns[:quoteRows-1:quoteRows-1], last.trunc(w))
+	w := max(a.room(ind, right)-head.width(), 4)
+	lns := withImages(q, base).capped(titleCap).wrap(w)
+	if len(lns) > page.QuoteRows {
+		last := append(append(text{}, lns[page.QuoteRows-1]...), plainText(" ", base)...)
+		last = append(last, lns[page.QuoteRows]...)
+		lns = append(lns[:page.QuoteRows-1:page.QuoteRows-1], last.trunc(w))
 	}
-	var out []row
-	for _, l := range lns {
-		out = append(out, row{line: a.compose(false, ind, nil, append(append(text{}, head...), l...), nil), lead: true})
+	out := []row{{line: a.compose(sel, ind, mark, append(append(text{}, head...), lns[0]...), right), isCur: sel}}
+	for _, l := range lns[1:] {
+		out = append(out, row{line: a.compose(false, ind+head.width(), nil, l, nil), cont: true})
+	}
+	out = append(out, below...)
+	for _, l := range title.wrap(a.room(ind+head.width(), nil)) {
+		out = append(out, row{line: a.compose(false, ind+head.width(), nil, l, nil), cont: true})
 	}
 	return out
 }

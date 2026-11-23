@@ -81,6 +81,17 @@ func SeenOf(n *report.Node) Seen {
 	return Seen{Key: n.Key, Sig: n.Sig(), HideKey: report.HideKey(n)}
 }
 
+// QuoteRows is how many rows the quoted comment of an Item (re="N") takes
+// at most; the last one ends in … when it is longer.
+const QuoteRows = 3
+
+// QuoteText is how the comment an Item answers is quoted: on the Item's
+// first line (its cursor line), after "> ", in the title's color, its
+// newlines turned into spaces. The Item's own title (the answer's
+// conclusion) follows on the lines under it, always shown. Nothing is drawn
+// above the Item's first line.
+func QuoteText(s string) string { return strings.Join(strings.Fields(s), " ") }
+
 // Quote is the thought an Item answers (re="N"), or nil when there is no
 // such thought (taken back, a wrong number).
 func (b *Board) Quote(n *report.Node) *board.Thought {

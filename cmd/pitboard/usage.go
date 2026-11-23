@@ -141,9 +141,10 @@ Writing report.md:
               something; not on a done Item),
               look="y" (you want the person to read it: see Marks),
               re="N" (it answers the person's thought N, the number
-              'changes' gives; digits only): the board quotes that
-              thought above the title, faint after a >, 3 rows at most
-              (nothing when the thought was taken back).
+              'changes' gives; digits only): the board shows that
+              thought as the line itself ("> " and its words, 3 rows at
+              most), with the title on the rows under it (the thought
+              taken back: just the title).
               The status is colored by attributes, not by its words:
               yellow with wait="you" (needs the person), green when
               state="doing" (moving), faint otherwise (queued, on hold).
@@ -267,7 +268,7 @@ Manners:
     (a thought), answer in the report, so that the board alone tells them
     where things stand when they come back. Put one Item per question at
     the bottom of "For you", with re="N" (N: the thought's number) and
-    look="y". The board quotes their words above it, so do not restate the
+    look="y". The board shows their words as the line, title under them, so do not restate the
     question: the title is the conclusion of your answer in one sentence,
     the contents the full answer. The person hides
     it with x once read; when "hide" for it arrives, drop that Item from
