@@ -50,7 +50,7 @@ func TestMarksAndCounts(t *testing.T) {
 		{"聞くリンク", "●", "yellow"},
 		{"読んでほしい", "●", "green"},
 		{"両方", "●", "yellow"}, // yellow wins
-		{"あなた待ち項目", " ", ""}, // wait="you" is not counted as waiting
+		{"あなた待ち項目", " ", ""},  // wait="you" is not counted as waiting
 		{"普通", " ", ""},
 		{"お知らせ", " ", ""}, // a Notice is always seen
 		{"黄を含む畳み", "●", "yellow"},
