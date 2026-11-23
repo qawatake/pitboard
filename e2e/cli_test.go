@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"fmt"
+	"regexp"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -18,8 +19,16 @@ func ev(n int, op string, fields string) string {
 	return fmt.Sprintf(`{"n":%d,"t":"2026-01-01T00:00:00Z","op":%q%s}`, n, op, fields)
 }
 
+// ageRE matches the ages open and changes print ("(12m)", "oldest 2h"),
+// which depend on the wall clock; wantLines compares them as "N".
+var ageRE = regexp.MustCompile(`\b\d+([smhd])\)`)
+
 func wantLines(t *testing.T, got string, want ...string) {
 	t.Helper()
+	got = ageRE.ReplaceAllString(got, "N$1)")
+	for i := range want {
+		want[i] = ageRE.ReplaceAllString(want[i], "N$1)")
+	}
 	g := strings.TrimRight(got, "\n")
 	w := strings.Join(want, "\n")
 	if g != w {
@@ -550,6 +559,25 @@ func TestSettle(t *testing.T) {
 			t.Errorf("exit %d: %s", r.code, r.stderr)
 		}
 	})
+}
+
+// SPEC.md "コマンド": ages in one unit of s m h d.
+func TestOpenAge(t *testing.T) {
+	s := newSandbox(t)
+	ss := s.session("abcdef12345")
+	ss.write(changesReport)
+	ss.appendEvents(ev(1, "thought", `"text":"a"`), ev(2, "send", ""))
+	ss.mustRun("changes")
+	// A settle written long ago (the record's own time counts).
+	ss.appendEvents(`{"n":3,"t":"2020-01-01T00:00:00Z","op":"settle","thought":1,"text":"x","by":"ai","state":"doing"}`)
+	out := ss.mustRun("open")
+	if !regexp.MustCompile(`^doing 1 \(\d+d\): a\n$`).MatchString(out) {
+		t.Errorf("open: %q", out)
+	}
+	out = ss.mustRun("changes")
+	if !regexp.MustCompile(`^open: 1 \(oldest \d+d\)\. Details: pitboard -s abcdef12 open\n$`).MatchString(out) {
+		t.Errorf("changes: %q", out)
+	}
 }
 
 // SPEC.md "コマンド" open.
