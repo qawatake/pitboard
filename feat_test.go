@@ -445,7 +445,7 @@ func TestNarrowHintsKeepLineKeys(t *testing.T) {
 	a.t.w = 90
 	a.render()
 	s = reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), "")
-	if !strings.HasPrefix(s, "    enter 開く  y よし  n だめ  c 行に書く  x 隠す  m 書く  ? キー") || strings.Contains(s, "tab") || strings.Contains(s, "\n") {
+	if !strings.HasPrefix(s, "    enter 開く  y よし  n だめ  c 行に書く  x 隠す  space 次へ  m 書く  ? キー") || strings.Contains(s, "tab") || strings.Contains(s, "\n") {
 		t.Errorf("wide hints: %q", s)
 	}
 	a.t.w = 20

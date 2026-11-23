@@ -32,6 +32,7 @@ type node struct {
 	label  string // Option key: "a"
 	status string // short word on the right end
 	reason string // note: why, shown when opened
+	ask    string // Item / Link: "y" when the AI asks for y / n on it
 	path   string // Link: a file path, as written
 	url    string // Link: an http(s) URL
 	lang   string // Code language ("diff" is colored)

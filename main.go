@@ -74,7 +74,7 @@ Writing report.md:
         <Option key="a">per session</Option>
         <Option key="b">per project</Option>
       </Ask>
-      <Item id="hook">Decide whether to install the hook
+      <Item id="hook" ask="y">Decide whether to install the hook
         Installing it touches ~/.claude/settings.json.
       </Item>
     </Section>
@@ -103,7 +103,8 @@ Writing report.md:
               Not inside another Section or a Fold.
     Item      id (required), state = todo (default) | doing | done,
               status (a short word shown at the right end),
-              note (why the status; shown when opened).
+              note (why the status; shown when opened),
+              ask="y" (you want a y / n on it; not on a done Item).
               First line: the item. Following lines: what opening it shows
               (text and Code only).
     Ask       id (required). First line: the question. Then 2 or more Option.
@@ -116,6 +117,7 @@ Writing report.md:
               written) or url (http:// or https://). One line: its title.
               The board shows the path or URL under the title; it does not
               open files. Put what must be read in the board in Code.
+              ask="y" as on Item.
     Fold      title (required), id (optional; keeps it open across retitling
               when folds are added or removed above it). Holds what a
               Section holds. Starts closed.
@@ -124,6 +126,32 @@ Writing report.md:
   id: 1-16 of a-z 0-9 -, unique in the page. The person reacts to Item, Ask
   and Link through their id: y / n on Items and Links, an Option key on an
   Ask, and thoughts written on any of them.
+
+  Marks: the board puts a yellow ● beside each line waiting for the person
+  (an Ask not answered yet, an Item or Link with ask="y" without a y / n on
+  what it says now) and a green ● beside each line they have not looked at
+  since it last changed; space takes them to the next one. So: mark with
+  ask="y" (or make an Ask) exactly what you need them to answer, and expect
+  any line you rewrite (title, state, status, note, contents) to show as new.
+
+A layout to start from:
+  The layout is yours; this is a starting point, not a rule. From the top:
+    1. The title, and where things stand in a sentence or two.
+       (What the person reads first when they come back.)
+    2. "For you": what needs the person's decision, check or work: Ask, or
+       Item with ask="y". (When it is empty, they know they need do nothing.)
+    3. "Answers": answers to what they asked. The title is the question, the
+       contents the answer; they hide it with x once read.
+       (Answers do not scroll away with the chat.)
+    4. "In progress": what you are doing now and next, with status working /
+       queued / waiting on you / on hold. (They see what moves without asking.)
+    5. "Decided": one decision per line; they hide what they no longer need.
+       (Decisions made in the chat are not lost.)
+    6. "Where": repos, files, URLs (Link). (One place to find things.)
+    7. "Done": in a Fold, newest first. (Kept, but out of the way.)
+  Manners for it: the more a section needs the person's hand, the higher it
+  goes. Leave out a section that would be empty. When the report no longer
+  fits on one screen, move what is done into the Fold, or drop it.
 
 Manners:
   - The layout is yours (which sections, what goes in them), but the report

@@ -255,7 +255,7 @@ func TestHintsShowM(t *testing.T) {
 	a.handle(key{r: 'j'}) // the Item
 	a.render()
 	s := reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), "")
-	if s != "    y よし  n だめ  c 行に書く  x 隠す  m 書く  ? キー" {
+	if s != "    y よし  n だめ  c 行に書く  x 隠す  space 次へ  m 書く  ? キー" {
 		t.Errorf("hints: %q", s)
 	}
 	// Dropped in order x, enter, n, y, c; m and ? stay.
@@ -334,7 +334,7 @@ func TestAskOpensToItsOptions(t *testing.T) {
 	a.handle(key{r: 'j'})
 	a.handle(key{r: 'k'}) // on the Ask, pointed at
 	a.render()
-	if s := reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), ""); s != "    enter 開く  c 行に書く  x 隠す  m 書く  ? キー" {
+	if s := reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), ""); s != "    enter 開く  c 行に書く  x 隠す  space 次へ  m 書く  ? キー" {
 		t.Errorf("closed hints: %q", s)
 	}
 	a.handle(key{r: 'a'})
@@ -345,7 +345,7 @@ func TestAskOpensToItsOptions(t *testing.T) {
 	if s := shown(a); !strings.Contains(s, "セッションごと") {
 		t.Errorf("an open Ask shows its options:\n%s", s)
 	}
-	if s := reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), ""); s != "    a b 答える  enter 閉じる  c 行に書く  x 隠す  m 書く  ? キー" {
+	if s := reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), ""); s != "    a b 答える  enter 閉じる  c 行に書く  x 隠す  space 次へ  m 書く  ? キー" {
 		t.Errorf("open hints: %q", s)
 	}
 	a.handle(key{r: 'a'})

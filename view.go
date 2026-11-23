@@ -61,6 +61,10 @@ type view struct {
 	// atEnd says whether the last frame showed the end of the page: j past
 	// the last stop then goes into the thoughts pane.
 	atEnd bool
+	// dwellKey is the cursor's line (and what it says) since dwellAt: resting
+	// there for settleDelay marks it as looked at (see dwell).
+	dwellKey string
+	dwellAt  time.Time
 }
 
 // settleDelay is how long a line the viewer moved the cursor to must have
@@ -99,9 +103,12 @@ type app struct {
 	msgLines int
 
 	evMod, seenMod time.Time
-	state          *state
-	unsent         int // what the person has not sent yet (reactions, thoughts, hides)
-	unread         int // what was sent and the AI has not read yet
+	// viewed is the hashes of what the person has looked at (see marks.go).
+	viewed    map[string]bool
+	viewedMod time.Time
+	state     *state
+	unsent    int // what the person has not sent yet (reactions, thoughts, hides)
+	unread    int // what was sent and the AI has not read yet
 
 	in *input // the editor at the bottom, while writing
 	// inAt is where the editor's input position is among the bottom lines
@@ -230,8 +237,10 @@ func safely(f func() error) (err error) {
 func (a *app) loadEvents() {
 	if a.st == nil {
 		a.state, a.unsent, a.unread = replayEvents(nil, 0), 0, 0
+		a.viewed = map[string]bool{}
 		return
 	}
+	a.loadViewed()
 	a.evMod, a.seenMod = modTime(a.st.eventsPath()), modTime(a.st.seenPath())
 	evs, seen := a.st.Events(), a.st.Seen()
 	a.state = replayEvents(evs, seen)
@@ -239,6 +248,11 @@ func (a *app) loadEvents() {
 	if a.rep != nil {
 		a.rep.hidden = a.state.hidden
 	}
+}
+
+func (a *app) loadViewed() {
+	a.viewedMod = modTime(a.st.viewedPath())
+	a.viewed = a.st.Viewed()
 }
 
 func (a *app) top() *view { return a.rep }
@@ -287,6 +301,8 @@ func (a *app) loop() os.Signal {
 			}
 			if !modTime(a.st.eventsPath()).Equal(a.evMod) || !modTime(a.st.seenPath()).Equal(a.seenMod) {
 				a.loadEvents()
+			} else if !modTime(a.st.viewedPath()).Equal(a.viewedMod) {
+				a.loadViewed() // another viewer of the same board
 			}
 		}
 		a.render()
@@ -420,6 +436,10 @@ func (a *app) handle(k key) (quit bool) {
 		}
 		pv.lock, pv.placed = false, false
 		pv.top++ // past the last stop: scroll the page
+	case k.r == ' ':
+		a.jump(pv)
+	case k.r == 'A':
+		a.viewAll(pv)
 	case k.r == 'k' || k.name == "up":
 		pv.lock, pv.placed = false, false
 		if !pv.step(-1) {
@@ -519,6 +539,7 @@ func (a *app) react(pv *view, r rune) {
 	case contains(choices, s):
 		value = s
 	case thought && s == "c":
+		a.markViewed(n)
 		a.in = newInput(n.id, n.title(), "「"+plainText(n.title(), "").capped(4*a.textWidth()).plain()+"」に書く")
 		return
 	default:
@@ -550,6 +571,7 @@ func (a *app) react(pv *view, r rune) {
 	if _, err := a.st.Append(e); err != nil {
 		a.msg = "記録できませんでした: " + err.Error()
 	}
+	a.markViewed(n)
 	a.loadEvents()
 }
 
@@ -614,6 +636,7 @@ func (a *app) hide(pv *view) {
 	case pv.showHidden:
 		msg = "隠しました"
 	}
+	a.markViewed(n)
 	before, i := pv.navKeys(), index(pv.navKeys(), pv.cur)
 	if _, err := a.st.Append(Event{Op: op, Key: hideKey(n), Title: n.title()}); err != nil {
 		a.msg = "記録できませんでした: " + err.Error()
@@ -725,6 +748,7 @@ func (a *app) enter(pv *view) {
 	case n == nil:
 	case a.canOpen(pv, n):
 		pv.open[pv.cur] = !pv.open[pv.cur]
+		a.markViewed(n)
 	}
 }
 
@@ -954,6 +978,11 @@ func (a *app) handlePane(k key) (quit bool) {
 	switch {
 	case k.r == 'q':
 		return true
+	case k.r == ' ':
+		a.inPane, a.ptop = false, 0
+		a.jump(a.top())
+	case k.r == 'A':
+		a.viewAll(a.top())
 	case k.r == 'j' || k.name == "down":
 		if i+1 < len(ts) {
 			a.pcur = ts[i+1].N
@@ -1069,10 +1098,16 @@ func (a *app) draw() {
 	var shown *bool
 	if a.list {
 		rows = a.listRows()
+		a.top().dwellKey = "" // the report is not on screen
 		top, follow, shown = &a.ltop, &a.lfollow, &a.lcurShown
 	} else {
 		pv := a.top()
 		pv.settleCursor()
+		if a.help {
+			pv.dwellKey = "" // the list of keys covers the line
+		} else {
+			a.dwell(pv)
+		}
 		if a.in != nil && a.in.id != "" && a.in.id == pv.cur {
 			// While writing about the cursor's line, keep it in view however
 			// tall the editor grows.
@@ -1177,14 +1212,25 @@ func (a *app) draw() {
 // faint) and "● 未送信 N" (not sent; yellow).
 func (a *app) sendMark() text {
 	var t text
-	if a.unread > 0 {
-		t = plainText(fmt.Sprintf("送信済み %d", a.unread), dim)
-	}
-	if a.unsent > 0 {
+	add := func(s, color string) {
 		if len(t) > 0 {
 			t = append(t, plainText("  ", "")...)
 		}
-		t = append(t, plainText(fmt.Sprintf("● 未送信 %d", a.unsent), yellow)...)
+		t = append(t, plainText(s, color)...)
+	}
+	if w, f := a.counts(a.top()); w > 0 || f > 0 {
+		if w > 0 {
+			add(fmt.Sprintf("反応待ち %d", w), yellow)
+		}
+		if f > 0 {
+			add(fmt.Sprintf("新着 %d", f), green)
+		}
+	}
+	if a.unread > 0 {
+		add(fmt.Sprintf("送信済み %d", a.unread), dim)
+	}
+	if a.unsent > 0 {
+		add(fmt.Sprintf("● 未送信 %d", a.unsent), yellow)
 	}
 	return t
 }
@@ -1288,6 +1334,8 @@ func (a *app) helpRows() []row {
 		{"pgup pgdn", "半画面ずつ送る"},
 		{"", "報告の終わりからさらに j で、報告の下の思いつきへ (欄が広がる)。思いつきの 1 件目で k で報告へ戻る"},
 		{"", "日本語入力のままでも、↑↓ ctrl+n ctrl+p と全角の英字 (ｊ ｙ など) が効く"},
+		{"space", "次の反応待ち (黄の ●) へ。無ければ次の新着 (緑の ●) へ。折りたたみは開く"},
+		{"A", "いま報告にある行をすべて見たことにする (緑の ● を消す)"},
 		{"enter", "開く・閉じる (思いつきの欄でも)"},
 		{"x (思いつき)", "思いつきの欄と一覧では、その思いつきを取り消す。直後の u で戻す"},
 		{"y", "よし (項目・リンク)"},
@@ -1531,6 +1579,12 @@ func (a *app) oneLine(keys []hint, right text) []string {
 		tail = append(tail, hint{k: "m", d: "書く"})
 	}
 	tail = append(tail, q)
+	if !a.list && !a.inPane {
+		if w, f := a.counts(a.top()); w > 0 || f > 0 {
+			// Where to go next: before "m 書く", dropped first when narrow.
+			keys = append(append([]hint{}, keys...), hint{k: "space", d: "次へ", rank: rankX})
+		}
+	}
 	shorten := func(ks []hint) []hint {
 		out := make([]hint, len(ks))
 		for i, k := range ks {
@@ -2142,6 +2196,7 @@ func (a *app) rows(pv *view) []row {
 			lns := a.line(sel, ind, mark, body, right, wrap)
 			if nav {
 				lns[0].key = n.key
+				lns[0].line = gutterMark(lns[0].line, a.markOfLine(pv, n))
 			}
 			rows = append(rows, lns...)
 			if n.kind == kLink {

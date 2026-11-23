@@ -38,10 +38,10 @@ type partSpec struct {
 var parts = map[string]partSpec{
 	"Title":   {attrs: map[string]bool{}, parents: []string{""}, oneLine: true},
 	"Section": {attrs: map[string]bool{"title": true}, parents: []string{""}, holdsAny: true},
-	"Item":    {attrs: map[string]bool{"id": true, "state": false, "status": false, "note": false}, parents: []string{"", "Section", "Fold"}},
+	"Item":    {attrs: map[string]bool{"id": true, "state": false, "status": false, "note": false, "ask": false}, parents: []string{"", "Section", "Fold"}},
 	"Ask":     {attrs: map[string]bool{"id": true}, parents: []string{"", "Section", "Fold"}},
 	"Option":  {attrs: map[string]bool{"key": true}, parents: []string{"Ask"}, oneLine: true},
-	"Link":    {attrs: map[string]bool{"id": true, "path": false, "url": false}, parents: []string{"", "Section", "Fold"}, oneLine: true},
+	"Link":    {attrs: map[string]bool{"id": true, "path": false, "url": false, "ask": false}, parents: []string{"", "Section", "Fold"}, oneLine: true},
 	"Fold":    {attrs: map[string]bool{"title": true, "id": false}, parents: []string{"", "Section", "Fold"}, holdsAny: true},
 	"Code":    {attrs: map[string]bool{"lang": false}, parents: []string{"", "Section", "Fold", "Item"}},
 }
@@ -264,6 +264,16 @@ func (p *reportParser) open(no int, raw, trim string) {
 		}
 	case "Code":
 		n.kind, n.lang = kCode, attrs["lang"]
+	}
+	if v, ok := attrs["ask"]; ok {
+		switch {
+		case v != "y":
+			p.errf(no, "ask %q: the only value is \"y\" (asking for y / n)", v)
+		case n.kind == kDone:
+			p.errf(no, "a done <Item> asks nothing: drop ask=\"y\"")
+		default:
+			n.ask = v
+		}
 	}
 	if id := attrs["id"]; id != "" {
 		switch {
