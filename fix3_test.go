@@ -182,8 +182,13 @@ func TestSmallDisplayFixes(t *testing.T) {
 	if pv.cur != "unit" || !pv.placed {
 		t.Fatalf("cursor %q placed %v", pv.cur, pv.placed)
 	}
+	if s := reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), ""); !strings.Contains(s, "j k → x") && !strings.Contains(s, "動かすと x が効く") {
+		t.Errorf("placed on a closed Ask: %q", s)
+	}
+	a.handle(key{name: "enter"})
+	a.render()
 	if s := reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), ""); !strings.Contains(s, "j k → 答える") && !strings.Contains(s, "動かすと答えられる") {
-		t.Errorf("placed on an Ask: %q", s)
+		t.Errorf("placed on an open Ask: %q", s)
 	}
 	// 9a: at width 40 the pane says there is more, and where.
 	for i := 0; i < 7; i++ {
@@ -194,7 +199,7 @@ func TestSmallDisplayFixes(t *testing.T) {
 	st.Append(Event{Op: "thought", Text: "u"})
 	a.loadEvents()
 	p := reEsc.ReplaceAllString(strings.Join(a.pane(30), "\n"), "")
-	if !strings.Contains(p, "未読 1") {
+	if !strings.Contains(p, "s で送る") {
 		t.Errorf("pane at width 40:\n%s", p)
 	}
 	// 9d: a long destination does not squeeze the thought in the list.

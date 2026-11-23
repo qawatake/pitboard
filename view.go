@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -8,6 +9,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unicode/utf8"
 )
 
 const (
@@ -85,10 +87,14 @@ type app struct {
 
 	evMod, seenMod time.Time
 	state          *state
+	unsent         int // what the AI has not been given yet (reactions, thoughts, hides)
 
-	in   *input // the editor at the bottom, while writing
-	help bool   // the list of all keys
-	htop int    // how far the list of keys is scrolled
+	in *input // the editor at the bottom, while writing
+	// inAt is where the editor's input position is among the bottom lines
+	// (line, column; 0-based), set when they are laid out.
+	inAt [2]int
+	help bool // the list of all keys
+	htop int  // how far the list of keys is scrolled
 
 	noSession bool // the session given with -s does not exist (yet)
 
@@ -189,11 +195,13 @@ func safely(f func() error) (err error) {
 
 func (a *app) loadEvents() {
 	if a.st == nil {
-		a.state = replayEvents(nil, 0)
+		a.state, a.unsent = replayEvents(nil, 0), 0
 		return
 	}
 	a.evMod, a.seenMod = modTime(a.st.eventsPath()), modTime(a.st.seenPath())
-	a.state = replayEvents(a.st.Events(), a.st.Seen())
+	evs, seen := a.st.Events(), a.st.Seen()
+	a.state = replayEvents(evs, seen)
+	a.unsent = unsent(evs, seen)
 	if a.rep != nil {
 		a.rep.hidden = a.state.hidden
 	}
@@ -252,7 +260,7 @@ func (a *app) loop() os.Signal {
 // taking the viewer down.
 func (a *app) render() {
 	if err := safely(func() error { a.draw(); return nil }); err != nil {
-		a.t.draw([]string{"", "  描画できませんでした: " + clean(err.Error()), "", "  q 終了"})
+		a.t.draw([]string{"", "  描画できませんでした: " + clean(err.Error()), "", "  q 終了"}, nil)
 	}
 }
 
@@ -361,6 +369,8 @@ func (a *app) handle(k key) (quit bool) {
 		a.list, a.lfollow = true, true
 	case k.r == 'm' && a.canWrite():
 		a.in = &input{label: "思いつきを書く"}
+	case k.r == 's':
+		a.wake()
 	case k.name == "enter" && pv.curShown:
 		a.enter(pv)
 	case k.r == 'x':
@@ -410,6 +420,11 @@ func (a *app) react(pv *view, r rune) {
 		return
 	}
 	yn, choices, thought := keysFor(n)
+	if n.kind == kQuestion && !pv.open[n.key] && contains(choices, string(r)) {
+		// The options are not on screen: the key only opens the question.
+		pv.open[n.key] = true
+		return
+	}
 	if pv.placed {
 		yn, choices = false, nil // the person has not pointed at this line yet
 	}
@@ -614,7 +629,7 @@ func (a *app) canOpen(pv *view, n *node) bool {
 	if n.kind == kLink || n.kind == kChoice {
 		return false
 	}
-	if n.kind == kDetails || len(n.body) > 0 || n.reason != "" || pv.cut[n.key] {
+	if n.kind == kDetails || n.kind == kQuestion || len(n.body) > 0 || n.reason != "" || pv.cut[n.key] {
 		return true
 	}
 	return n.id != "" && len(a.state.on(n.id)) > 0
@@ -646,7 +661,11 @@ func (a *app) handleInput(k key) {
 	case "newline":
 		a.in.text = append(a.in.text, '\n')
 	case "enter":
-		a.send(string(a.in.text))
+		a.write(string(a.in.text))
+	case "ctrl+s":
+		if a.write(string(a.in.text)) {
+			a.wake()
+		}
 	case "":
 		if k.r != 0 {
 			a.in.text = append(a.in.text, k.r)
@@ -654,18 +673,45 @@ func (a *app) handleInput(k key) {
 	}
 }
 
-func (a *app) send(text string) {
+// write records what is in the editor as a thought and closes the editor
+// (empty text closes it without recording). It reports false when the
+// thought could not be recorded; the editor then stays open.
+func (a *app) write(text string) bool {
 	text = strings.TrimSpace(text)
 	if text == "" {
 		a.in = nil
-		return
+		return true
 	}
 	if _, err := a.st.Append(Event{Op: "thought", ID: a.in.id, Text: text, Title: a.in.title}); err != nil {
-		a.msg = "送れませんでした: " + err.Error()
-		return
+		a.msg = "書けませんでした: " + err.Error()
+		return false
 	}
 	a.in = nil
 	a.loadEvents()
+	return true
+}
+
+// wake types a line into the AI's terminal telling it that the board has
+// something it has not read. What was sent is not marked as delivered: that
+// happens when the AI runs 'changes'.
+func (a *app) wake() {
+	if !a.canWrite() {
+		return
+	}
+	a.loadEvents()
+	if a.unsent == 0 {
+		a.msg = "送るものはありません"
+		return
+	}
+	if err := deliver(a.st.session, wakeMessage(a.st.session, a.unsent)); err != nil {
+		if errors.Is(err, errNoTarget) {
+			a.msg = err.Error()
+		} else {
+			a.msg = "送れませんでした: " + err.Error()
+		}
+		return
+	}
+	a.msg = "AI に送りました"
 }
 
 const scissors = "# ------------------------ >8 ------------------------"
@@ -706,7 +752,7 @@ func (a *app) external() {
 		a.in = nil
 		return
 	}
-	a.send(text)
+	a.write(text)
 }
 
 // ---- the thoughts list ----
@@ -748,6 +794,8 @@ func (a *app) handleList(k key) (quit bool) {
 		a.lopen[ts[i].N] = !a.lopen[ts[i].N]
 	case k.r == 'm' && a.canWrite():
 		a.in = &input{label: "思いつきを書く"}
+	case k.r == 's':
+		a.wake()
 	}
 	return false
 }
@@ -846,7 +894,90 @@ func (a *app) draw() {
 	for len(lines) < h {
 		lines = append(lines, "")
 	}
-	a.t.draw(append(lines, bottom...))
+	if !a.help && a.unsent > 0 && len(lines) > 0 {
+		// What the AI has not been given yet, on the top line however far
+		// the page is scrolled.
+		lines[0] = a.overlayRight(lines[0], plainText(fmt.Sprintf("● 未送信 %d", a.unsent), yellow))
+	}
+	var at *[2]int
+	if a.in != nil && !a.help {
+		// The terminal's own cursor goes where the person writes, so an
+		// input method shows what is being composed there.
+		if r := h + a.inAt[0]; r < a.t.h {
+			at = &[2]int{r + 1, a.inAt[1] + 1}
+		}
+	}
+	a.t.draw(append(lines, bottom...), at)
+}
+
+// overlayRight puts right at the right end of an already drawn line, where
+// compose puts a line's right part. A line too long for both is cut with ….
+func (a *app) overlayRight(line string, right text) string {
+	end := margin + a.textWidth() // the column right ends at
+	avail := end - right.width() - 2
+	if w := visibleWidth(line); w <= avail {
+		return line + strings.Repeat(" ", max(end-right.width()-w, 2)) + right.String()
+	}
+	cut := cutVisible(line, max(avail-1, 0))
+	return cut + "…" + strings.Repeat(" ", max(end-right.width()-visibleWidth(cut)-1, 2)) + right.String()
+}
+
+// visibleWidth is how many cells a drawn line takes (escape sequences take
+// none).
+func visibleWidth(s string) int {
+	w := 0
+	forVisible(s, func(_ int, r rune) bool { w += runeWidth(r); return true })
+	return w
+}
+
+// cutVisible keeps the first w cells of a drawn line, and ends any style
+// or hyperlink it was in.
+func cutVisible(s string, w int) string {
+	n, end := 0, 0
+	forVisible(s, func(i int, r rune) bool {
+		if n+runeWidth(r) > w {
+			return false
+		}
+		n += runeWidth(r)
+		end = i + len(string(r))
+		return true
+	})
+	// Keep the escape sequences right after the last kept rune too (they
+	// may close a style), then reset everything.
+	return s[:end] + rst + "\x1b]8;;\x1b\\"
+}
+
+// forVisible calls f with each rune of s that is drawn (not part of an
+// escape sequence) and its byte offset, until f returns false.
+func forVisible(s string, f func(i int, r rune) bool) {
+	for i := 0; i < len(s); {
+		if s[i] == 0x1b && i+1 < len(s) {
+			switch s[i+1] {
+			case '[': // CSI: up to a final byte
+				j := i + 2
+				for j < len(s) && (s[j] < 0x40 || s[j] > 0x7e) {
+					j++
+				}
+				i = j + 1
+				continue
+			case ']': // OSC: up to ESC \ or BEL
+				j := i + 2
+				for j < len(s) && s[j] != 0x07 && !(s[j] == 0x1b && j+1 < len(s) && s[j+1] == '\\') {
+					j++
+				}
+				if j < len(s) && s[j] == 0x1b {
+					j++
+				}
+				i = j + 1
+				continue
+			}
+		}
+		r, size := utf8.DecodeRuneInString(s[i:])
+		if !f(i, r) {
+			return
+		}
+		i += size
+	}
 }
 
 // bottomLines is everything under the scrolling part: the editor while
@@ -878,9 +1009,10 @@ func (a *app) helpRows() []row {
 		{"enter", "開く・閉じる"},
 		{"y", "よし (項目・リンク)"},
 		{"n", "だめ (項目・リンク)"},
-		{"a b …", "問いに答える (選択肢のキー)"},
+		{"a b …", "問いに答える (選択肢のキー。問いを開いているときだけ。閉じていれば開く)"},
 		{"c", "この行に思いつきを書く"},
-		{"m", "思いつきを書く"},
+		{"m", "思いつきを書く (どこにカーソルがあっても)"},
+		{"s", "AI に送る: まだ届いていないものがあると、AI のいるターミナルに一行打ち込んで知らせる"},
 		{"x", "この行を隠す (隠した行の上では戻す)"},
 		{"H", "隠した行を表示する / しない"},
 		{"tab", "思いつきの一覧 / 報告に戻る"},
@@ -888,7 +1020,8 @@ func (a *app) helpRows() []row {
 		{"q", "終了 (一覧からは報告に戻る)"},
 		{"", ""},
 		{"書いているとき", ""},
-		{"enter", "送る"},
+		{"enter", "書く (AI には、次に AI が動いたときに届く)"},
+		{"ctrl+s", "書いて、すぐ AI に送る"},
 		{"ctrl+j", "改行"},
 		{"ctrl+e", "$VISUAL / $EDITOR / vim で続きを書く"},
 		{"esc", "やめる"},
@@ -929,6 +1062,7 @@ func (a *app) handleHelp(k key) {
 type hint struct {
 	k, d  string
 	short string
+	rank  int // when it is left out on a narrow line (see rankX)
 }
 
 func keyHints(hs []hint) text {
@@ -971,71 +1105,109 @@ func (a *app) bottom() []string {
 	if a.list {
 		if t := a.listCur(); t != nil && a.lcurShown {
 			if a.lopen[t.N] {
-				keys = append(keys, hint{k: "enter", d: "閉じる"})
+				keys = append(keys, hint{k: "enter", d: "閉じる", rank: rankEnter})
 			} else {
-				keys = append(keys, hint{k: "enter", d: "開く"})
+				keys = append(keys, hint{k: "enter", d: "開く", rank: rankEnter})
 			}
 		}
-		keys = append(keys, hint{k: "tab", d: "報告へ"})
+		keys = append(keys, hint{k: "tab", d: "報告へ", rank: rankX})
 		return a.oneLine(keys, nil)
 	}
 	pv := a.top()
 	n := pv.nodeAt(pv.cur)
 	if n == nil || !pv.curShown {
 		if pv.err == "" && !pv.missing {
-			keys = append(keys, hint{k: "j k", d: "送る"})
+			keys = append(keys, hint{k: "j k", d: "送る", rank: rankEnter})
 		}
-	} else {
-		// The keys for this line come first: they are the last to be left
-		// out when the line is narrow.
-		switch {
-		case a.canOpen(pv, n) && pv.open[pv.cur]:
-			keys = append(keys, hint{k: "enter", d: "閉じる"})
-		case a.canOpen(pv, n):
-			keys = append(keys, hint{k: "enter", d: "開く"})
+		return a.oneLine(keys, right)
+	}
+	var enter, answer, yn, write, hide []hint
+	switch {
+	case a.canOpen(pv, n) && pv.open[pv.cur]:
+		enter = []hint{{k: "enter", d: "閉じる", rank: rankEnter}}
+	case a.canOpen(pv, n):
+		enter = []hint{{k: "enter", d: "開く", rank: rankEnter}}
+	}
+	ask := n.kind == kQuestion
+	askOpen := ask && pv.open[pv.cur]
+	t := a.target(pv)
+	if t != nil {
+		y, choices, thought := keysFor(t)
+		if !askOpen {
+			choices = nil // the options of a closed Ask are not on screen
 		}
-		if t := a.target(pv); t != nil {
-			yn, choices, thought := keysFor(t)
-			if pv.placed {
-				// Placed by the viewer, not by the person: say how to react.
-				if t.kind == kQuestion {
-					keys = append(keys, hint{k: "j k", d: "動かすと答えられる", short: "→ 答える"})
-				} else if yn {
-					keys = append(keys, hint{k: "j k", d: "動かすと y n が効く", short: "→ y n"})
-				}
-				yn, choices = false, nil
+		if pv.placed {
+			// Placed by the viewer, not by the person: say how to react.
+			switch {
+			case askOpen:
+				answer = []hint{{k: "j k", d: "動かすと答えられる", short: "→ 答える"}}
+			case y:
+				answer = []hint{{k: "j k", d: "動かすと y n が効く", short: "→ y n"}}
 			}
-			if yn {
-				keys = append(keys, hint{k: "y", d: "よし"}, hint{k: "n", d: "だめ"})
-			}
-			if len(choices) > 0 {
-				keys = append(keys, hint{k: strings.Join(choices, " "), d: "答える"})
-			}
-			if thought {
-				keys = append(keys, hint{k: "c", d: "書く"})
-			}
+			y, choices = false, nil
 		}
-		if pv.placed && a.target(pv) == nil && hideKey(n) != "" && !pv.lock && a.canWrite() {
-			// A plain line or a Fold the viewer put the cursor on.
-			keys = append(keys, hint{k: "j k", d: "動かすと x が効く", short: "→ x"})
+		if y {
+			yn = []hint{{k: "y", d: "よし", rank: rankY}, {k: "n", d: "だめ", rank: rankN}}
 		}
-		if a.hideTarget(pv) != nil {
-			if pv.isHidden(n) {
-				keys = append(keys, hint{k: "x", d: "戻す"})
-			} else {
-				keys = append(keys, hint{k: "x", d: "隠す"})
-			}
+		if len(choices) > 0 {
+			answer = []hint{{k: strings.Join(choices, " "), d: "答える", rank: rankY}}
+		}
+		if thought {
+			write = []hint{{k: "c", d: "行に書く", rank: rankC}}
 		}
 	}
-	// m tab q H work everywhere: the list of keys (?) tells them.
+	if pv.placed && len(answer) == 0 && hideKey(n) != "" && !pv.lock && a.canWrite() {
+		// A plain line, a Fold or a closed Ask the viewer put the cursor on.
+		answer = []hint{{k: "j k", d: "動かすと x が効く", short: "→ x"}}
+	}
+	if a.hideTarget(pv) != nil {
+		if pv.isHidden(n) {
+			hide = []hint{{k: "x", d: "戻す", rank: rankX}}
+		} else {
+			hide = []hint{{k: "x", d: "隠す", rank: rankX}}
+		}
+	}
+	// The keys for this line, in the order shown; an open Ask leads with
+	// its options.
+	if askOpen {
+		keys = concat(answer, enter, write, hide)
+	} else {
+		keys = concat(enter, answer, yn, write, hide)
+	}
+	// m tab q H work everywhere: the list of keys (?) tells them; m is also
+	// shown, since writing works wherever the cursor is.
 	return a.oneLine(keys, right)
 }
 
-// oneLine is the hints: always one line, the keys for this line (at most
-// five) and "? キー" last. When the line is narrow, right goes first, then
-// keys from the end; "? キー" and a hint with a short form always stay.
+func concat(hs ...[]hint) []hint {
+	var out []hint
+	for _, h := range hs {
+		out = append(out, h...)
+	}
+	return out
+}
+
+// The order in which hints are left out when the line is narrow: lowest
+// first. A hint with rank 0 (one with a short form, m, ?) is kept.
+const (
+	rankX = iota + 1
+	rankEnter
+	rankN
+	rankY
+	rankC
+)
+
+// oneLine is the hints: always one line, the keys for this line, then
+// "m 書く" and "? キー". When the line is narrow, right goes first, then
+// keys by rank (x, enter, n, y, c); "m 書く", "? キー" and a hint with a
+// short form stay to the end.
 func (a *app) oneLine(keys []hint, right text) []string {
 	q := hint{k: "?", d: "キー"}
+	var tail []hint
+	if a.canWrite() {
+		tail = append(tail, hint{k: "m", d: "書く"})
+	}
+	tail = append(tail, q)
 	shorten := func(ks []hint) []hint {
 		out := make([]hint, len(ks))
 		for i, k := range ks {
@@ -1046,32 +1218,35 @@ func (a *app) oneLine(keys []hint, right text) []string {
 		}
 		return out
 	}
-	for n := min(len(keys), 5); n >= 0; n-- {
+	fits := func(ks []hint, r text) bool { return keyHints(ks).width() <= a.room(0, r) }
+	for lvl := 0; lvl <= rankC; lvl++ {
 		var ks []hint
-		for i, k := range keys {
-			if i < n || k.short != "" {
+		for _, k := range keys {
+			if k.short != "" || k.rank == 0 || k.rank > lvl {
 				ks = append(ks, k)
 			}
 		}
 		for _, cand := range [][]hint{ks, shorten(ks)} {
-			cand = append(cand, q)
+			cand = append(cand, tail...)
 			for _, r := range []text{right, nil} { // right goes before any key
-				if keyHints(cand).width() <= a.room(0, r) {
+				if fits(cand, r) {
 					return []string{a.compose(false, 0, nil, keyHints(cand), r)}
 				}
 			}
 		}
 	}
-	// Too narrow for both: what the person must know to react (the short
-	// form of a kept hint) comes before "? キー".
+	// Too narrow for all: what the person must know to react (the short
+	// form of a kept hint) comes first, then "? キー".
 	var must []hint
 	for _, k := range shorten(keys) {
 		if k.short != "" {
 			must = append(must, k)
 		}
 	}
-	if len(must) > 0 && keyHints(must).width() <= a.room(0, nil) {
-		return []string{a.compose(false, 0, nil, keyHints(must), nil)}
+	for _, cand := range [][]hint{append(append([]hint{}, must...), q), must} {
+		if len(must) > 0 && fits(cand, nil) {
+			return []string{a.compose(false, 0, nil, keyHints(cand), nil)}
+		}
 	}
 	return []string{a.compose(false, 0, nil, keyHints([]hint{q}), nil)}
 }
@@ -1189,16 +1364,11 @@ func (a *app) pane(avail int) []string {
 	for n > 0 && avail-(n+3) < minBodyRows { // + heading and the blank above and below
 		n--
 	}
-	unread := 0
-	for _, t := range a.state.thoughts {
-		if t.N > a.state.seen {
-			unread++
-		}
-	}
 	// Quiet: the only thing that draws the eye is what the AI has not read.
+	// How many is said at the top right (未送信); here, how to send them.
 	var right text
-	if unread > 0 {
-		right = plainText(fmt.Sprintf("未読 %d", unread), yellow)
+	if a.state.unread() > 0 {
+		right = plainText("s で送る", yellow)
 	}
 	head := a.compose(false, 0, nil, plainText("思いつき", bold+blue), right)
 	if n == 0 {
@@ -1245,7 +1415,7 @@ func (a *app) editorLines() []string {
 	if limit := max(a.t.h/3, 3); len(lns) > limit {
 		lns = lns[len(lns)-limit:]
 	}
-	hints := a.packKeys([]hint{{k: "enter", d: "送る"}, {k: "ctrl+j", d: "改行"}, {k: "ctrl+e", d: "エディタ"}, {k: "esc", d: "やめる"}}, nil, false)
+	hints := a.packKeys([]hint{{k: "enter", d: "書く"}, {k: "ctrl+s", d: "書いて送る"}, {k: "ctrl+j", d: "改行"}, {k: "ctrl+e", d: "エディタ"}, {k: "esc", d: "やめる"}}, nil, false)
 	// If the line being written about changed or went away meanwhile, say so
 	// (sending still works: what was written is never lost).
 	var changed text
@@ -1264,7 +1434,9 @@ func (a *app) editorLines() []string {
 	}
 	for i, l := range lns {
 		if i == len(lns)-1 {
-			l = append(l, cell{r: ' ', st: rev})
+			// The input position: after the last line, past the gutter and
+			// the mark field (the terminal's cursor is put there).
+			a.inAt = [2]int{len(out), margin + markW + l.width()}
 		}
 		out = append(out, a.compose(false, 0, nil, l, nil))
 	}
@@ -1365,8 +1537,23 @@ func (a *app) right(pv *view, n *node) text {
 	if c := len(a.state.on(n.id)); c > 0 {
 		th = plainText(fmt.Sprintf("✎%d", c), dim)
 	}
+	if n.kind == kQuestion && len(re) > 0 && !pv.open[n.key] {
+		// A closed question shows the head of the chosen option too, if
+		// the line has room for it.
+		if ch := n.choice(re.plain()); ch != nil {
+			head := append(append(text{}, re...), plainText(" ", "")...)
+			head = append(head, plainText(plainOf(ch.text), dim).trunc(answerHead)...)
+			ind := n.depth * 2
+			if long := join(st, head, th); inline(n.text, "").width() <= a.room(ind, long) {
+				return long
+			}
+		}
+	}
 	return join(st, re, th)
 }
+
+// answerHead is how much of the chosen option a closed question shows.
+const answerHead = 12
 
 // markOf is the mark at the head of a line. Done items always show ✓;
 // otherwise opening wins over the kind.
@@ -1643,7 +1830,7 @@ func (pv *view) walk(f func(n *node)) {
 				continue
 			}
 			f(n)
-			if n.kind == kQuestion || n.kind == kSection || (n.kind == kDetails && pv.open[n.key]) {
+			if n.kind == kSection || ((n.kind == kDetails || n.kind == kQuestion) && pv.open[n.key]) {
 				rec(n.kids)
 			}
 		}

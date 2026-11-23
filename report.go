@@ -59,7 +59,7 @@ var (
 
 // viewerKeys are the keys the viewer uses for itself; an Option cannot use
 // them as its key.
-const viewerKeys = "cjkmnqxy"
+const viewerKeys = "cjkmnqsxy"
 
 type frame struct {
 	name   string // "" for the top level

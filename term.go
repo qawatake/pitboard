@@ -134,7 +134,11 @@ func (t *term) resize() {
 }
 
 // draw paints a full frame without clearing first, so there is no flicker.
-func (t *term) draw(lines []string) {
+// With at (row, column; 1-based), the terminal's cursor is left there and
+// shown, so an input method draws what is being composed where the person
+// writes; without, it is hidden. The frame and the cursor go out in one
+// write, so the cursor is never seen jumping.
+func (t *term) draw(lines []string, at *[2]int) {
 	if len(lines) > t.h {
 		lines = lines[:t.h]
 	}
@@ -151,6 +155,11 @@ func (t *term) draw(lines []string) {
 		if i < len(lines) {
 			b.WriteString(lines[i])
 		}
+	}
+	if at != nil {
+		fmt.Fprintf(&b, "\x1b[%d;%dH\x1b[?25h", at[0], at[1])
+	} else {
+		b.WriteString("\x1b[?25l")
 	}
 	out := t.out
 	if out == nil {
@@ -237,6 +246,8 @@ func parseKey(b []byte, pasting *bool) (key, int) {
 			return key{name: "ctrl+u"}, 1
 		case 5:
 			return key{name: "ctrl+e"}, 1
+		case 19:
+			return key{name: "ctrl+s"}, 1
 		}
 	}
 	// Inside a paste, a line break is one newline whether it came as CR,

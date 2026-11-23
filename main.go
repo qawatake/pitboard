@@ -10,10 +10,11 @@ import (
 	"strings"
 )
 
-// skill is the Claude Code skill that teaches an AI to use pitboard
-// (pitboard --skill > ~/.claude/skills/<name>/SKILL.md).
+// skill is the Claude Code skill that points an AI at pitboard -h
+// (pitboard --skill > ~/.claude/skills/pitboard/SKILL.md). It says nothing
+// itself, so it does not go out of date when pitboard changes.
 //
-//go:embed skill.md
+//go:embed skills/pitboard/SKILL.md
 var skill string
 
 // hookStdin is where `pitboard hook` reads the hook's JSON (tests replace it).
@@ -29,8 +30,21 @@ Usage:
   pitboard -s SESSION settle N TEXT   say where thought N went
   pitboard -s SESSION check        check report.md; prints problems with line numbers, exit 1 if any
   pitboard -h                      this help
-  pitboard hook prompt-submit|post-tool|stop   for Claude Code hooks: delivers 'changes' (see --skill)
-  pitboard --skill                 print a Claude Code skill (SKILL.md) on using pitboard
+  pitboard hook prompt-submit|post-tool|stop   for Claude Code hooks: delivers 'changes' (see Hooks)
+  pitboard --skill                 print the Claude Code skill (SKILL.md); it points here
+
+The board is a place for what must not scroll away in the chat: where things
+stand, what the person must decide, what they should look at. You (the AI)
+write the report; the person reacts on the board (y / n, answers to
+questions) and writes thoughts. The person never edits the report, and you
+never edit their record.
+
+Starting:
+  1. Your session id is your Claude Code session id: the last directory but
+     one of your scratchpad path (.../<project>/<session-id>/scratchpad).
+  2. 'pitboard -s ID path' prints where the report goes (the first call
+     makes the board). Write that file with Edit/Write.
+  3. Ask the person to open the viewer beside the chat: pitboard -s ID
 
 SESSION is -s or $PITBOARD_SESSION ([A-Za-z0-9_-]+; an existing session may be
 given by a unique prefix). Use your Claude Code session id. The board lives in
@@ -94,7 +108,7 @@ Writing report.md:
               (text and Code only).
     Ask       id (required). First line: the question. Then 2 or more Option.
     Option    key (required, one letter a-z, unique in its Ask; not one of
-              the viewer's own keys c j k m n q x y). One line.
+              the viewer's own keys c j k m n q s x y). One line.
     Link      id (required), and exactly one of path (a file, shown as
               written) or url (http:// or https://). One line: its title.
               The board shows the path or URL under the title; it does not
@@ -109,8 +123,11 @@ Writing report.md:
   Ask, and thoughts written on any of them.
 
 Manners:
-  - The report is skimmed, not read. One item per line; details go in the
-    item's following lines (shown when the person opens it).
+  - The layout is yours (which sections, what goes in them), but the report
+    is skimmed, not read. One item per line; details go in the item's
+    following lines (shown when the person opens it).
+  - A line you want a reaction or a thought on must be an Item, Ask or Link
+    with an id.
   - Keep ids stable while a line means the same thing: reactions are tied to
     ids. A reaction stops showing when you rewrite that line (text, state,
     status or note), so rewrite a line once you have acted on its reaction.
@@ -120,10 +137,9 @@ Manners:
   - Tags start at the beginning of a line and part names start with a
     capital letter (<Item>, not <item>).
   - Run 'pitboard check' after every rewrite and fix what it reports.
-  - Read 'pitboard changes' at the start of each turn and before you stop.
-    You need not handle every thought at once, but give every thought you
-    received a destination with 'pitboard settle N TEXT' (e.g. "made it a
-    todo", "answered", "noted", "not doing it").
+  - Read 'pitboard changes' at the start of each turn and before you stop
+    (hooks, below, deliver them too; calling it yourself does no harm:
+    nothing is delivered twice).
 
 'changes' prints lines like:
     y hook (Decide whether to install the hook)
@@ -134,11 +150,59 @@ Manners:
     thought 8: maybe drop the log
     hide: Drop the log
     unhide: Drop the log
+  y means "good / done", n "not needed / no". answer is the option chosen.
+  The text in parentheses is the line's title when the person pressed the
+  key (or began writing). "→ いまは: ..." means you have rewritten the line
+  since: the person judged the old title, so think about which one the
+  reaction is for before applying it. "→ いまは無い" means the line is gone.
+  thought N is a thought; "on ID" when written on that line.
   hide means the person decided they no longer need to see that line. Nothing
   needs doing; you may drop the line the next time you rewrite the report.
+  unhide means they want to see it again.
   (The viewer hides a line by what it says: when you change its title, state
   or status, it shows again as new. Changing only its contents, note, path
-  or options does not bring it back; neither does adding to a hidden Fold.)
+  or options does not bring it back; neither does adding to a hidden Fold.
+  If you want the person to look at a changed line again, change its title
+  or state.)
+
+Thoughts:
+  You need not handle every thought at once, but give every thought you
+  received a destination with 'pitboard -s ID settle N TEXT' (e.g. "made it
+  a todo", "answered", "noted", "not doing it"). The board shows it, so the
+  person can write a thought and forget it. Never leave one without a
+  destination.
+
+Hooks:
+  With hooks, what the person does on the board reaches you while you work
+  (after your next tool call) and just before you stop, not only when they
+  type in the chat. Without them, call 'changes' yourself at the start of
+  each turn and before you stop. In ~/.claude/settings.json:
+
+    "hooks": {
+      "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "pitboard hook prompt-submit" }] }],
+      "PostToolUse":      [{ "hooks": [{ "type": "command", "command": "pitboard hook post-tool" }] }],
+      "Stop":             [{ "hooks": [{ "type": "command", "command": "pitboard hook stop" }] }]
+    }
+
+  - The hooks do nothing in a session without a board (no output, no
+    files), and stay silent when the board cannot be read or written.
+  - The stop hook does not keep you from stopping when all there is to
+    deliver is hide / unhide (they go with the next delivery).
+  - You cannot tell whether the hooks are installed.
+
+Sending (the person wakes you):
+  Hooks deliver only while you are working. When you have stopped, the person
+  can press s on the board (or ctrl+s while writing a thought), and this line
+  is typed into your terminal:
+
+    pitboard: the person sent N item(s) from the board. Run "pitboard -s SESSION changes" and act on them.
+
+  Do what it says: run 'changes' and act on what it prints. Sending does not
+  mark anything as delivered; 'changes' does.
+  The viewer sends through $PITBOARD_SEND if set (run with sh -c, given
+  $PITBOARD_SESSION and $PITBOARD_MESSAGE), or else, inside herdr
+  (HERDR_ENV=1), with 'herdr agent prompt' to the agent whose session is
+  SESSION. Each try is cut off after 5 seconds.
 `
 
 func main() {

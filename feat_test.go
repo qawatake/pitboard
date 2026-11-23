@@ -113,17 +113,6 @@ func TestHookOutputs(t *testing.T) {
 	}
 }
 
-func TestSkill(t *testing.T) {
-	var out strings.Builder
-	if err := run([]string{"--skill"}, &out); err != nil {
-		t.Fatal(err)
-	}
-	s := out.String()
-	if !strings.HasPrefix(s, "---\nname: using-pitboard\ndescription: ") || !strings.Contains(s, "pitboard hook post-tool") {
-		t.Errorf("skill:\n%s", s)
-	}
-}
-
 // ---- hiding lines ----
 
 // wait moves the viewer's clock on by d.
@@ -313,7 +302,7 @@ func TestThoughtsPane(t *testing.T) {
 		p = append(p, reEsc.ReplaceAllString(l, ""))
 	}
 	s := strings.Join(p, "\n")
-	for _, w := range []string{"思いつき", "未読 1", "new", "six", "five", "受け取った"} {
+	for _, w := range []string{"思いつき", "s で送る", "new", "six", "five", "受け取った"} {
 		if !strings.Contains(s, w) {
 			t.Errorf("pane lacks %q:\n%s", w, s)
 		}
@@ -440,14 +429,14 @@ func TestNarrowHintsKeepLineKeys(t *testing.T) {
 	a.handle(key{r: 'j'})
 	a.render()
 	s := reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), "")
-	// One line: the keys at the end go first, "? キー" stays.
-	if s != "    enter 開く  y よし  ? キー" {
+	// One line: x, enter, n, y go first; c, "m 書く" and "? キー" stay.
+	if s != "    c 行に書く  m 書く  ? キー" {
 		t.Errorf("narrow hints: %q", s)
 	}
 	a.t.w = 90
 	a.render()
 	s = reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), "")
-	if !strings.HasPrefix(s, "    enter 開く  y よし  n だめ  c 書く  x 隠す  ? キー") || strings.Contains(s, "tab") || strings.Contains(s, "\n") {
+	if !strings.HasPrefix(s, "    enter 開く  y よし  n だめ  c 行に書く  x 隠す  m 書く  ? キー") || strings.Contains(s, "tab") || strings.Contains(s, "\n") {
 		t.Errorf("wide hints: %q", s)
 	}
 	a.t.w = 20
