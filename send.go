@@ -30,17 +30,9 @@ func wakeMessage(session string, n int) string {
 	return fmt.Sprintf("pitboard: the person sent %d item(s) from the board. Run \"pitboard -s %s changes\" and act on them.", n, session)
 }
 
-// unsent counts what the AI has not been given yet: reactions, thoughts and
-// hides (settle is the AI's own).
-func unsent(evs []Event, seen int) int {
-	c := 0
-	for _, e := range evs {
-		if e.N > seen && e.Op != "settle" {
-			c++
-		}
-	}
-	return c
-}
+// unsent counts what the AI has not been given yet: what 'changes' would
+// tell (a thought taken back before it was delivered is not counted).
+func unsent(evs []Event, seen int) int { return len(deliverable(evs, seen)) }
 
 // deliver types msg into the terminal of the AI of session: through
 // $PITBOARD_SEND if set, or through herdr when running inside it.

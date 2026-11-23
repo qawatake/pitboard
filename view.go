@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 	"syscall"
@@ -17,9 +18,11 @@ const (
 	maxText = 76 // width between the gutters, including the 2-cell mark field
 	markW   = 2  // the mark field every line has (▸ ▾ → ? ○ · ~ ✓)
 
-	msgChanged  = "ページが変わったのでやり直してください"
-	msgMoved    = "ページが変わりました。カーソルの行を確かめてください"
-	msgNoReport = "AI はまだ報告を書いていません"
+	msgChanged   = "ページが変わったのでやり直してください"
+	msgMoved     = "ページが変わりました。カーソルの行を確かめてください"
+	msgNoReport  = "AI はまだ報告を書いていません"
+	msgNoBoard   = "このディレクトリと親に板 (.pitboard/) がありません。AI のセッションを動かしているディレクトリで起動してください"
+	msgNoSession = "板はまだありません。AI が報告を書くと、ここに出ます"
 )
 
 // view is the report on screen.
@@ -78,7 +81,12 @@ type input struct {
 	id    string // the line the thought is about, if any
 	title string // that line's title when writing began
 	label string
-	text  []rune
+	ed    edit // the text and the cursor in it
+	etop  int  // the first row of the text in view, when it is taller than the editor
+}
+
+func newInput(id, title, label string) *input {
+	return &input{id: id, title: title, label: label, ed: newEdit("")}
 }
 
 type app struct {
@@ -104,6 +112,13 @@ type app struct {
 	// dropBefore: keys read before this time are dropped (pressed while
 	// sending).
 	dropBefore time.Time
+
+	// undo is the thought just taken back, while u can still undo it (the
+	// very next key). tauto is the thought the viewer moved the cursor to
+	// after that, and tautoAt when a frame first showed it (see settling).
+	undo    int
+	tauto   int
+	tautoAt time.Time
 
 	// inPane is set while the cursor is in the thoughts pane under the
 	// report (reached with j from the report's end): the pane grows to half
@@ -350,6 +365,15 @@ func (a *app) handle(k key) (quit bool) {
 	if k.name == "ctrl+c" {
 		return true
 	}
+	// u right after taking a thought back undoes it; any other key ends
+	// the chance.
+	if undo := a.undo; undo != 0 {
+		a.undo = 0
+		if k.r == 'u' && !a.help && a.in == nil {
+			a.unretract(undo)
+			return false
+		}
+	}
 	if a.help {
 		a.handleHelp(k)
 		return false
@@ -398,7 +422,7 @@ func (a *app) handle(k key) (quit bool) {
 	case k.name == "tab":
 		a.list, a.lfollow = true, true
 	case k.r == 'm' && a.canWrite():
-		a.in = &input{label: "思いつきを書く"}
+		a.in = newInput("", "", "思いつきを書く")
 	case k.r == 's':
 		a.wake()
 	case k.name == "enter" && pv.curShown:
@@ -465,7 +489,7 @@ func (a *app) react(pv *view, r rune) {
 	case contains(choices, s):
 		value = s
 	case thought && s == "c":
-		a.in = &input{id: n.id, title: n.title(), label: "「" + plainText(n.title(), "").capped(4*a.textWidth()).plain() + "」に書く"}
+		a.in = newInput(n.id, n.title(), "「"+plainText(n.title(), "").capped(4*a.textWidth()).plain()+"」に書く")
 		return
 	default:
 		return
@@ -677,31 +701,63 @@ func (a *app) enter(pv *view) {
 // ---- the editor ----
 
 func (a *app) handleInput(k key) {
+	e, w := &a.in.ed, a.editWidth()
 	switch k.name {
 	case "esc":
 		a.in = nil
+	case "left", "ctrl+b":
+		e.Left()
+	case "right", "ctrl+f":
+		e.Right()
+	case "up", "ctrl+p":
+		e.Up(w)
+	case "down", "ctrl+n":
+		e.Down(w)
+	case "home", "ctrl+a":
+		e.Home()
+	case "end", "ctrl+e":
+		e.End()
+	case "alt+left", "alt+b":
+		e.WordLeft()
+	case "alt+right", "alt+f":
+		e.WordRight()
 	case "backspace":
-		if n := len(a.in.text); n > 0 {
-			a.in.text = a.in.text[:n-1]
-		}
+		e.Backspace()
+	case "delete", "ctrl+d":
+		e.Delete()
+	case "ctrl+w", "alt+backspace":
+		e.KillWordLeft()
+	case "ctrl+k":
+		e.KillToEnd()
 	case "ctrl+u":
-		a.in.text = nil
-	case "ctrl+e":
+		e.KillToStart()
+	case "pgup", "pgdn":
+		// The report above still scrolls while writing.
+		pv, d := a.top(), max(a.t.h/3, 1)
+		if k.name == "pgup" {
+			pv.top = max(pv.top-d, 0)
+		} else {
+			pv.top += d
+		}
+	case "ctrl+g":
 		a.external()
 	case "newline":
-		a.in.text = append(a.in.text, '\n')
+		e.Insert('\n')
 	case "enter":
-		a.write(string(a.in.text))
+		a.write(e.String())
 	case "ctrl+s":
-		if a.write(string(a.in.text)) {
+		if a.write(e.String()) {
 			a.wake()
 		}
 	case "":
 		if k.r != 0 {
-			a.in.text = append(a.in.text, k.r)
+			e.Insert(k.r)
 		}
 	}
 }
+
+// editWidth is the width the editor's text is laid out in.
+func (a *app) editWidth() int { return a.textWidth() - markW }
 
 // write records what is in the editor as a thought and closes the editor
 // (empty text closes it without recording). It reports false when the
@@ -771,7 +827,7 @@ func (a *app) external() {
 		return
 	}
 	defer os.Remove(f.Name())
-	fmt.Fprintf(f, "%s\n\n%s\n# %s: この線より上が送られます。空のまま閉じると送りません。\n", string(a.in.text), scissors, a.in.label)
+	fmt.Fprintf(f, "%s\n\n%s\n# %s: この線より上が送られます。空のまま閉じると送りません。\n", a.in.ed.String(), scissors, a.in.label)
 	f.Close()
 	cmd := editorCommand()
 	if err := a.t.run(exec.Command(cmd[0], append(cmd[1:], f.Name())...)); err != nil {
@@ -829,8 +885,10 @@ func (a *app) handleList(k key) (quit bool) {
 		}
 	case k.name == "enter" && len(ts) > 0 && a.lcurShown:
 		a.lopen[ts[i].N] = !a.lopen[ts[i].N]
+	case k.r == 'x' && len(ts) > 0 && a.lcurShown:
+		a.retract(ts, ts[i].N, func(n int) { a.lcur, a.lfollow = n, true })
 	case k.r == 'm' && a.canWrite():
-		a.in = &input{label: "思いつきを書く"}
+		a.in = newInput("", "", "思いつきを書く")
 	case k.r == 's':
 		a.wake()
 	}
@@ -876,14 +934,77 @@ func (a *app) handlePane(k key) (quit bool) {
 			a.popen = map[int]bool{}
 		}
 		a.popen[a.pcur] = !a.popen[a.pcur]
+	case k.r == 'x':
+		a.retract(ts, a.pcur, func(n int) { a.pcur = n })
+		if len(a.paneOrder()) == 0 {
+			a.inPane, a.ptop = false, 0
+			a.top().follow = true
+		}
 	case k.name == "tab":
 		a.list, a.lfollow = true, true
 	case k.r == 'm' && a.canWrite():
-		a.in = &input{label: "思いつきを書く"}
+		a.in = newInput("", "", "思いつきを書く")
 	case k.r == 's':
 		a.wake()
 	}
 	return false
+}
+
+// retract takes thought n back (x on a thought in the pane or the list).
+// The cursor goes to the next thought in order (or the one before), which
+// then waits settleDelay before x works on it, so x pressed twice does not
+// take back a thought the person has not seen. u as the very next key
+// undoes it.
+func (a *app) retract(order []*thought, n int, move func(n int)) {
+	if !a.canWrite() || a.tsettling(n) {
+		return
+	}
+	if _, err := a.st.Append(Event{Op: "retract", Thought: n}); err != nil {
+		a.msg = "取り消せませんでした: " + err.Error()
+		return
+	}
+	a.loadEvents()
+	for j, t := range order {
+		if t.N != n {
+			continue
+		}
+		next := -1
+		switch {
+		case j+1 < len(order):
+			next = order[j+1].N
+		case j > 0:
+			next = order[j-1].N
+		}
+		if next >= 0 {
+			move(next)
+			a.tauto, a.tautoAt = next, time.Time{}
+		}
+	}
+	a.undo = n
+	a.msg = "取り消しました (u で戻す)"
+}
+
+// unretract undoes retract (u right after x) and puts the cursor back on
+// the thought.
+func (a *app) unretract(n int) {
+	if _, err := a.st.Append(Event{Op: "unretract", Thought: n}); err != nil {
+		a.msg = "戻せませんでした: " + err.Error()
+		return
+	}
+	a.loadEvents()
+	if a.list {
+		a.lcur, a.lfollow = n, true
+	} else {
+		a.inPane, a.pcur = true, n
+	}
+	a.tauto = 0
+	a.msg = "戻しました"
+}
+
+// tsettling says whether the thought under the cursor was put there by the
+// viewer (after x) and has not been on screen for settleDelay yet.
+func (a *app) tsettling(n int) bool {
+	return a.tauto != 0 && a.tauto == n && (a.tautoAt.IsZero() || clock().Sub(a.tautoAt) < settleDelay)
 }
 
 // canWrite says whether thoughts can be recorded: the session must exist
@@ -975,6 +1096,21 @@ func (a *app) draw() {
 	h := max(a.t.h-len(bottom), 1)
 	if cur != nil {
 		a.top().atEnd = *top+h >= len(rows)
+	}
+	if a.tauto != 0 {
+		on, shown := 0, true
+		switch {
+		case a.list:
+			on, shown = a.lcur, a.lcurShown
+		case a.inPane:
+			on = a.pcur
+		}
+		switch {
+		case on != a.tauto:
+			a.tauto = 0 // the person moved on
+		case shown && a.tautoAt.IsZero() && !a.help:
+			a.tautoAt = clock() // on screen from now
+		}
 	}
 	lines := make([]string, 0, a.t.h)
 	for i := *top; i < len(rows) && len(lines) < h; i++ {
@@ -1097,6 +1233,7 @@ func (a *app) helpRows() []row {
 		{"j / k", "上下に動く。止まる行がその先になければ 1 行送る。カーソルの行が画面の外にあれば、まずそこまで戻す"},
 		{"", "報告の終わりからさらに j で、報告の下の思いつきへ (欄が広がる)。思いつきの 1 件目で k で報告へ戻る"},
 		{"enter", "開く・閉じる (思いつきの欄でも)"},
+		{"x (思いつき)", "思いつきの欄と一覧では、その思いつきを取り消す。直後の u で戻す"},
 		{"y", "よし (項目・リンク)"},
 		{"n", "だめ (項目・リンク)"},
 		{"a b …", "問いに答える (選択肢のキー。問いを開いているときだけ。閉じていれば開く)"},
@@ -1112,8 +1249,17 @@ func (a *app) helpRows() []row {
 		{"書いているとき", ""},
 		{"enter", "書く (AI には、次に AI が動いたときに届く)"},
 		{"ctrl+s", "書いて、すぐ AI に送る"},
-		{"ctrl+j", "改行"},
-		{"ctrl+e", "$VISUAL / $EDITOR / vim で続きを書く"},
+		{"ctrl+j", "改行 (shift+enter、alt+enter も)"},
+		{"← → ctrl+b f", "1 字左 / 右"},
+		{"↑ ↓ ctrl+p n", "上 / 下の行へ (折り返した見た目の行で)"},
+		{"ctrl+a e", "行頭 / 行末 (home / end も)"},
+		{"alt+b f", "語単位で左 / 右 (alt+← → も)"},
+		{"backspace", "左の 1 字を消す (ctrl+h も)"},
+		{"ctrl+d", "右の 1 字を消す (delete も)"},
+		{"ctrl+w", "左の 1 語を消す (alt+backspace も)"},
+		{"ctrl+k / u", "カーソルから行末まで / 行頭からカーソルまで消す"},
+		{"pgup pgdn", "上の報告を送る"},
+		{"ctrl+g", "$VISUAL / $EDITOR / vim で続きを書く"},
 		{"esc", "やめる"},
 	} {
 		if k[0] == "" && k[1] == "" {
@@ -1121,7 +1267,7 @@ func (a *app) helpRows() []row {
 			continue
 		}
 		// The description wraps in its own column, to the right of the key.
-		const col = 10
+		const col = 14
 		label := plainText(k[0], bold)
 		label = append(label, plainText(strings.Repeat(" ", max(col-label.width(), 1)), "")...)
 		for i, l := range plainText(k[1], dim).wrap(a.room(col, nil)) {
@@ -1171,7 +1317,16 @@ func keyHints(hs []hint) text {
 // line, and on the right how many lines are hidden.
 func (a *app) bottom() []string {
 	var right text
-	if !a.list {
+	switch {
+	case a.st == nil || a.noSession:
+		// Waiting for a board: say where the viewer is looking.
+		// A long path keeps its end (the directory's own name).
+		p, room := homeTilde(a.base), a.textWidth()-markW-len("? キー")-4
+		if width(p) > room {
+			p = "…" + tail(p, max(room-1, 4))
+		}
+		right = plainText(p, dim)
+	case !a.list:
 		right = a.hiddenCount()
 	}
 	// A message is one line, cut with … when long (the hints are always
@@ -1199,7 +1354,12 @@ func (a *app) bottom() []string {
 				keys = append(keys, hint{k: "enter", d: "開く", rank: rankEnter})
 			}
 		}
-		keys = append(keys, hint{k: "tab", d: "報告へ", rank: rankX})
+		if len(keys) > 0 && a.canWrite() {
+			keys = append(keys, hint{k: "x", d: "取り消す", rank: rankX})
+		}
+		if len(keys) == 0 {
+			keys = append(keys, hint{k: "tab", d: "報告へ", rank: rankX})
+		}
 		return a.oneLine(keys, nil)
 	}
 	if a.inPane {
@@ -1207,6 +1367,9 @@ func (a *app) bottom() []string {
 			keys = append(keys, hint{k: "enter", d: "閉じる", rank: rankEnter})
 		} else {
 			keys = append(keys, hint{k: "enter", d: "開く", rank: rankEnter})
+		}
+		if a.canWrite() {
+			keys = append(keys, hint{k: "x", d: "取り消す", rank: rankX})
 		}
 		return a.oneLine(keys, nil)
 	}
@@ -1570,6 +1733,21 @@ func (a *app) thoughtDetails(t *thought, ind int) []row {
 	return rows
 }
 
+// homeTilde writes a path under the home directory with ~.
+func homeTilde(p string) string {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return p
+	}
+	if p == home {
+		return "~"
+	}
+	if rest, ok := strings.CutPrefix(p, home+string(filepath.Separator)); ok {
+		return "~" + string(filepath.Separator) + rest
+	}
+	return p
+}
+
 // hiddenCount is what the hints say on the right about hidden lines.
 func (a *app) hiddenCount() text {
 	pv := a.top()
@@ -1589,14 +1767,19 @@ func (a *app) hiddenCount() text {
 // editorLines is the editor at the bottom: a title saying what is being
 // written, then the text, growing up to a third of the screen.
 func (a *app) editorLines() []string {
-	w := a.textWidth() - markW
-	var lns []text
-	for _, l := range strings.Split(string(a.in.text), "\n") {
-		lns = append(lns, plainText(l, "").wrap(w)...)
+	e, w := &a.in.ed, a.editWidth()
+	rs := e.rows(w)
+	crow, ccol := e.Cursor(w)
+	// Taller than the editor: scrolled to keep the cursor's row in view.
+	limit := max(a.t.h/3, 3)
+	top := &a.in.etop
+	if crow < *top {
+		*top = crow
 	}
-	if limit := max(a.t.h/3, 3); len(lns) > limit {
-		lns = lns[len(lns)-limit:]
+	if crow >= *top+limit {
+		*top = crow - limit + 1
 	}
+	*top = max(min(*top, len(rs)-limit), 0)
 	hints := a.editorHints()
 	// If the line being written about changed or went away meanwhile, say so
 	// (sending still works: what was written is never lost).
@@ -1614,21 +1797,23 @@ func (a *app) editorLines() []string {
 			out = append(out, a.compose(false, 0, nil, l, nil))
 		}
 	}
-	for i, l := range lns {
-		if i == len(lns)-1 {
-			// The input position: after the last line, past the gutter and
-			// the mark field (the terminal's cursor is put there).
-			a.inAt = [2]int{len(out), margin + markW + l.width()}
+	for i := *top; i < len(rs) && i < *top+limit; i++ {
+		if i == crow {
+			// The input position, past the gutter and the mark field (the
+			// terminal's cursor is put there).
+			a.inAt = [2]int{len(out), margin + markW + ccol}
 		}
+		l := plainText(string(e.text[rs[i].start:rs[i].end]), "")
 		out = append(out, a.compose(false, 0, nil, l, nil))
 	}
 	return append(out, hints...)
 }
 
-// editorHints is the editor's one line of hints. When narrow, ctrl+e goes
-// first, then ctrl+j; how to write, send and stop always stay.
+// editorHints is the editor's one line of hints. When narrow, they are
+// left out from the end: ctrl+g, then ctrl+j; how to write, send and stop
+// always stay.
 func (a *app) editorHints() []string {
-	all := []hint{{k: "enter", d: "書く"}, {k: "ctrl+s", d: "送る"}, {k: "ctrl+j", d: "改行", rank: 2}, {k: "ctrl+e", d: "エディタ", rank: 1}, {k: "esc", d: "やめる"}}
+	all := []hint{{k: "enter", d: "書く"}, {k: "ctrl+s", d: "送る"}, {k: "esc", d: "やめる"}, {k: "ctrl+j", d: "改行", rank: 2}, {k: "ctrl+g", d: "エディタ", rank: 1}}
 	var ks []hint
 	for lvl := 0; lvl <= 2; lvl++ {
 		ks = ks[:0]
@@ -1789,6 +1974,10 @@ func (a *app) rows(pv *view) []row {
 	}
 	rows = append(rows, row{}) // top padding
 	switch {
+	case a.st == nil && !isDir(filepath.Join(a.base, ".pitboard")):
+		return append(rows, a.para(0, plainText(msgNoBoard, dim))...)
+	case a.st == nil:
+		return append(rows, a.para(0, plainText(msgNoSession, dim))...)
 	case a.noSession:
 		return append(rows, a.para(0, plainText(fmt.Sprintf("セッション %s はまだありません", a.st.session), dim))...)
 	case pv.missing:

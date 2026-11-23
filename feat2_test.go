@@ -205,7 +205,7 @@ func TestUnsentMark(t *testing.T) {
 	}
 	// The thoughts list shows it too; the editor's text is not counted.
 	a.list = true
-	a.in = &input{label: "x", text: []rune("書きかけ")}
+	a.in = &input{label: "x", ed: newEdit("書きかけ")}
 	ls, _ = screen(t, a)
 	if !strings.HasSuffix(ls[0], "● 未送信 3") {
 		t.Errorf("list: %q", ls[0])
@@ -274,7 +274,7 @@ func TestEditorCursor(t *testing.T) {
 		{"abc\n", ""},
 	} {
 		a := testApp(t, st)
-		a.in = &input{label: "思いつきを書く", text: []rune(c.text)}
+		a.in = &input{label: "思いつきを書く", ed: newEdit(c.text)}
 		ls, raw := screen(t, a)
 		row := -1
 		for i, l := range ls {

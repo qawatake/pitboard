@@ -210,6 +210,16 @@ func parseKey(b []byte, pasting *bool) (key, int) {
 		if len(b) > 1 && b[1] == '\r' {
 			return key{name: "newline"}, 2 // alt+enter, and shift+enter in some terminals
 		}
+		if len(b) > 1 && !*pasting {
+			switch b[1] {
+			case 'b':
+				return key{name: "alt+b"}, 2
+			case 'f':
+				return key{name: "alt+f"}, 2
+			case 127, 8:
+				return key{name: "alt+backspace"}, 2
+			}
+		}
 		if len(b) == 1 || (b[1] != '[' && b[1] != 'O') {
 			return key{name: "esc"}, 1
 		}
@@ -224,6 +234,12 @@ func parseKey(b []byte, pasting *bool) (key, int) {
 			switch string(b[2 : i+1]) {
 			case "27;2;13~", "13;2u":
 				name = "newline" // shift+enter
+			case "3~":
+				name = "delete"
+			case "1;3D", "1;9D", "1;5D":
+				name = "alt+left" // option+← (and ctrl+←)
+			case "1;3C", "1;9C", "1;5C":
+				name = "alt+right"
 			case "200~":
 				*pasting = true
 			case "201~":
@@ -242,15 +258,13 @@ func parseKey(b []byte, pasting *bool) (key, int) {
 		case '\t':
 			return key{name: "tab"}, 1
 		case 127, 8:
-			return key{name: "backspace"}, 1
+			return key{name: "backspace"}, 1 // ctrl+h too
 		case 3:
 			return key{name: "ctrl+c"}, 1
-		case 21:
-			return key{name: "ctrl+u"}, 1
-		case 5:
-			return key{name: "ctrl+e"}, 1
-		case 19:
-			return key{name: "ctrl+s"}, 1
+		}
+		// The other control keys, by their letter (ctrl+a ... ctrl+w).
+		if name, ok := ctrlKeys[b[0]]; ok {
+			return key{name: name}, 1
 		}
 	}
 	// Inside a paste, a line break is one newline whether it came as CR,
@@ -272,6 +286,12 @@ func parseKey(b []byte, pasting *bool) (key, int) {
 	}
 	r, size := utf8.DecodeRune(b)
 	return key{r: r}, size
+}
+
+// ctrlKeys are the control keys the viewer reads, by their byte.
+var ctrlKeys = map[byte]string{
+	1: "ctrl+a", 2: "ctrl+b", 4: "ctrl+d", 5: "ctrl+e", 6: "ctrl+f", 7: "ctrl+g",
+	11: "ctrl+k", 14: "ctrl+n", 16: "ctrl+p", 19: "ctrl+s", 21: "ctrl+u", 23: "ctrl+w",
 }
 
 // runeWidth is the number of terminal cells a rune takes: 2 for CJK, kana,

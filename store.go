@@ -166,6 +166,8 @@ func (s *Store) seenPath() string   { return filepath.Join(s.dir, "seen") }
 //	hide     key (what the line says, see hideKey), title: the person no
 //	         longer needs to see that line
 //	unhide   key, title: show it again
+//	retract  thought: the person took the thought back
+//	unretract  thought: they undid that (u right after x)
 type Event struct {
 	N       int    `json:"n"`
 	T       string `json:"t"`
@@ -288,10 +290,9 @@ func (s *Store) Changes() ([]string, error) {
 		}
 		last := seen
 		for _, e := range evs {
-			if e.N <= seen {
-				continue
-			}
 			last = max(last, e.N)
+		}
+		for _, e := range deliverable(evs, seen) {
 			if line := describe(e, nodes); line != "" {
 				out = append(out, line)
 			}
@@ -306,11 +307,54 @@ func (s *Store) Changes() ([]string, error) {
 
 // Pending is the events changes would deliver next, without delivering
 // them.
-func (s *Store) Pending() []Event {
-	seen := s.Seen()
+func (s *Store) Pending() []Event { return deliverable(s.Events(), s.Seen()) }
+
+// deliverable is what of the events after seen is told to the AI (settle,
+// the AI's own, is not). A thought taken back before it was delivered is not
+// told at all, nor is its taking back: the AI never knew it. For a thought
+// already delivered, what is told is whether it now stands or is taken back,
+// if that differs from what the AI was last told: one retract or unretract
+// (carrying the thought's text), where the last of them is.
+func deliverable(evs []Event, seen int) []Event {
+	thoughts := map[int]Event{}
+	final := map[int]bool{} // taken back, in the end
+	told := map[int]bool{}  // taken back, as the AI was last told
+	lastOp := map[int]int{} // the number of the last retract / unretract
+	for _, e := range evs {
+		switch e.Op {
+		case "thought":
+			thoughts[e.N] = e
+		case "retract", "unretract":
+			final[e.Thought] = e.Op == "retract"
+			if e.N <= seen {
+				told[e.Thought] = final[e.Thought]
+			} else {
+				lastOp[e.Thought] = e.N
+			}
+		}
+	}
 	var out []Event
-	for _, e := range s.Events() {
-		if e.N > seen {
+	for _, e := range evs {
+		if e.N <= seen {
+			continue
+		}
+		switch e.Op {
+		case "settle":
+		case "thought":
+			if !final[e.N] {
+				out = append(out, e)
+			}
+		case "retract", "unretract":
+			t, ok := thoughts[e.Thought]
+			if !ok || t.N > seen || lastOp[e.Thought] != e.N || final[e.Thought] == told[e.Thought] {
+				continue
+			}
+			e.Op, e.Text = "unretract", t.Text
+			if final[e.Thought] {
+				e.Op = "retract"
+			}
+			out = append(out, e)
+		default:
 			out = append(out, e)
 		}
 	}
@@ -359,6 +403,12 @@ func describe(e Event, nodes []*node) string {
 		return fmt.Sprintf("thought %d on %s (%s): %s", e.N, e.ID, ctx, text)
 	case "hide", "unhide":
 		return fmt.Sprintf("%s: %s", e.Op, strings.ReplaceAll(e.Title, "\n", " "))
+	case "retract", "unretract":
+		head := []rune(strings.Join(strings.Fields(e.Text), " "))
+		if len(head) > 40 {
+			head = append(head[:39], '…')
+		}
+		return fmt.Sprintf("%s thought %d: %s", e.Op, e.Thought, string(head))
 	}
 	return "" // settle is written by the AI itself
 }
@@ -395,8 +445,9 @@ func writeFile(path string, data []byte) error {
 
 type thought struct {
 	Event
-	settled  string // the AI's note, if any
-	settledN int    // the number of that settle event
+	settled   string // the AI's note, if any
+	settledN  int    // the number of that settle event
+	retracted bool   // the person took it back (not shown)
 }
 
 // state is the events replayed: the latest reaction per id, thoughts, and
@@ -423,12 +474,24 @@ func replayEvents(evs []Event, seen int) *state {
 			if t := byN[e.Thought]; t != nil {
 				t.settled, t.settledN = e.Text, e.N
 			}
+		case "retract", "unretract":
+			if t := byN[e.Thought]; t != nil {
+				t.retracted = e.Op == "retract"
+			}
 		case "hide":
 			st.hidden[e.Key] = true
 		case "unhide":
 			delete(st.hidden, e.Key)
 		}
 	}
+	// A thought taken back is gone from the board.
+	kept := st.thoughts[:0]
+	for _, t := range st.thoughts {
+		if !t.retracted {
+			kept = append(kept, t)
+		}
+	}
+	st.thoughts = kept
 	return st
 }
 
