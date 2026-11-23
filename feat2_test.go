@@ -79,7 +79,7 @@ func TestSendHerdrWithoutTheSession(t *testing.T) {
 	st.Append(Event{Op: "thought", Text: "a"})
 	a := testApp(t, st)
 	a.handle(key{r: 's'})
-	if !strings.Contains(a.msg, "見つかりません") {
+	if !strings.Contains(a.msg, "herdr にこのセッションの AI がいません") {
 		t.Errorf("msg %q", a.msg)
 	}
 	if _, err := os.Stat(prompted); err == nil {
@@ -93,7 +93,7 @@ func TestSendNowhere(t *testing.T) {
 	st.Append(Event{Op: "thought", Text: "a"})
 	a := testApp(t, st)
 	a.handle(key{r: 's'})
-	if a.msg != "送り先がありません (herdr の中で開くか、PITBOARD_SEND を設定)" {
+	if a.msg != "送り先がありません" {
 		t.Errorf("msg %q", a.msg)
 	}
 }

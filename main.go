@@ -107,6 +107,9 @@ Writing report.md:
               First line: the item. Following lines: what opening it shows
               (text and Code only).
     Ask       id (required). First line: the question. Then 2 or more Option.
+              The board shows an Ask closed, as its first line only, until
+              the person opens it: write the question so that it makes
+              sense on its own, without the options.
     Option    key (required, one letter a-z, unique in its Ask; not one of
               the viewer's own keys c j k m n q s x y). One line.
     Link      id (required), and exactly one of path (a file, shown as
@@ -148,6 +151,8 @@ Manners:
     answer unit = a (per session)
     thought 7 on hook (Decide whether to install the hook): only post-tool
     thought 8: maybe drop the log
+    thought 9: a thought written on two lines
+      continues here (the following lines of a thought are indented)
     hide: Drop the log
     unhide: Drop the log
   y means "good / done", n "not needed / no". answer is the option chosen.
@@ -202,7 +207,10 @@ Sending (the person wakes you):
   The viewer sends through $PITBOARD_SEND if set (run with sh -c, given
   $PITBOARD_SESSION and $PITBOARD_MESSAGE), or else, inside herdr
   (HERDR_ENV=1), with 'herdr agent prompt' to the agent whose session is
-  SESSION. Each try is cut off after 5 seconds.
+  SESSION. Each try is cut off after 5 seconds. An example for tmux (keep
+  "$PITBOARD_MESSAGE" in double quotes, or it is split into words):
+
+    export PITBOARD_SEND='tmux send-keys -t work:0.1 "$PITBOARD_MESSAGE" Enter'
 `
 
 func main() {

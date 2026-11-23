@@ -42,6 +42,7 @@ func sty(code, s string) string {
 type key struct {
 	name string
 	r    rune
+	at   time.Time // when it was read (zero in tests)
 }
 
 type term struct {
@@ -186,6 +187,7 @@ func (t *term) readKeys() {
 			continue
 		}
 		buf = append(buf, tmp[:n]...)
+		at := time.Now()
 		for len(buf) > 0 {
 			k, size := parseKey(buf, &pasting)
 			if size == 0 {
@@ -193,6 +195,7 @@ func (t *term) readKeys() {
 			}
 			buf = buf[size:]
 			if k != (key{}) {
+				k.at = at
 				t.keys <- k
 			}
 		}

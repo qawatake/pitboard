@@ -23,7 +23,7 @@ import (
 var sendTimeout = 5 * time.Second
 
 // errNoTarget means there is nowhere to send to.
-var errNoTarget = errors.New("送り先がありません (herdr の中で開くか、PITBOARD_SEND を設定)")
+var errNoTarget = errors.New("送り先がありません")
 
 // wakeMessage is the line typed into the AI's terminal.
 func wakeMessage(session string, n int) string {
@@ -88,7 +88,7 @@ func herdrPane(ctx context.Context, session string) (string, error) {
 			return a.PaneID, nil
 		}
 	}
-	return "", fmt.Errorf("送り先がありません (herdr にセッション %s の AI が見つかりません)", session)
+	return "", fmt.Errorf("%w (herdr にこのセッションの AI がいません)", errNoTarget)
 }
 
 // runQuiet runs c without the terminal (no stdin; output is not shown) and
