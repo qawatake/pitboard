@@ -33,6 +33,7 @@ type node struct {
 	status string // short word on the right end
 	reason string // note: why, shown when opened
 	ask    string // Item / Link: "y" when the AI asks for y / n on it
+	wait   string // Item: "you" when it cannot move on without the person
 	path   string // Link: a file path, as written
 	url    string // Link: an http(s) URL
 	lang   string // Code language ("diff" is colored)
@@ -42,6 +43,14 @@ type node struct {
 	line   int     // 1-based line in the file where the part starts
 	depth  int     // indentation level: Fold contents and Ask options are nested
 	key    string  // cursor identity: the id, or "fold:<n>" for a Fold
+	// A list line (kPlain): num is its number as written ("1.") when it is
+	// numbered, level its nesting (0-2), subs the lines nested under it.
+	// Nested lines are read only: the cursor never stops at them.
+	num   string
+	level int
+	subs  []*node
+	head  bool // kPara: a line of only **…**, a small heading
+	gap   bool // a blank line came before it in the text
 }
 
 func (n *node) item() bool {
@@ -125,7 +134,7 @@ func assignKeys(nodes []*node) {
 func hideKey(n *node) string {
 	switch {
 	case n.kind == kPlain:
-		return "-|" + n.text
+		return "-|" + n.text + subsText(n.subs)
 	case n.item() || n.kind == kQuestion || n.kind == kLink:
 		if n.id == "" {
 			return ""
@@ -138,6 +147,16 @@ func hideKey(n *node) string {
 		return "Fold|title=" + n.text
 	}
 	return ""
+}
+
+// subsText is the nested lines under a list line, for its keys ("" when
+// there are none, so keys of lines without nesting stay as they were).
+func subsText(ns []*node) string {
+	s := ""
+	for _, n := range ns {
+		s += "\n" + strings.Repeat("  ", n.level) + n.num + "-" + n.text + subsText(n.subs)
+	}
+	return s
 }
 
 // state is an Item's state attribute, "" for other parts.

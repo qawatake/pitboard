@@ -18,10 +18,10 @@ const (
 	maxText = 76 // width between the gutters, including the 2-cell mark field
 	markW   = 2  // the mark field every line has (▸ ▾ → ? ○ · ~ ✓)
 
-	msgChanged   = "ページが変わったのでやり直してください"
-	msgMoved     = "ページが変わりました。カーソルの行を確かめてください"
+	msgChanged   = "報告が書き換わりました。もう一度押してください"
+	msgMoved     = "報告が書き換わりました。カーソルの行を確かめてください"
 	msgNoReport  = "AI はまだ報告を書いていません"
-	msgNoBoard   = "このディレクトリと親に板 (.pitboard/) がありません。AI のセッションを動かしているディレクトリで起動してください"
+	msgNoBoard   = "このディレクトリと親に板 (.pitboard/) がありません。AI を動かしているディレクトリで開いてください"
 	msgNoSession = "板はまだありません。AI が報告を書くと、ここに出ます"
 )
 
@@ -82,6 +82,8 @@ func (pv *view) settling() bool {
 }
 
 type input struct {
+	edit  int    // the thought being rewritten (e), or 0 for a new one
+	paste int    // where a paste began (rune index), -1 outside one
 	id    string // the line the thought is about, if any
 	title string // that line's title when writing began
 	label string
@@ -90,7 +92,7 @@ type input struct {
 }
 
 func newInput(id, title, label string) *input {
-	return &input{id: id, title: title, label: label, ed: newEdit("")}
+	return &input{id: id, title: title, label: label, ed: newEdit(""), paste: -1}
 }
 
 type app struct {
@@ -108,8 +110,8 @@ type app struct {
 	viewed    map[string]bool
 	viewedMod time.Time
 	state     *state
-	unsent    int // what the person has not sent yet (reactions, thoughts, hides)
-	unread    int // what was sent and the AI has not read yet
+	unsent    int  // what the person has not sent yet (reactions, thoughts, hides)
+	unread    int  // what was sent and the AI has not read yet
 	waiter    bool // a 'pitboard wait' is waiting: sending reaches the AI
 
 	in *input // the editor at the bottom, while writing
@@ -117,7 +119,10 @@ type app struct {
 	// (line, column; 0-based), set when they are laid out.
 	inAt [2]int
 	help bool // the list of all keys
-	htop int  // how far the list of keys is scrolled
+	// kbd is set when the terminal answered that it tells keys apart
+	// (kitty keyboard protocol): shift+enter is then a key of its own.
+	kbd  bool
+	htop int // how far the list of keys is scrolled
 
 	noSession bool // the session given with -s does not exist (yet)
 
@@ -278,7 +283,7 @@ func (a *app) loop() os.Signal {
 			}
 			quit := false
 			if err := safely(func() error { quit = a.handle(k); return nil }); err != nil {
-				a.msg = "その操作でエラーが起きました: " + err.Error()
+				a.msg = "できませんでした: " + err.Error()
 			}
 			if quit {
 				return nil
@@ -384,6 +389,10 @@ func abs(x int) int {
 // ---- keys ----
 
 func (a *app) handle(k key) (quit bool) {
+	if k.name == "kbd" {
+		a.kbd = true // the terminal's answer, not a key the person pressed
+		return false
+	}
 	a.msg, a.msgLines = "", 0
 	if k.name == "ctrl+c" {
 		return true
@@ -458,7 +467,7 @@ func (a *app) handle(k key) (quit bool) {
 	case k.name == "tab":
 		a.list, a.lfollow = true, true
 	case k.r == 'm' && a.canWrite():
-		a.in = newInput("", "", "思いつきを書く")
+		a.in = newInput("", "", "コメントを書く")
 	case k.r == 's':
 		a.wake()
 	case k.name == "enter" && pv.curShown:
@@ -544,7 +553,7 @@ func (a *app) react(pv *view, r rune) {
 		value = s
 	case thought && s == "c":
 		a.markViewed(n)
-		a.in = newInput(n.id, n.title(), "「"+plainText(n.title(), "").capped(4*a.textWidth()).plain()+"」に書く")
+		a.in = newInput(n.id, n.title(), "「"+plainText(n.title(), "").capped(4*a.textWidth()).plain()+"」にコメント")
 		return
 	default:
 		return
@@ -636,7 +645,7 @@ func (a *app) hide(pv *view) {
 	op, msg := "hide", "隠しました (H で表示)"
 	switch {
 	case pv.isHidden(n):
-		op, msg = "unhide", "戻しました"
+		op, msg = "unhide", "表示に戻しました"
 	case pv.showHidden:
 		msg = "隠しました"
 	}
@@ -701,9 +710,10 @@ func (pv *view) settleCursor() {
 }
 
 // navigable says whether the cursor stops at n: a Fold, a part with an id,
-// or a plain "- " line (which can only be hidden).
+// or a plain "- " line (which can only be hidden; not a numbered one, and
+// never a nested one).
 func (pv *view) navigable(n *node) bool {
-	return n.kind == kDetails || n.id != "" || n.kind == kPlain
+	return n.kind == kDetails || n.id != "" || (n.kind == kPlain && n.num == "")
 }
 
 // step moves the cursor d stops and reports whether it moved. When it did
@@ -804,8 +814,15 @@ func (a *app) handleInput(k key) {
 	case "enter":
 		a.write(e.String())
 	case "ctrl+s":
-		if a.write(e.String()) {
-			a.wake()
+		// Nothing: sending is s, once written.
+	case "ctrl+v":
+		a.pasteImage()
+	case "paste-start":
+		a.in.paste = e.pos
+	case "paste-end":
+		if start := a.in.paste; start >= 0 {
+			a.in.paste = -1
+			a.pastedImage(start)
 		}
 	case "":
 		if k.r != 0 {
@@ -823,16 +840,43 @@ func (a *app) editWidth() int { return a.textWidth() - markW }
 func (a *app) write(text string) bool {
 	text = strings.TrimSpace(text)
 	if text == "" {
-		a.in = nil
+		a.in = nil // to take a thought back, x
 		return true
 	}
-	if _, err := a.st.Append(Event{Op: "thought", ID: a.in.id, Text: text, Title: a.in.title}); err != nil {
-		a.msg = "書けませんでした: " + err.Error()
+	e := Event{Op: "thought", ID: a.in.id, Text: text, Title: a.in.title}
+	if n := a.in.edit; n != 0 {
+		if t := a.thoughtN(n); t == nil || strings.TrimSpace(t.Text) == text {
+			a.in = nil // gone, or not changed: nothing to record
+			return true
+		}
+		e = Event{Op: "edit", Thought: n, Text: text}
+	}
+	if _, err := a.st.Append(e); err != nil {
+		a.msg = "記録できませんでした: " + err.Error()
 		return false
 	}
 	a.in = nil
 	a.loadEvents()
 	return true
+}
+
+// thoughtN is the thought numbered n on the board, or nil.
+func (a *app) thoughtN(n int) *thought {
+	for _, t := range a.state.thoughts {
+		if t.N == n {
+			return t
+		}
+	}
+	return nil
+}
+
+// rewrite opens the editor on thought n's text (e in the pane or the list).
+func (a *app) rewrite(n int) {
+	t := a.thoughtN(n)
+	if t == nil || !a.canWrite() {
+		return
+	}
+	a.in = &input{edit: n, label: fmt.Sprintf("コメント %d を直す", n), ed: newEdit(strings.TrimSpace(t.Text)), paste: -1}
 }
 
 // wake types a line into the AI's terminal telling it that the board has
@@ -845,7 +889,7 @@ func (a *app) wake() {
 	a.loadEvents()
 	n := a.unsent
 	if n == 0 {
-		a.msg = "送るものはありません"
+		a.msg = "未送信のものはありません"
 		return
 	}
 	// The mark comes first: what is above it is what the AI gets from
@@ -866,14 +910,14 @@ func (a *app) wake() {
 	// out the result).
 	a.msg = "送っています…"
 	a.render()
-	err := deliver(a.st.session, wakeMessage(a.st.session, n))
+	err := deliver(a.st.session, wakeMessage(a.st, n))
 	a.dropBefore = time.Now()
 	if errors.Is(err, errNoTarget) {
-		a.msg, a.msgLines = "送る印は付けました。AI が待っていないので、チャットで一言伝えてください。\n"+err.Error(), 2
+		a.msg, a.msgLines = "送りました。ただ AI が待っていないので、チャットで一言伝えてください。\n"+err.Error(), 2
 		return
 	}
 	if err != nil {
-		a.msg, a.msgLines = "送る印は付けました。AI を起こせなかったので、チャットで一言伝えてください。\n"+err.Error(), 2
+		a.msg, a.msgLines = "送りました。ただ AI を起こせなかったので、チャットで一言伝えてください。\n"+err.Error(), 2
 		return
 	}
 	a.msg = "AI に送りました"
@@ -899,7 +943,7 @@ func (a *app) external() {
 		return
 	}
 	defer os.Remove(f.Name())
-	fmt.Fprintf(f, "%s\n\n%s\n# %s: この線より上が送られます。空のまま閉じると送りません。\n", a.in.ed.String(), scissors, a.in.label)
+	fmt.Fprintf(f, "%s\n\n%s\n# %s: この線より上を板に置きます。空のまま閉じると何もしません。\n", a.in.ed.String(), scissors, a.in.label)
 	f.Close()
 	cmd := editorCommand()
 	if err := a.t.run(exec.Command(cmd[0], append(cmd[1:], f.Name())...)); err != nil {
@@ -913,7 +957,7 @@ func (a *app) external() {
 	}
 	text, _, _ := strings.Cut(string(b), scissors)
 	if strings.TrimSpace(text) == "" {
-		a.msg = "空だったので送りませんでした"
+		a.msg = "空だったので書きませんでした"
 		a.in = nil
 		return
 	}
@@ -963,8 +1007,10 @@ func (a *app) handleList(k key) (quit bool) {
 		a.lopen[ts[i].N] = !a.lopen[ts[i].N]
 	case k.r == 'x' && len(ts) > 0 && a.lcurShown:
 		a.retract(ts, ts[i].N, func(n int) { a.lcur, a.lfollow = n, true })
+	case k.r == 'e' && len(ts) > 0 && a.lcurShown:
+		a.rewrite(ts[i].N)
 	case k.r == 'm' && a.canWrite():
-		a.in = newInput("", "", "思いつきを書く")
+		a.in = newInput("", "", "コメントを書く")
 	case k.r == 's':
 		a.wake()
 	}
@@ -1015,6 +1061,8 @@ func (a *app) handlePane(k key) (quit bool) {
 			a.popen = map[int]bool{}
 		}
 		a.popen[a.pcur] = !a.popen[a.pcur]
+	case k.r == 'e':
+		a.rewrite(a.pcur)
 	case k.r == 'x':
 		a.retract(ts, a.pcur, func(n int) { a.pcur = n })
 		if len(a.paneOrder()) == 0 {
@@ -1024,7 +1072,7 @@ func (a *app) handlePane(k key) (quit bool) {
 	case k.name == "tab":
 		a.list, a.lfollow = true, true
 	case k.r == 'm' && a.canWrite():
-		a.in = newInput("", "", "思いつきを書く")
+		a.in = newInput("", "", "コメントを書く")
 	case k.r == 's':
 		a.wake()
 	}
@@ -1062,14 +1110,14 @@ func (a *app) retract(order []*thought, n int, move func(n int)) {
 		}
 	}
 	a.undo = n
-	a.msg = "取り消しました (u で戻す)"
+	a.msg = "取り消しました (u で元に戻す)"
 }
 
 // unretract undoes retract (u right after x) and puts the cursor back on
 // the thought.
 func (a *app) unretract(n int) {
 	if _, err := a.st.Append(Event{Op: "unretract", Thought: n}); err != nil {
-		a.msg = "戻せませんでした: " + err.Error()
+		a.msg = "元に戻せませんでした: " + err.Error()
 		return
 	}
 	a.loadEvents()
@@ -1079,7 +1127,7 @@ func (a *app) unretract(n int) {
 		a.inPane, a.pcur = true, n
 	}
 	a.tauto = 0
-	a.msg = "戻しました"
+	a.msg = "元に戻しました"
 }
 
 // tsettling says whether the thought under the cursor was put there by the
@@ -1222,7 +1270,7 @@ func (a *app) draw() {
 	a.t.draw(append(lines, bottom...), at)
 }
 
-// sendMark is the top right: "送信済み N" (sent, not read by the AI yet;
+// sendMark is the top right: "送信済 N" (sent, not read by the AI yet;
 // faint) and "● 未送信 N" (not sent; yellow).
 func (a *app) sendMark() text {
 	var t text
@@ -1244,7 +1292,7 @@ func (a *app) sendMark() text {
 		add("AI 待機中", dim)
 	}
 	if a.unread > 0 {
-		add(fmt.Sprintf("送信済み %d", a.unread), dim)
+		add(fmt.Sprintf("送信済 %d", a.unread), dim)
 	}
 	if a.unsent > 0 {
 		add(fmt.Sprintf("● 未送信 %d", a.unsent), yellow)
@@ -1330,7 +1378,7 @@ func (a *app) bottomLines(n int) []string {
 	case a.help:
 		hs := []hint{{k: "q", d: "閉じる"}}
 		if n > a.t.h-1 {
-			hs = []hint{{k: "j k ↑↓", d: "送る"}, {k: "q", d: "閉じる"}}
+			hs = []hint{{k: "j k ↑↓", d: "スクロール"}, {k: "q", d: "閉じる"}}
 		}
 		return a.packKeys(hs, nil, false)
 	case a.in != nil:
@@ -1347,30 +1395,30 @@ func (a *app) bottomLines(n int) []string {
 func (a *app) helpRows() []row {
 	rows := []row{{}, {line: a.compose(false, 0, nil, plainText("キー", bold+blue), nil)}, {}}
 	for _, k := range [][2]string{
-		{"j k ↑↓", "上下に動く (ctrl+n / ctrl+p も)。止まる行がその先になければ 1 行送る。カーソルの行が画面の外にあれば、まずそこまで戻す"},
-		{"pgup pgdn", "半画面ずつ送る"},
-		{"", "報告の終わりからさらに j で、報告の下の思いつきへ (欄が広がる)。思いつきの 1 件目で k で報告へ戻る"},
+		{"j k ↑↓", "上下に動く (ctrl+n / ctrl+p も)。止まる行がその先になければ 1 行スクロール。カーソルの行が画面の外にあれば、まずそこまで戻す"},
+		{"pgup pgdn", "半画面ずつスクロール"},
+		{"", "報告の終わりからさらに j で、報告の下のコメントへ (欄が広がる)。コメントの 1 件目で k で報告へ"},
 		{"", "日本語入力のままでも、↑↓ ctrl+n ctrl+p と全角の英字 (ｊ ｙ など) が効く"},
 		{"space", "次の反応待ち (黄の ●) へ。無ければ次の新着 (緑の ●) へ。折りたたみは開く"},
 		{"A", "いま報告にある行をすべて見たことにする (緑の ● を消す)"},
-		{"enter", "開く・閉じる (思いつきの欄でも)"},
-		{"x (思いつき)", "思いつきの欄と一覧では、その思いつきを取り消す。直後の u で戻す"},
+		{"enter", "開く・閉じる (コメントの欄でも)"},
+		{"x (コメント)", "コメントの欄と一覧では、そのコメントを取り消す。直後の u で元に戻す"},
+		{"e (コメント)", "コメントの欄と一覧で、そのコメントを直す (enter で置き換える。esc でやめる)"},
 		{"y", "よし (項目・リンク)"},
 		{"n", "だめ (項目・リンク)"},
 		{"a b …", "問いに答える (選択肢のキー。問いを開いているときだけ。閉じていれば開く)"},
-		{"c", "この行に思いつきを書く"},
-		{"m", "思いつきを書く (どこにカーソルがあっても)"},
-		{"s", "AI に送る: まだ届いていないものがあると、AI のいるターミナルに一行打ち込んで知らせる"},
-		{"x", "この行を隠す (隠した行の上では戻す)"},
+		{"c", "この行にコメントを書く"},
+		{"m", "コメントを書く (どこにカーソルがあっても)"},
+		{"s", "AI に送る: 未送信のものをまとめて送る (AI が pitboard wait で待っていればそれが起こす。いなければ AI の端末に 1 行打ち込んで起こす)"},
+		{"x", "この行を隠す (隠した行の上では表示に戻す)"},
 		{"H", "隠した行を表示する / しない"},
-		{"tab", "思いつきの一覧 / 報告に戻る"},
+		{"tab", "コメントの一覧 / 報告へ"},
 		{"?", "このキーの一覧"},
-		{"q", "終了 (一覧からは報告に戻る)"},
+		{"q", "終了 (一覧からは報告へ)"},
 		{"", ""},
 		{"書いているとき", ""},
-		{"enter", "書く (AI には、次に AI が動いたときに届く)"},
-		{"ctrl+s", "書いて、すぐ AI に送る"},
-		{"ctrl+j", "改行 (shift+enter、alt+enter も)"},
+		{"enter", "板に置く (s で送るまで AI には届かない)"},
+		{"shift+enter", "改行 (対応していない端末では ctrl+j。alt+enter も)"},
 		{"← → ctrl+b f", "1 字左 / 右"},
 		{"↑ ↓ ctrl+p n", "上 / 下の行へ (折り返した見た目の行で)"},
 		{"ctrl+a e", "行頭 / 行末 (home / end も)"},
@@ -1379,7 +1427,8 @@ func (a *app) helpRows() []row {
 		{"ctrl+d", "右の 1 字を消す (delete も)"},
 		{"ctrl+w", "左の 1 語を消す (alt+backspace も)"},
 		{"ctrl+k / u", "カーソルから行末まで / 行頭からカーソルまで消す"},
-		{"pgup pgdn", "上の報告を送る"},
+		{"pgup pgdn", "上の報告をスクロール"},
+		{"ctrl+v", "クリップボードの画像を貼る ([Image #N] が入る。画像ファイルのパスを貼っても同じ)"},
 		{"ctrl+g", "$VISUAL / $EDITOR / vim で続きを書く"},
 		{"esc", "やめる"},
 	} {
@@ -1418,6 +1467,7 @@ func (a *app) handleHelp(k key) {
 // never left out: when the line is narrow, the short form is shown instead.
 type hint struct {
 	k, d  string
+	alt   string // a shorter label tried before hints are left out
 	short string
 	rank  int // when it is left out on a narrow line (see rankX)
 }
@@ -1483,7 +1533,7 @@ func (a *app) bottom() []string {
 			}
 		}
 		if len(keys) > 0 && a.canWrite() {
-			keys = append(keys, hint{k: "x", d: "取り消す", rank: rankX})
+			keys = append(keys, hint{k: "e", d: "直す", rank: rankN}, hint{k: "x", d: "取り消す", rank: rankX})
 		}
 		if len(keys) == 0 {
 			keys = append(keys, hint{k: "tab", d: "報告へ", rank: rankX})
@@ -1497,7 +1547,7 @@ func (a *app) bottom() []string {
 			keys = append(keys, hint{k: "enter", d: "開く", rank: rankEnter})
 		}
 		if a.canWrite() {
-			keys = append(keys, hint{k: "x", d: "取り消す", rank: rankX})
+			keys = append(keys, hint{k: "e", d: "直す", rank: rankN}, hint{k: "x", d: "取り消す", rank: rankX})
 		}
 		return a.oneLine(keys, nil)
 	}
@@ -1505,7 +1555,7 @@ func (a *app) bottom() []string {
 	n := pv.nodeAt(pv.cur)
 	if n == nil || !pv.curShown {
 		if pv.err == "" && !pv.missing {
-			keys = append(keys, hint{k: "j k ↑↓", d: "送る", rank: rankEnter})
+			keys = append(keys, hint{k: "j k ↑↓", d: "スクロール", rank: rankEnter})
 		}
 		return a.oneLine(keys, right)
 	}
@@ -1541,7 +1591,7 @@ func (a *app) bottom() []string {
 			answer = []hint{{k: strings.Join(choices, " "), d: "答える", rank: rankY}}
 		}
 		if thought {
-			write = []hint{{k: "c", d: "行に書く", rank: rankC}}
+			write = []hint{{k: "c", d: "行にコメント", alt: "行に書く", rank: rankC}}
 		}
 	}
 	if pv.placed && len(answer) == 0 && hideKey(n) != "" && !pv.lock && a.canWrite() {
@@ -1550,7 +1600,7 @@ func (a *app) bottom() []string {
 	}
 	if a.hideTarget(pv) != nil {
 		if pv.isHidden(n) {
-			hide = []hint{{k: "x", d: "戻す", rank: rankX}}
+			hide = []hint{{k: "x", d: "表示に戻す", rank: rankX}}
 		} else {
 			hide = []hint{{k: "x", d: "隠す", rank: rankX}}
 		}
@@ -1592,6 +1642,9 @@ const (
 func (a *app) oneLine(keys []hint, right text) []string {
 	q := hint{k: "?", d: "キー"}
 	var tail []hint
+	if a.canWrite() && a.unsent > 0 {
+		tail = append(tail, hint{k: "s", d: "送る"}) // kept to the end, as m and ?
+	}
 	if a.canWrite() {
 		tail = append(tail, hint{k: "m", d: "書く"})
 	}
@@ -1612,6 +1665,16 @@ func (a *app) oneLine(keys []hint, right text) []string {
 		}
 		return out
 	}
+	alt := func(ks []hint) []hint {
+		out := make([]hint, len(ks))
+		for i, k := range ks {
+			if k.alt != "" {
+				k.d = k.alt
+			}
+			out[i] = k
+		}
+		return out
+	}
 	fits := func(ks []hint, r text) bool { return keyHints(ks).width() <= a.room(0, r) }
 	for lvl := 0; lvl <= rankC; lvl++ {
 		var ks []hint
@@ -1620,7 +1683,7 @@ func (a *app) oneLine(keys []hint, right text) []string {
 				ks = append(ks, k)
 			}
 		}
-		for _, cand := range [][]hint{ks, shorten(ks)} {
+		for _, cand := range [][]hint{ks, alt(ks), shorten(alt(ks))} {
 			cand = append(cand, tail...)
 			for _, r := range []text{right, nil} { // right goes before any key
 				if fits(cand, r) {
@@ -1728,7 +1791,7 @@ func (a *app) paneOrder() []*thought {
 	var open, done []*thought
 	for i := len(a.state.thoughts) - 1; i >= 0; i-- {
 		t := a.state.thoughts[i]
-		if t.settled == "" {
+		if !t.finished() {
 			open = append(open, t)
 		} else {
 			done = append(done, t)
@@ -1761,13 +1824,9 @@ func (a *app) pane(avail int) []string {
 	for n > 0 && avail-(n+3) < minBodyRows { // + heading and the blank above and below
 		n--
 	}
-	// Quiet: the only thing that draws the eye is what the AI has not read.
-	// How many is said at the top right (未送信); here, how to send them.
-	var right text
-	if a.unsent > 0 {
-		right = plainText("s で送る", yellow)
-	}
-	head := a.compose(false, 0, nil, plainText("思いつき", bold+blue), right)
+	// Quiet: how many are not sent is said at the top right (未送信), and
+	// how to send them in the hints (s 送る).
+	head := a.compose(false, 0, nil, plainText("コメント", bold+blue), nil)
 	if n == 0 {
 		return []string{head}
 	}
@@ -1776,10 +1835,10 @@ func (a *app) pane(avail int) []string {
 	for _, t := range order[:n] {
 		word, color := a.state.statusOf(t)
 		base := ""
-		if t.settled != "" {
+		if t.finished() {
 			base = dim
 		}
-		body := plainText(strings.Join(strings.Fields(t.Text), " "), base).capped(2 * w)
+		body := withImages(strings.Join(strings.Fields(t.Text), " "), base).capped(2 * w)
 		out = append(out, a.compose(false, 2, nil, body, plainText(word, color)))
 	}
 	return append(out, "")
@@ -1788,12 +1847,12 @@ func (a *app) pane(avail int) []string {
 // openPane is the pane while the cursor is in it: up to half the screen,
 // every thought in the pane's order, scrolled to keep the cursor's in view.
 func (a *app) openPane(order []*thought) []string {
-	head := a.compose(false, 0, nil, plainText("思いつき", bold+blue), nil)
+	head := a.compose(false, 0, nil, plainText("コメント", bold+blue), nil)
 	var rows []row
 	for _, t := range order {
 		word, color := a.state.statusOf(t)
 		base := ""
-		if t.settled != "" {
+		if t.finished() {
 			base = dim
 		}
 		sel := t.N == a.pcur
@@ -1801,7 +1860,7 @@ func (a *app) openPane(order []*thought) []string {
 		if a.popen[t.N] {
 			mark = plainText("▾", "")
 		}
-		body := plainText(strings.Join(strings.Fields(t.Text), " "), base).capped(2 * a.textWidth())
+		body := withImages(strings.Join(strings.Fields(t.Text), " "), base).capped(2 * a.textWidth())
 		r := a.line(sel, 0, mark, body, plainText(word, color), false)
 		r[0].key = fmt.Sprint(t.N) // the first row of a thought
 		rows = append(rows, r...)
@@ -1835,7 +1894,7 @@ func (a *app) openPane(order []*thought) []string {
 	return append(out, "")
 }
 
-// headed is a line with a faint head word ("理由: ", "行き先: ") and the
+// headed is a line with a faint head word ("理由: ", "対応: ") and the
 // rest in the normal color.
 func headed(head, s string) text {
 	return append(plainText(head, dim), plainText(s, "")...)
@@ -1855,24 +1914,35 @@ func (a *app) thoughtDetails(t *thought, ind int) []row {
 			about = n.title()
 		}
 		if t.Title != "" && t.Title != about {
-			about += " (書いたときの題: " + t.Title + ")"
+			about += " (書いたときは: " + t.Title + ")"
 		}
 		rows = append(rows, a.para(ind, headed("行: ", about))...)
 	}
 	for _, l := range strings.Split(strings.TrimSpace(t.Text), "\n") {
-		rows = append(rows, a.para(ind, plainText(l, ""))...)
+		rows = append(rows, a.para(ind, withImages(l, ""))...)
 	}
 	switch {
-	case t.settled != "":
-		rows = append(rows, a.para(ind, headed("行き先: ", t.settled))...)
-	case t.N > a.state.sent:
+	case t.sstate != "":
+		rows = append(rows, a.para(ind, headed(settleHead(t.sstate), t.settled))...)
+	case t.lastN > a.state.sent:
 		rows = append(rows, a.para(ind, plainText("まだ送っていません (s で送る)", dim))...)
-	case t.N > a.state.seen:
+	case t.lastN > a.state.seen:
 		rows = append(rows, a.para(ind, plainText("送りました。AI はまだ読んでいません", dim))...)
 	default:
-		rows = append(rows, a.para(ind, plainText("AI は受け取りました。行き先はまだです", dim))...)
+		rows = append(rows, a.para(ind, plainText("AI は読みました。対応はまだです", dim))...)
 	}
 	return rows
+}
+
+// settleHead is the head word of what the AI wrote on a comment.
+func settleHead(state string) string {
+	switch state {
+	case "doing":
+		return "対応中: "
+	case "hold":
+		return "保留: "
+	}
+	return "対応: "
 }
 
 // homeTilde writes a path under the home directory with ~.
@@ -1945,7 +2015,7 @@ func (a *app) editorLines() []string {
 			// terminal's cursor is put there).
 			a.inAt = [2]int{len(out), margin + markW + ccol}
 		}
-		l := plainText(string(e.text[rs[i].start:rs[i].end]), "")
+		l := withImages(string(e.text[rs[i].start:rs[i].end]), "")
 		out = append(out, a.compose(false, 0, nil, l, nil))
 	}
 	return append(out, hints...)
@@ -1955,7 +2025,11 @@ func (a *app) editorLines() []string {
 // left out from the end: ctrl+g, then ctrl+j; how to write, send and stop
 // always stay.
 func (a *app) editorHints() []string {
-	all := []hint{{k: "enter", d: "書く"}, {k: "ctrl+s", d: "送る"}, {k: "esc", d: "やめる"}, {k: "ctrl+j", d: "改行", rank: 2}, {k: "ctrl+g", d: "エディタ", rank: 1}}
+	nl := "ctrl+j"
+	if a.kbd {
+		nl = "shift+enter" // the terminal tells it from enter
+	}
+	all := []hint{{k: "enter", d: "置く"}, {k: "esc", d: "やめる"}, {k: nl, d: "改行", rank: 2}, {k: "ctrl+g", d: "エディタ", rank: 1}}
 	var ks []hint
 	for lvl := 0; lvl <= 2; lvl++ {
 		ks = ks[:0]
@@ -2037,22 +2111,29 @@ func join(parts ...text) text {
 	return out
 }
 
-// right is what goes on the right end of a line: the status the AI wrote,
-// the person's reaction (while the line is unchanged), and thoughts on it.
+// right is what goes on the right end of a line: the state of the
+// person's latest input on it (a reaction, or a comment), then the status
+// the AI wrote. Colors mean: yellow needs the person (not sent, wait="you"),
+// green moves (a doing Item's status), faint waits or is done.
 func (a *app) right(pv *view, n *node) text {
 	var st text
 	switch {
 	case n.status == "":
-	case strings.HasPrefix(n.status, "あなた待ち"):
-		st = plainText(n.status, magenta)
-	default:
+	case n.wait == "you":
 		st = plainText(n.status, yellow)
+	case n.kind == kDoing:
+		st = plainText(n.status, green)
+	default:
+		st = plainText(n.status, dim)
 	}
 	if n.id == "" {
 		return st
 	}
-	var re, th text
-	if e, ok := a.state.react[n.id]; ok && e.Line == n.sig() {
+	// The reaction, while the line is what it was reacted to.
+	var re text
+	e, reacted := a.state.react[n.id]
+	reacted = reacted && e.Line == n.sig()
+	if reacted {
 		switch e.Value {
 		case "y":
 			re = plainText("y", bold+green)
@@ -2062,8 +2143,38 @@ func (a *app) right(pv *view, n *node) text {
 			re = plainText(e.Value, bold+cyan)
 		}
 	}
-	if c := len(a.state.on(n.id)); c > 0 {
-		th = plainText(fmt.Sprintf("✎%d", c), dim)
+	// The state of the latest input: the reaction's, or the latest
+	// comment's (with how many comments there are, when more than one).
+	cs := a.state.on(n.id)
+	var last *thought
+	for _, t := range cs {
+		if last == nil || t.lastN > last.lastN {
+			last = t
+		}
+	}
+	var word text
+	switch {
+	case reacted && (last == nil || e.N > last.lastN):
+		w, color := a.state.sentWord(e.N), dim
+		if w == "未送信" {
+			color = yellow
+		}
+		word = plainText(w, color)
+	case last != nil:
+		w, color := a.state.statusOf(last)
+		word = plainText(w, color)
+		if len(cs) > 1 {
+			word = append(plainText(fmt.Sprintf("%d ", len(cs)), dim), word...)
+		}
+	}
+	mine := func(re text) text {
+		switch {
+		case len(re) == 0:
+			return word
+		case len(word) == 0:
+			return re
+		}
+		return append(append(append(text{}, re...), plainText(" ", "")...), word...)
 	}
 	if n.kind == kQuestion && len(re) > 0 && !pv.open[n.key] {
 		// A closed question shows the head of the chosen option too, if
@@ -2072,12 +2183,12 @@ func (a *app) right(pv *view, n *node) text {
 			head := append(append(text{}, re...), plainText(" ", "")...)
 			head = append(head, plainText(plainOf(ch.text), dim).trunc(answerHead)...)
 			ind := n.depth * 2
-			if long := join(st, head, th); inline(n.text, "").width() <= a.room(ind, long) {
+			if long := join(mine(head), st); inline(n.text, "").width() <= a.room(ind, long) {
 				return long
 			}
 		}
 	}
-	return join(st, re, th)
+	return join(mine(re), st)
 }
 
 // answerHead is how much of the chosen option a closed question shows.
@@ -2121,7 +2232,7 @@ func (a *app) rows(pv *view) []row {
 	case a.st == nil:
 		return append(rows, a.para(0, plainText(msgNoSession, dim))...)
 	case a.noSession:
-		return append(rows, a.para(0, plainText(fmt.Sprintf("セッション %s はまだありません", a.st.session), dim))...)
+		return append(rows, a.para(0, plainText(fmt.Sprintf("板 %s はまだありません", a.st.session), dim))...)
 	case pv.missing:
 		return append(rows, a.para(0, plainText(msgNoReport, dim))...)
 	case pv.err != "":
@@ -2141,6 +2252,7 @@ func (a *app) rows(pv *view) []row {
 	}
 	pv.cut = map[string]bool{}
 	chosen := "" // the answered Option of the Ask being drawn
+	var curAsk *node
 	pv.walk(func(n *node) {
 		sel := n.key != "" && n.key == pv.cur && !a.inPane
 		ind := n.depth * 2
@@ -2154,13 +2266,19 @@ func (a *app) rows(pv *view) []row {
 			rows = append(rows, a.para(0, inline(n.text, bold+blue))...)
 		case kPara:
 			blank()
-			rows = append(rows, a.para(ind, inline(n.text, ""))...)
+			rows = append(rows, a.para(ind, paraText(n, ""))...)
 			rows = append(rows, row{})
 		case kCode:
 			blank()
 			rows = append(rows, a.code(n, ind+2)...)
 			rows = append(rows, row{})
 		case kChoice:
+			defer func() {
+				// After the last option of an open Ask, a blank line.
+				if curAsk != nil && len(curAsk.kids) > 0 && curAsk.kids[len(curAsk.kids)-1] == n {
+					blank()
+				}
+			}()
 			label := plainText(n.label+"  ", dim)
 			var mark text
 			if chosen != "" && n.label == chosen {
@@ -2172,11 +2290,11 @@ func (a *app) rows(pv *view) []row {
 				rows = append(rows, row{line: a.compose(false, ind+label.width(), nil, ln, nil)})
 			}
 		default: // todo, done, doing, question, plain, link, details
-			if n.kind == kDetails && n.depth == 0 {
+			if (n.kind == kDetails && n.depth == 0) || (n.kind == kPlain && n.gap) {
 				blank()
 			}
 			if n.kind == kQuestion {
-				chosen = ""
+				chosen, curAsk = "", n
 				if e, ok := a.state.react[n.id]; ok && n.id != "" && e.Line == n.sig() {
 					chosen = e.Value
 				}
@@ -2202,6 +2320,11 @@ func (a *app) rows(pv *view) []row {
 				pv.cut[n.key] = true
 			}
 			can := nav && a.canOpen(pv, n)
+			if can && open {
+				// Open: the title in bold, so it stands apart from what it
+				// holds (in the normal weight).
+				body = inline(n.text, base+bold).capped(8 * a.textWidth())
+			}
 			// A line the cursor cannot stop at cannot be opened either, so
 			// what it holds is always shown.
 			shown := (can && open) || (!nav && n.kind != kDetails)
@@ -2210,7 +2333,15 @@ func (a *app) rows(pv *view) []row {
 			if hidden {
 				mark = plainText("⌀", dim)
 			}
-			lns := a.line(sel, ind, mark, body, right, wrap)
+			var lns []row
+			if n.kind == kPlain {
+				if !hidden {
+					mark = nil // the list's own mark
+				}
+				lns = a.listItem(sel, ind, n, base, mark, right)
+			} else {
+				lns = a.line(sel, ind, mark, body, right, wrap)
+			}
 			if nav {
 				lns[0].key = n.key
 				lns[0].line = gutterMark(lns[0].line, a.markOfLine(pv, n))
@@ -2220,11 +2351,56 @@ func (a *app) rows(pv *view) []row {
 				rows = append(rows, a.linkTarget(n, ind)...)
 			}
 			if shown {
-				rows = append(rows, a.contents(pv, n, ind)...)
+				// What it holds, 2 past the title's text (4 past its mark),
+				// and a blank line after it when opened.
+				c := a.contents(pv, n, ind+2)
+				rows = append(rows, c...)
+				if can && open && len(c) > 0 {
+					blank()
+				}
 			}
 		}
 	})
 	return rows
+}
+
+// paraText is a paragraph as drawn: a small heading is bold in the color of
+// section headings.
+func paraText(n *node, base string) text {
+	if n.head {
+		return inline(n.text, base+bold+blue)
+	}
+	return inline(n.text, base)
+}
+
+// listMark is the mark of a list line: its number, or · - · by level.
+func listMark(n *node) text {
+	switch {
+	case n.num != "":
+		return plainText(n.num+" ", "")
+	case n.level == 1:
+		return plainText("-", dim)
+	}
+	return plainText("·", dim)
+}
+
+// listItem draws a list line and the lines nested under it. Its text
+// wraps to where it starts (past a number wider than the mark field), and
+// each level is indented 2 more. mark replaces the list's own mark if set.
+func (a *app) listItem(sel bool, ind int, n *node, base string, mark, right text) []row {
+	if len(mark) == 0 {
+		mark = listMark(n)
+	}
+	extra := max(mark.width()-markW, 0)
+	lns := inline(n.text, base).wrap(a.room(ind, right) - extra)
+	out := []row{{line: a.compose(sel, ind, mark, lns[0], right), isCur: sel}}
+	for _, ln := range lns[1:] {
+		out = append(out, row{line: a.compose(false, ind+extra, nil, ln, nil)})
+	}
+	for _, s := range n.subs {
+		out = append(out, a.listItem(false, ind+markW+extra, s, base, nil, nil)...)
+	}
+	return out
 }
 
 // code draws a fenced block. Long lines wrap; a diff is colored.
@@ -2265,13 +2441,18 @@ func (a *app) contents(pv *view, n *node, ind int) []row {
 		rows = append(rows, a.para(ind, append(plainText("理由: ", dim), inline(n.reason, base)...))...)
 	}
 	for _, b := range n.body {
+		// A blank line in the text stays one; a small heading always has
+		// one above it, unless it comes first.
+		if len(rows) > 0 && (b.gap || b.head) {
+			rows = append(rows, row{})
+		}
 		switch b.kind {
 		case kPara:
-			rows = append(rows, a.para(ind, inline(b.text, base))...)
+			rows = append(rows, a.para(ind, paraText(b, base))...)
 		case kCode:
 			rows = append(rows, a.code(b, ind+markW)...)
-		default: // list lines (in Markdown, maybe with a checkbox)
-			rows = append(rows, a.line(false, ind+markW, markOf(b.kind, false, false), inline(b.text, base), nil, true)...)
+		default: // list lines
+			rows = append(rows, a.listItem(false, ind+markW, b, base, nil, nil)...)
 		}
 	}
 	if n.id != "" {
@@ -2279,16 +2460,16 @@ func (a *app) contents(pv *view, n *node, ind int) []row {
 			word, color := a.state.statusOf(t)
 			for i, l := range strings.Split(strings.TrimSpace(t.Text), "\n") {
 				if i == 0 {
-					rows = append(rows, a.line(false, ind+markW, plainText("✎", dim), plainText(l, ""), plainText(word, color), true)...)
+					rows = append(rows, a.line(false, ind+markW, plainText("✎", dim), withImages(l, ""), plainText(word, color), true)...)
 				} else {
-					rows = append(rows, a.line(false, ind+markW, nil, plainText(l, ""), nil, true)...)
+					rows = append(rows, a.line(false, ind+markW, nil, withImages(l, ""), nil, true)...)
 				}
 			}
 			if t.Title != "" && t.Title != n.title() {
-				rows = append(rows, a.line(false, ind+markW, nil, plainText("(書いたときの題: "+t.Title+")", dim).capped(8*a.textWidth()), nil, true)...)
+				rows = append(rows, a.line(false, ind+markW, nil, plainText("(書いたときは: "+t.Title+")", dim).capped(8*a.textWidth()), nil, true)...)
 			}
-			if t.settled != "" {
-				rows = append(rows, a.line(false, ind+markW, nil, headed("行き先: ", t.settled).capped(8*a.textWidth()), nil, true)...)
+			if t.sstate != "" {
+				rows = append(rows, a.line(false, ind+markW, nil, headed(settleHead(t.sstate), t.settled).capped(8*a.textWidth()), nil, true)...)
 			}
 		}
 	}
@@ -2310,10 +2491,10 @@ func (a *app) listCur() *thought {
 }
 
 func (a *app) listRows() []row {
-	rows := []row{{}, {line: a.compose(false, 0, nil, plainText("思いつき", bold+blue), nil)}}
+	rows := []row{{}, {line: a.compose(false, 0, nil, plainText("コメント", bold+blue), nil)}}
 	ts := a.listed()
 	if len(ts) == 0 {
-		return append(rows, a.para(0, plainText("まだありません。m で書けます", dim))...)
+		return append(rows, a.para(0, plainText("コメントはまだありません。m で書けます", dim))...)
 	}
 	cur := a.listCur()
 	for _, t := range ts {
@@ -2321,7 +2502,7 @@ func (a *app) listRows() []row {
 		open := a.lopen[t.N]
 		word, color := a.state.statusOf(t)
 		first, _, _ := strings.Cut(strings.TrimSpace(t.Text), "\n")
-		body := append(plainText(fmt.Sprintf("%d  ", t.N), dim), plainText(first, "")...)
+		body := append(plainText(fmt.Sprintf("%d  ", t.N), dim), withImages(first, "")...)
 		mark := plainText("▸", "")
 		if open {
 			mark = plainText("▾", "")

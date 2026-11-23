@@ -59,7 +59,7 @@ func hook(event string, stdin io.Reader, stdout io.Writer) error {
 		return nil
 	}
 	msg := "pitboard (the person acted on the board):\n" + strings.Join(lines, "\n") + "\n" +
-		fmt.Sprintf("Settle each thought with \"pitboard -s %s settle N TEXT\" once you know where it goes.", in.SessionID)
+		fmt.Sprintf("Settle each thought with \"pitboard -s %s settle N TEXT [N TEXT ...]\" once you know where it goes.", in.SessionID)
 	enc := json.NewEncoder(stdout)
 	switch event {
 	case "prompt-submit":

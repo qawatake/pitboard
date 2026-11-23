@@ -86,15 +86,38 @@ func openTerm() (*term, error) {
 }
 
 // enter takes the terminal: raw mode, alternate screen, hidden cursor,
-// bracketed paste. Reads time out after 0.1s (min 0 time 1) so the key reader
-// can notice that it has been paused.
+// bracketed paste, and keys told apart (keysOn). Reads time out after 0.1s
+// (min 0 time 1) so the key reader can notice that it has been paused.
 func (t *term) enter() error {
 	if _, err := stty("raw", "-echo", "min", "0", "time", "1"); err != nil {
 		return err
 	}
-	fmt.Print("\x1b[?1049h\x1b[?25l\x1b[?2004h")
+	fmt.Print("\x1b[?1049h\x1b[?25l\x1b[?2004h" + keysOn)
 	return nil
 }
+
+// keysOn asks the terminal to send keys that are otherwise the same bytes
+// (shift+enter and enter) differently, and keysOff gives that back. Both
+// ways are asked for; a terminal ignores what it does not know:
+//
+//	CSI > 1 u     kitty keyboard protocol, "disambiguate" (kitty, Ghostty,
+//	              WezTerm with enable_kitty_keyboard, foot, iTerm2 3.5+).
+//	              Popped with CSI < u.
+//	CSI > 4 ; 1 m xterm modifyOtherKeys level 1 (xterm, and tmux with
+//	              extended-keys on, which passes it on to the outer
+//	              terminal). Undone with CSI > 4 ; 0 m.
+//	CSI ? u       asks for the kitty flags: a terminal that speaks the
+//	              protocol answers CSI ? flags u (read as the key "kbd").
+//	              No answer: shift+enter may still be the same as enter, so
+//	              the editor says ctrl+j for a new line.
+//
+// With them on, esc, ctrl+letter and alt+letter may arrive as CSI 27 u,
+// CSI 106 ; 5 u, CSI 27 ; 5 ; 106 ~ and so on: parseKey reads them as the
+// same keys as before.
+const (
+	keysOn  = "\x1b[>1u\x1b[>4;1m\x1b[?u"
+	keysOff = "\x1b[<u\x1b[>4;0m"
+)
 
 // run hands the terminal to another program and takes it back afterwards.
 func (t *term) run(c *exec.Cmd) error {
@@ -123,7 +146,7 @@ func (t *term) run(c *exec.Cmd) error {
 }
 
 func (t *term) close() {
-	fmt.Print("\x1b[?2004l\x1b[?25h\x1b[?1049l")
+	fmt.Print(keysOff + "\x1b[?2004l\x1b[?25h\x1b[?1049l")
 	_, _ = stty(t.saved)
 }
 
@@ -231,9 +254,14 @@ func parseKey(b []byte, pasting *bool) (key, int) {
 				"A": "up", "B": "down", "C": "right", "D": "left", "Z": "shift+tab",
 				"5~": "pgup", "6~": "pgdn", "H": "home", "F": "end", "1~": "home", "4~": "end",
 			}[string(b[2:i+1])]
-			switch string(b[2 : i+1]) {
-			case "27;2;13~", "13;2u":
-				name = "newline" // shift+enter
+			seq := string(b[2 : i+1])
+			if k, ok := extendedKey(seq); ok {
+				if *pasting && k.name != "" {
+					k = key{} // a key inside a paste is not a key
+				}
+				return k, i + 1
+			}
+			switch seq {
 			case "3~":
 				name = "delete"
 			case "1;3D", "1;9D", "1;5D":
@@ -242,8 +270,10 @@ func parseKey(b []byte, pasting *bool) (key, int) {
 				name = "alt+right"
 			case "200~":
 				*pasting = true
+				name = "paste-start"
 			case "201~":
 				*pasting = false
+				name = "paste-end"
 			}
 			return key{name: name}, i + 1
 		}
@@ -288,10 +318,120 @@ func parseKey(b []byte, pasting *bool) (key, int) {
 	return key{r: r}, size
 }
 
+// extendedKey reads a key sent in the forms keysOn asks for: CSI code u,
+// CSI code ; mods u (kitty) and CSI 27 ; mods ; code ~ (modifyOtherKeys),
+// seq being what follows CSI. The answer to CSI ? u is the key "kbd". ok is
+// false for anything else (arrows, pgup ... are read as before).
+func extendedKey(seq string) (k key, ok bool) {
+	var code, mods int
+	switch {
+	case strings.HasPrefix(seq, "?") && strings.HasSuffix(seq, "u"):
+		return key{name: "kbd"}, true
+	case strings.HasSuffix(seq, "u"):
+		parts := strings.Split(strings.TrimSuffix(seq, "u"), ";")
+		if len(parts) > 2 {
+			return key{}, false
+		}
+		code, mods = atoiPart(parts[0]), 1
+		if len(parts) == 2 {
+			mods = atoiPart(parts[1])
+		}
+	case strings.HasPrefix(seq, "27;") && strings.HasSuffix(seq, "~"):
+		parts := strings.Split(strings.TrimSuffix(seq, "~"), ";")
+		if len(parts) != 3 {
+			return key{}, false
+		}
+		mods, code = atoiPart(parts[1]), atoiPart(parts[2])
+	default:
+		return key{}, false
+	}
+	if code <= 0 || mods <= 0 {
+		return key{}, true // not readable: dropped
+	}
+	m := mods - 1 // bits: 1 shift, 2 alt, 4 ctrl (8 and up: super ...)
+	shift, alt, ctrl := m&1 != 0, m&2 != 0, m&4 != 0
+	if m&^7 != 0 {
+		return key{}, true
+	}
+	switch code {
+	case 13:
+		if shift || alt || ctrl {
+			return key{name: "newline"}, true
+		}
+		return key{name: "enter"}, true
+	case 27:
+		return key{name: "esc"}, true
+	case 9:
+		if shift {
+			return key{name: "shift+tab"}, true
+		}
+		return key{name: "tab"}, true
+	case 127, 8:
+		if alt || ctrl {
+			return key{name: "alt+backspace"}, true
+		}
+		return key{name: "backspace"}, true
+	}
+	r := rune(code)
+	switch {
+	case ctrl && !alt && r >= 'a' && r <= 'z':
+		switch r {
+		case 'c':
+			return key{name: "ctrl+c"}, true
+		case 'j':
+			return key{name: "newline"}, true
+		case 'h':
+			return key{name: "backspace"}, true
+		case 'i':
+			return key{name: "tab"}, true
+		case 'm':
+			return key{name: "enter"}, true
+		}
+		if name, ok := ctrlKeys[byte(r-'a'+1)]; ok {
+			return key{name: name}, true
+		}
+		return key{}, true
+	case alt && !ctrl:
+		switch r {
+		case 'b':
+			return key{name: "alt+b"}, true
+		case 'f':
+			return key{name: "alt+f"}, true
+		}
+		return key{}, true
+	case ctrl || alt:
+		return key{}, true
+	}
+	if !utf8.ValidRune(r) || r < 0x20 || (r >= 0xe000 && r <= 0xf8ff) {
+		return key{}, true // keypad, lone modifiers and other functional keys
+	}
+	if shift && r >= 'a' && r <= 'z' {
+		r -= 'a' - 'A'
+	}
+	return key{r: r}, true
+}
+
+// atoiPart reads a number from a part of a sequence ("106", or "106:74"
+// with alternate keys); -1 if it is not one.
+func atoiPart(s string) int {
+	s, _, _ = strings.Cut(s, ":")
+	n := 0
+	if s == "" {
+		return -1
+	}
+	for _, c := range s {
+		if c < '0' || c > '9' || n > 0x10ffff {
+			return -1
+		}
+		n = n*10 + int(c-'0')
+	}
+	return n
+}
+
 // ctrlKeys are the control keys the viewer reads, by their byte.
 var ctrlKeys = map[byte]string{
 	1: "ctrl+a", 2: "ctrl+b", 4: "ctrl+d", 5: "ctrl+e", 6: "ctrl+f", 7: "ctrl+g",
-	11: "ctrl+k", 14: "ctrl+n", 16: "ctrl+p", 19: "ctrl+s", 21: "ctrl+u", 23: "ctrl+w",
+	11: "ctrl+k", 14: "ctrl+n", 16: "ctrl+p", 19: "ctrl+s", 21: "ctrl+u", 22: "ctrl+v", 23: "ctrl+w",
 }
 
 // runeWidth is the number of terminal cells a rune takes: 2 for CJK, kana,

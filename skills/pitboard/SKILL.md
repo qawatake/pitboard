@@ -8,6 +8,8 @@ description: Keeps a pitboard board for the current session — a report the AI 
 Before using pitboard, run `pitboard -h` and read all of it.
 It is the manual of the version installed now: how to start a board, the report format,
 the manners, how to read what the person did, hooks, and sending.
-In short: the person answers on the board and then sends it all at once;
-when a line starting with "pitboard:" arrives in the chat, run `pitboard -s SESSION changes`.
+In short: the person answers on the board and then sends it all at once.
+Before you end your turn, run `pitboard -s SESSION wait` in the background; it ends with what was sent, and you are woken.
+When a line starting with "pitboard:" arrives in the chat instead, run the command it gives.
+Settle every thought (the board calls them comments), with `--doing` / `--hold` while it is not done.
 This skill does not repeat it, so it never goes out of date when pitboard is updated.

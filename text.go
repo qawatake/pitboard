@@ -148,6 +148,11 @@ func (t text) wrap(w int) []text {
 	var cur text
 	cw := 0
 	for _, c := range t {
+		if c.r == '\n' { // a line break the AI asked for
+			out = append(out, cur)
+			cur, cw = nil, 0
+			continue
+		}
 		rw := runeWidth(c.r)
 		if cw+rw > w {
 			var carry text

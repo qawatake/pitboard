@@ -154,7 +154,7 @@ func TestSpaceJumps(t *testing.T) {
 	if pv.cur != "other" {
 		t.Errorf("space to new: %q", pv.cur)
 	}
-	if s := reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), ""); !strings.Contains(s, "space 次へ  m 書く") {
+	if s := reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), ""); !strings.Contains(s, "space 次へ  s 送る  m 書く") {
 		t.Errorf("hints: %q", s)
 	}
 	a.handle(key{r: 'A'})

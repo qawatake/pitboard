@@ -26,9 +26,31 @@ var sendTimeout = 5 * time.Second
 // no herdr. Its text says how to fix it.
 var errNoTarget = errors.New(`AI に pitboard wait を動かしてもらうか、PITBOARD_SEND を設定してください (pitboard -h の "Send")`)
 
-// wakeMessage is the line typed into the AI's terminal.
-func wakeMessage(session string, n int) string {
-	return fmt.Sprintf("pitboard: the person sent %d item(s) from the board. Run \"pitboard -s %s changes\" and act on them.", n, session)
+// wakeMessage is the line typed into the AI's terminal. It stays in the
+// AI's conversation, so it is short; -h says what it means.
+func wakeMessage(st *Store, n int) string {
+	return fmt.Sprintf("pitboard: %d sent. Run: pitboard -s %s changes", n, shortSession(st))
+}
+
+// shortSession is the shortest head of the session id, 8 characters or
+// more, that no other session on the same board directory starts with (so
+// -s resolves it to this session).
+func shortSession(st *Store) string {
+	r := []rune(st.session)
+	others := sessions(st.base)
+	for l := min(8, len(r)); l < len(r); l++ {
+		p, unique := string(r[:l]), true
+		for _, o := range others {
+			if o != st.session && strings.HasPrefix(o, p) {
+				unique = false
+				break
+			}
+		}
+		if unique {
+			return p
+		}
+	}
+	return st.session
 }
 
 // unsent counts what the person has not sent yet: what the next send would

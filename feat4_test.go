@@ -94,11 +94,11 @@ func TestRetractInPaneAndUndo(t *testing.T) {
 	if !a.inPane || a.pcur != 3 {
 		t.Fatalf("pane %v pcur %d", a.inPane, a.pcur)
 	}
-	if s := hintLine(a); s != "    enter 開く  x 取り消す  m 書く  ? キー" {
+	if s := hintLine(a); s != "    enter 開く  e 直す  x 取り消す  s 送る  m 書く  ? キー" {
 		t.Errorf("hints %q", s)
 	}
 	a.handle(key{r: 'x'})
-	if a.msg != "取り消しました (u で戻す)" || a.pcur != 2 {
+	if a.msg != "取り消しました (u で元に戻す)" || a.pcur != 2 {
 		t.Fatalf("msg %q pcur %d", a.msg, a.pcur)
 	}
 	a.render()
@@ -120,7 +120,7 @@ func TestRetractInPaneAndUndo(t *testing.T) {
 	a.render()
 	a.handle(key{r: 'x'}) // "two" now
 	a.handle(key{r: 'u'})
-	if len(a.state.thoughts) != 2 || a.pcur != 2 || a.msg != "戻しました" {
+	if len(a.state.thoughts) != 2 || a.pcur != 2 || a.msg != "元に戻しました" {
 		t.Errorf("u must undo: thoughts %d pcur %d msg %q", len(a.state.thoughts), a.pcur, a.msg)
 	}
 	evs := st.Events()
@@ -146,7 +146,7 @@ func TestRetractInList(t *testing.T) {
 	a := testApp(t, st)
 	a.handle(key{name: "tab"})
 	a.render()
-	if s := hintLine(a); s != "    enter 開く  x 取り消す  m 書く  ? キー" {
+	if s := hintLine(a); s != "    enter 開く  e 直す  x 取り消す  s 送る  m 書く  ? キー" {
 		t.Errorf("list hints %q", s)
 	}
 	a.handle(key{r: 'x'})

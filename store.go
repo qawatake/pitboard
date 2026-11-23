@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -162,13 +161,16 @@ func (s *Store) seenPath() string   { return filepath.Join(s.dir, "seen") }
 //
 //	react    id, value (y / n / a choice letter), line (what the line was)
 //	thought  text, and id when written on a line
-//	settle   thought, text, by (the AI's note on where a thought went)
+//	settle   thought, text, by (the AI's note on where a thought went), and
+//	         state: doing / hold / done (none: done). The latest counts.
 //	hide     key (what the line says, see hideKey), title: the person no
 //	         longer needs to see that line
 //	unhide   key, title: show it again
 //	send     the person sent what is above it: 'changes' delivers only
 //	         what comes before the latest send
 //	retract  thought: the person took the thought back
+//	edit     thought, text: the person rewrote the thought (the latest
+//	         edit's text is the thought's)
 //	unretract  thought: they undid that (u right after x)
 type Event struct {
 	N       int    `json:"n"`
@@ -189,6 +191,9 @@ type Event struct {
 	Option string `json:"option,omitempty"`
 	// Key is what a hidden line says (see hideKey).
 	Key string `json:"key,omitempty"`
+	// State is how far the AI is with a thought (settle): doing, hold or
+	// done ("" is done).
+	State string `json:"state,omitempty"`
 }
 
 func parseEvents(data []byte) []Event {
@@ -237,7 +242,7 @@ func (s *Store) locked(f func(file *os.File, evs []Event) error) error {
 // Append numbers e and adds it to events.jsonl.
 func (s *Store) Append(e Event) (Event, error) {
 	err := s.locked(func(file *os.File, evs []Event) error {
-		if e.Op == "settle" {
+		if e.Op == "settle" || e.Op == "edit" {
 			if t := findThought(evs, e.Thought); t == nil {
 				return fmt.Errorf("no thought %d", e.Thought)
 			}
@@ -296,11 +301,7 @@ func (s *Store) Changes() ([]string, error) {
 		if last <= seen {
 			return nil
 		}
-		for _, e := range deliverable(evs, seen, last) {
-			if line := describe(e, nodes); line != "" {
-				out = append(out, line)
-			}
-		}
+		out = compact(deliverable(evs, seen, last), nodes, s.imagePath)
 		if last == seen {
 			return nil
 		}
@@ -344,11 +345,18 @@ func deliverable(all []Event, seen, cut int) []Event {
 		}
 	}
 	thoughts := map[int]Event{}
-	final := map[int]bool{} // taken back, in the end
-	told := map[int]bool{}  // taken back, as the AI was last told
-	lastOp := map[int]int{} // the number of the last retract / unretract
+	final := map[int]bool{}  // taken back, in the end
+	told := map[int]bool{}   // taken back, as the AI was last told
+	lastOp := map[int]int{}  // the number of the last retract / unretract
+	text := map[int]string{} // the thought's text, as last edited
+	lastEdit := map[int]int{}
 	for _, e := range evs {
 		switch e.Op {
+		case "edit":
+			text[e.Thought] = e.Text
+			if e.N > seen {
+				lastEdit[e.Thought] = e.N
+			}
 		case "thought":
 			thoughts[e.N] = e
 		case "retract", "unretract":
@@ -368,9 +376,21 @@ func deliverable(all []Event, seen, cut int) []Event {
 		switch e.Op {
 		case "settle", "send":
 		case "thought":
+			// Not delivered yet: what is told is its text as edited, and
+			// the edits are not told.
+			if t, ok := text[e.N]; ok {
+				e.Text = t
+			}
 			if !final[e.N] {
 				out = append(out, e)
 			}
+		case "edit":
+			// A delivered thought rewritten: its latest text, once.
+			t, ok := thoughts[e.Thought]
+			if !ok || t.N > seen || final[e.Thought] || lastEdit[e.Thought] != e.N {
+				continue
+			}
+			out = append(out, e)
 		case "retract", "unretract":
 			t, ok := thoughts[e.Thought]
 			if !ok || t.N > seen || lastOp[e.Thought] != e.N || final[e.Thought] == told[e.Thought] {
@@ -388,6 +408,66 @@ func deliverable(all []Event, seen, cut int) []Event {
 	return out
 }
 
+// Lengths titles are cut to in what 'changes' prints.
+const (
+	hideTitleMax    = 20
+	thoughtTitleMax = 30
+)
+
+// compact is what 'changes' prints for evs: one line per event (with the
+// images a thought holds under it), except that a reaction pressed again on
+// the same line is told once (the last), and hides and unhides are told on
+// one line each, at the end.
+func compact(evs []Event, nodes []*node, image func(n int) string) []string {
+	lastReact := map[string]int{}
+	for _, e := range evs {
+		if e.Op == "react" {
+			lastReact[e.ID] = e.N
+		}
+	}
+	var out, hides, unhides []string
+	for _, e := range evs {
+		switch {
+		case e.Op == "react" && lastReact[e.ID] != e.N:
+			continue
+		case e.Op == "hide":
+			hides = append(hides, cutTitle(e.Title, hideTitleMax))
+			continue
+		case e.Op == "unhide":
+			unhides = append(unhides, cutTitle(e.Title, hideTitleMax))
+			continue
+		}
+		line := describe(e, nodes)
+		if line == "" {
+			continue
+		}
+		out = append(out, line)
+		if e.Op == "thought" || e.Op == "edit" {
+			for _, n := range imagesIn(e.Text) {
+				if p := image(n); p != "" {
+					out = append(out, fmt.Sprintf("  image %d: %s", n, p))
+				}
+			}
+		}
+	}
+	if len(hides) > 0 {
+		out = append(out, fmt.Sprintf("hide (%d): %s", len(hides), strings.Join(hides, " / ")))
+	}
+	if len(unhides) > 0 {
+		out = append(out, fmt.Sprintf("unhide (%d): %s", len(unhides), strings.Join(unhides, " / ")))
+	}
+	return out
+}
+
+// cutTitle is a title on one line, cut to max characters with ….
+func cutTitle(s string, max int) string {
+	r := []rune(strings.Join(strings.Fields(s), " "))
+	if len(r) > max {
+		return string(r[:max-1]) + "…"
+	}
+	return string(r)
+}
+
 // describe is how an event is told to the AI: with the title of the line as
 // the person saw it, and what it says now if that differs.
 func describe(e Event, nodes []*node) string {
@@ -399,11 +479,11 @@ func describe(e Event, nodes []*node) string {
 	ctx := seen
 	switch {
 	case now == nil && seen == "":
-		ctx = "いまは無い"
+		ctx = "gone"
 	case now == nil:
-		ctx += " → いまは無い"
+		ctx += " → now gone"
 	case now.title() != seen:
-		ctx += " → いまは: " + now.title()
+		ctx += " → now: " + now.title()
 	}
 	switch e.Op {
 	case "react":
@@ -427,9 +507,22 @@ func describe(e Event, nodes []*node) string {
 		if e.ID == "" {
 			return fmt.Sprintf("thought %d: %s", e.N, text)
 		}
+		// The line's titles, cut: the thought is what matters here.
+		ctx := cutTitle(seen, thoughtTitleMax)
+		switch {
+		case now == nil && seen == "":
+			ctx = "gone"
+		case now == nil:
+			ctx += " → now gone"
+		case now.title() != seen:
+			ctx += " → now: " + cutTitle(now.title(), thoughtTitleMax)
+		}
 		return fmt.Sprintf("thought %d on %s (%s): %s", e.N, e.ID, ctx, text)
 	case "hide", "unhide":
 		return fmt.Sprintf("%s: %s", e.Op, strings.ReplaceAll(e.Title, "\n", " "))
+	case "edit":
+		text := strings.ReplaceAll(strings.TrimSpace(e.Text), "\n", "\n  ")
+		return fmt.Sprintf("edit thought %d: %s", e.Thought, text)
 	case "retract", "unretract":
 		head := []rune(strings.Join(strings.Fields(e.Text), " "))
 		if len(head) > 40 {
@@ -440,14 +533,46 @@ func describe(e Event, nodes []*node) string {
 	return "" // settle is written by the AI itself
 }
 
-// Settle records where thought n went.
+// Settle records where thought n went (done).
 func (s *Store) Settle(n int, text string) error {
-	text = strings.TrimSpace(text)
-	if text == "" {
-		return errors.New("settle needs a text")
+	return s.SettleAll([]settlement{{n, "done", text}})
+}
+
+// settlement is one thought's settle: its number, state (doing, hold or
+// done) and text.
+type settlement struct {
+	n     int
+	state string
+	text  string
+}
+
+// SettleAll records each settlement: all of them, or (when a number is not
+// a thought, or a done one has no text) none.
+func (s *Store) SettleAll(ss []settlement) error {
+	evs := s.Events()
+	for i := range ss {
+		x := &ss[i]
+		x.text = strings.TrimSpace(x.text)
+		if x.state == "" {
+			x.state = "done"
+		}
+		if x.text == "" && x.state == "done" {
+			return fmt.Errorf("settle %d needs a text", x.n)
+		}
+		if findThought(evs, x.n) == nil {
+			return fmt.Errorf("no thought %d", x.n)
+		}
 	}
-	_, err := s.Append(Event{Op: "settle", Thought: n, Text: text, By: "ai"})
-	return err
+	for _, x := range ss {
+		e := Event{Op: "settle", Thought: x.n, Text: x.text, By: "ai"}
+		if x.state != "done" {
+			e.State = x.state
+		}
+		if _, err := s.Append(e); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // writeFile replaces path through a temporary file in the same directory and
@@ -474,7 +599,9 @@ type thought struct {
 	Event
 	settled   string // the AI's note, if any
 	settledN  int    // the number of that settle event
+	sstate    string // the AI's state for it: "" (none yet), doing, hold, done
 	retracted bool   // the person took it back (not shown)
+	lastN     int    // the number of the thought or its latest edit
 }
 
 // state is the events replayed: the latest reaction per id, thoughts, and
@@ -495,16 +622,25 @@ func replayEvents(evs []Event, seen int) *state {
 		case "react":
 			st.react[e.ID] = e
 		case "thought":
-			t := &thought{Event: e}
+			t := &thought{Event: e, lastN: e.N}
 			st.thoughts = append(st.thoughts, t)
 			byN[e.N] = t
 		case "settle":
 			if t := byN[e.Thought]; t != nil {
-				t.settled, t.settledN = e.Text, e.N
+				t.settled, t.settledN, t.sstate = e.Text, e.N, e.State
+				if t.sstate == "" {
+					t.sstate = "done"
+				}
 			}
 		case "retract", "unretract":
 			if t := byN[e.Thought]; t != nil {
 				t.retracted = e.Op == "retract"
+			}
+		case "edit":
+			// Rewritten: the AI's destination was for the old text.
+			if t := byN[e.Thought]; t != nil {
+				t.Text, t.lastN = e.Text, e.N
+				t.settled, t.settledN, t.sstate = "", 0, ""
 			}
 		case "hide":
 			st.hidden[e.Key] = true
@@ -533,17 +669,40 @@ func (st *state) on(id string) []*thought {
 	return out
 }
 
-// statusOf is a thought's state in four words: not sent yet, sent but not
-// read by the AI, read, or given a destination by the AI.
+// finished says whether the AI is done with t.
+func (t *thought) finished() bool { return t.sstate == "done" }
+
+// statusOf is a comment's state in one word: not sent, sent (not read by
+// the AI yet), read, then as the AI settled it: being handled, on hold,
+// handled. Only what needs the person (not sent) is in color.
 func (st *state) statusOf(t *thought) (word, color string) {
 	switch {
-	case t.settled != "":
-		return "済", dim // where it went is read in the list (tab, enter)
-	case t.N > st.sent:
+	case t.sstate != "":
+		return settleWord(t.sstate), dim // what the AI wrote is read in the list (tab, enter)
+	case t.lastN > st.sent:
 		return "未送信", yellow
-	case t.N > st.seen:
-		return "未読", dim
-	default:
-		return "受け取った", dim
 	}
+	return st.sentWord(t.lastN), dim
+}
+
+// sentWord is the state of something sent: 送信済 until the AI reads it,
+// then 既読 (or 未送信 when it was not sent yet).
+func (st *state) sentWord(n int) string {
+	switch {
+	case n > st.sent:
+		return "未送信"
+	case n > st.seen:
+		return "送信済"
+	}
+	return "既読"
+}
+
+func settleWord(state string) string {
+	switch state {
+	case "doing":
+		return "対応中"
+	case "hold":
+		return "保留"
+	}
+	return "対応済"
 }

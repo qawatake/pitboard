@@ -205,6 +205,7 @@ func gutterMark(line string, m int) string {
 type marked struct {
 	n     *node
 	m     int
+	you   bool // an Item with wait="you" (not a mark: space goes there too)
 	folds []*node
 }
 
@@ -224,7 +225,8 @@ func (a *app) allLines(pv *view) []marked {
 				if n.kind != kDetails {
 					m = a.markOfLine(pv, n)
 				}
-				out = append(out, marked{n: n, m: m, folds: folds})
+				you := n.wait == "you" && !pv.isHidden(n)
+				out = append(out, marked{n: n, m: m, you: you, folds: folds})
 			}
 			switch n.kind {
 			case kSection:
@@ -255,8 +257,9 @@ func (a *app) counts(pv *view) (waiting, fresh int) {
 	return
 }
 
-// jump moves the cursor to the next waiting line, or if none, the next new
-// one: downwards from the cursor, then from the top. Folds on the way are
+// jump moves the cursor to the next waiting line, or if none, the next
+// Item waiting for the person (wait="you"), or the next new line:
+// downwards from the cursor, then from the top. Folds on the way are
 // opened. The person moved the cursor, but the line still waits settleDelay
 // before x y n and options work on it.
 func (a *app) jump(pv *view) {
@@ -267,10 +270,14 @@ func (a *app) jump(pv *view) {
 			at = i
 		}
 	}
-	for _, want := range []int{markWaiting, markNew} {
+	for _, want := range []func(l marked) bool{
+		func(l marked) bool { return l.m == markWaiting },
+		func(l marked) bool { return l.you },
+		func(l marked) bool { return l.m == markNew },
+	} {
 		for d := 1; d <= len(ls); d++ {
 			l := ls[(at+d+len(ls))%len(ls)]
-			if l.m != want {
+			if !want(l) {
 				continue
 			}
 			for _, f := range l.folds {

@@ -27,11 +27,14 @@ Usage:
                                    (-s may also come after the command)
   pitboard -s SESSION path         print the path of the session's report.md (write the report there)
   pitboard -s SESSION changes      print what the person has sent since the last call, one per line
-  pitboard -s SESSION settle N TEXT   say where thought N went
+  pitboard -s SESSION settle N [--doing|--hold|--done] TEXT
+                                   say how far thought N is and where it went
+                                   (several: [--STATE] N TEXT [--STATE] N TEXT ...)
   pitboard -s SESSION check        check report.md; prints problems with line numbers, exit 1 if any
   pitboard -s SESSION wait [--timeout DURATION]
-                                   wait until the person sends from the board, then print what
-                                   'changes' prints (run it in the background before you stop; see Send)
+                                   wait until the person sends, then print what
+                                   'changes' prints (run it in the background
+                                   before you stop; see Send)
   pitboard -h                      this help
   pitboard hook prompt-submit|post-tool|stop   for Claude Code hooks: delivers 'changes' (see Hooks)
   pitboard --skill                 print the Claude Code skill (SKILL.md); it points here
@@ -68,6 +71,25 @@ Writing report.md:
   paragraphs and "- " list lines, with inline Markdown (` + "`code`" + `,
   **bold**, [title](url)). Attributes are name="value"; write " as &quot;.
 
+  Text (paragraphs, an Item's contents, text in a Section or Fold):
+    lines between blank lines     one paragraph (lines are joined); a blank
+                                  line between paragraphs stays
+    - text                        a list line (·)
+    - text, indented 2 per level  nested list, 3 levels at most (· - ·)
+    1. text                       numbered (the number is shown as written);
+                                  may nest too
+    a line indented under a list  continues that list line
+    line (deeper than its mark)
+    **word**: text                "word" in bold as a head word; such a line
+                                  starts a paragraph of its own
+    **...** alone on a line       a small heading (a blank line above it)
+    two spaces or \ at the end    a line break (the next line is not joined)
+  Indentation counts from the first text line of the part (of an Item: its
+  first line of contents). In a Section or Fold, only a first-level "- "
+  line is a stop the person can hide (with its nested lines); nested and
+  numbered lines, and lists in an Item, are read only. Inside Code nothing
+  of this applies.
+
     <Title>Build the minimal pitboard</Title>
 
     One paragraph saying where things stand.
@@ -84,7 +106,7 @@ Writing report.md:
 
     <Section title="In progress">
       <Item id="impl" state="doing" status="working">Implement the viewer</Item>
-      <Item id="parts" status="waiting on you" note="needs the answer above">Fix the part list</Item>
+      <Item id="parts" status="waiting on you" wait="you" note="needs the answer above">Fix the part list</Item>
     </Section>
 
     <Section title="To look at">
@@ -107,7 +129,12 @@ Writing report.md:
     Item      id (required), state = todo (default) | doing | done,
               status (a short word shown at the right end),
               note (why the status; shown when opened),
-              ask="y" (you want a y / n on it; not on a done Item).
+              ask="y" (you want a y / n on it; not on a done Item),
+              wait="you" (it cannot move on until the person does
+              something; not on a done Item).
+              The status is colored by attributes, not by its words:
+              yellow with wait="you" (needs the person), green when
+              state="doing" (moving), faint otherwise (queued, on hold).
               First line: the item. Following lines: what opening it shows
               (text and Code only).
     Ask       id (required). First line: the question. Then 2 or more Option.
@@ -162,6 +189,9 @@ Manners:
     following lines (shown when the person opens it).
   - A line you want a reaction or a thought on must be an Item, Ask or Link
     with an id.
+  - When contents run past 3 lines, do not pour them into a paragraph: show
+    their structure with lists and bold head words. Nest what you compare.
+    One list line says one thing.
   - Keep ids stable while a line means the same thing: reactions are tied to
     ids. A reaction stops showing when you rewrite that line (text, state,
     status or note), so rewrite a line once you have acted on its reaction.
@@ -177,37 +207,59 @@ Manners:
     come back. Keep a section like "Answers" with one Item per question:
     its title is the question (short, close to their words), its contents
     the answer. The person hides it with x once read; when "hide:" for it
-    arrives, drop that Item the next time you rewrite the report. When a
-    thought was a question, settle it with "answered (in Answers)".
+    arrives, drop that Item the next time you rewrite the report. You may
+    also drop an answer the person replied to, once you judge it settled.
+    When a thought was a question, settle it with "answered (in Answers)".
+  - Mark with wait="you" every Item that needs the person's hand (its
+    status words alone get no color).
   - Nothing that matters lives only in the chat: decisions, answers and
     requests to the person go in the report too.
   - The person answers on the board at their own pace (y / n, answers,
-    thoughts, hides) and then sends them all at once (Send, below). When a
-    line starting with "pitboard:" arrives in the chat, run 'changes'. You
-    need not call it often yourself: it prints only what was sent, and
-    nothing twice.
+    thoughts, hides) and then sends them all at once (Send, below). You
+    need not call 'changes' often yourself: it prints only what was sent,
+    and nothing twice.
+  - Before you end your turn, run 'pitboard -s SESSION wait' in the
+    background (in Claude Code: Bash with run_in_background). When the
+    person sends from the board, it prints what was sent and ends, and you
+    are woken. Act on it, and run 'wait' again before you stop. You may
+    start it before you begin working, too: what the person sends midway
+    reaches you then. Once it has ended, start it again.
 
 'changes' prints lines like:
     y hook (Decide whether to install the hook)
-    n impl (Implement the viewer → いまは: Implement the viewer and the CLI)
-    y old (Drop the log → いまは無い)
+    n impl (Implement the viewer → now: Implement the viewer and the CLI)
+    y old (Drop the log → now gone)
     answer unit = a (per session)
     thought 7 on hook (Decide whether to install the hook): only post-tool
     thought 8: maybe drop the log
     thought 9: a thought written on two lines
       continues here (the following lines of a thought are indented)
-    hide: Drop the log
-    unhide: Drop the log
+    thought 10: like this one? [Image #3]
+      image 3: /abs/path/.pitboard/SESSION/images/3.png
+    hide (2): Drop the log / Implement the vie…
+    unhide (1): Drop the log
     retract thought 7: only post-tool
+    edit thought 8: maybe drop the log, and the history too
   y means "good / done", n "not needed / no". answer is the option chosen.
   The text in parentheses is the line's title when the person pressed the
-  key (or began writing). "→ いまは: ..." means you have rewritten the line
+  key (or began writing). "→ now: ..." means you have rewritten the line
   since: the person judged the old title, so think about which one the
-  reaction is for before applying it. "→ いまは無い" means the line is gone.
-  thought N is a thought; "on ID" when written on that line.
+  reaction is for before applying it. "→ now gone" means the line is gone.
+  thought N is a thought; "on ID" when written on that line (the titles are
+  cut to 30 characters there). A thought may hold images, "[Image #N]" in
+  its text: the line under it gives the image's path; open it (Read) to see
+  it.
+  A line the person reacted to more than once (y, then n; one option, then
+  another) is told once, with the last.
+  hide / unhide come last, all on one line (titles cut to 20 characters).
   hide means the person decided they no longer need to see that line. Nothing
   needs doing; you may drop the line the next time you rewrite the report.
   unhide means they want to see it again.
+  edit thought N means the person rewrote a thought you already received:
+  the text is the whole new thought. Act on the new text; if you had
+  settled it, settle it again (the board shows it as read, without a
+  destination). (A thought rewritten before it reached you just arrives as
+  "thought N" with the new text.)
   retract thought N means the person took that thought back. If you were
   acting on it, stop. It needs no settle. (A thought taken back before it
   reached you is never told; "unretract thought N" means a retract you were
@@ -219,16 +271,26 @@ Manners:
   or state.)
 
 Thoughts:
-  You need not handle every thought at once, but give every thought you
-  received a destination with 'pitboard -s ID settle N TEXT' (e.g. "made it
-  a todo", "answered", "noted", "not doing it"). The board shows it, so the
-  person can write a thought and forget it. Never leave one without a
-  destination.
+  (The board calls them comments.) You need not handle every thought at
+  once, but give every thought you received a destination with
+  'pitboard -s ID settle N TEXT' (e.g. "made it a todo", "answered",
+  "noted", "not doing it"). The board shows it, so the person can write a
+  thought and forget it. Never leave one without a destination.
+  A state goes before TEXT: --done (the default), --doing (working on it)
+  or --hold (put off); the latest settle counts. When a thought takes a
+  while, tell it at once with 'settle N --doing' (or --hold, with why),
+  and settle it --done with the result when finished.
+  Settle several in one call, each with its own state:
+    pitboard -s ID settle --doing 50 "looking into it" --done 51 "answered"
+  The board shows, at the right end of a line, the state of the person's
+  latest input on it: 未送信 (not sent), 送信済 (sent), 既読 (you read it),
+  then for a thought 対応中 / 保留 / 対応済 (doing / hold / done).
 
 Hooks:
-  With hooks, what the person has sent reaches you while you work (after
-  your next tool call) and just before you stop, without waiting for the
-  line in the chat. In ~/.claude/settings.json:
+  (A second way, when 'wait' cannot be used.) With hooks, what the person
+  has sent reaches you while you work (after your next tool call) and just
+  before you stop, without waiting for the line in the chat. In
+  ~/.claude/settings.json:
 
     "hooks": {
       "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "pitboard hook prompt-submit" }] }],
@@ -244,17 +306,36 @@ Hooks:
 
 Send:
   Nothing the person does on the board reaches you until they send it: s on
-  the board (or ctrl+s while writing a thought) marks everything so far as
-  sent (a "send" in events.jsonl) and wakes you by typing this line into
-  your terminal:
+  the board marks everything so far as sent (a "send" in events.jsonl).
+  'changes' (and the hooks) deliver only what comes before the latest send;
+  what the person does after it waits for the next send. How you are woken,
+  in order:
 
-    pitboard: the person sent N item(s) from the board. Run "pitboard -s SESSION changes" and act on them.
+  1. 'pitboard -s SESSION wait [--timeout DURATION]' (the way to use; it
+     needs nothing from the terminal). Run it in the background before you
+     stop. If a send has not been delivered yet, it prints what 'changes'
+     prints and ends at once; otherwise it waits for the next send, then
+     prints and ends (exit 0). With --timeout (e.g. 30m; default: none) or
+     on SIGINT / SIGTERM it ends quietly, printing nothing. While it waits,
+     .pitboard/SESSION/waiting holds its pid, and the board shows "AI 待機中"
+     at the top right: sending then only records the send, and 'wait' wakes
+     you. A second 'wait' on the same session prints "already waiting (pid
+     N)" and ends (exit 0), leaving it to the first.
+  2. The hooks (above), while you work and before you stop.
+  3. Typing into your terminal, when no 'wait' is waiting. The viewer types:
 
-  Do what it says: run 'changes' and act on what it prints. 'changes' (and
-  the hooks) deliver only what comes before the latest send; what the person
-  does after it waits for the next send. If waking you fails, the send is
-  still recorded, and the person is asked to tell you in the chat.
-  To wake you, the viewer runs $PITBOARD_SEND if set (with sh -c, given
+    pitboard: N sent. Run: pitboard -s SESS changes
+
+  (N things were sent; SESS is the shortest head of your session id, 8
+  characters or more, that is unique on this board.) When a line starting
+  with "pitboard: N sent." arrives, run the command it gives and act on
+  what it prints.
+  'wait' is the cheapest: what was sent arrives as its output, with no line
+  typed into the chat and no extra command to run. Its output is the same
+  as 'changes'. If waking you
+  fails, the send is still recorded, and the person is asked to tell you in
+  the chat.
+  To type it, the viewer runs $PITBOARD_SEND if set (with sh -c, given
   $PITBOARD_SESSION and $PITBOARD_MESSAGE), or else, when herdr is on PATH,
   'herdr agent prompt' to the agent whose session is SESSION (found with
   'herdr agent list'; the viewer itself need not run inside herdr). Each try
@@ -273,6 +354,77 @@ func main() {
 		fmt.Fprintln(os.Stderr, "pitboard:", err)
 		os.Exit(1)
 	}
+}
+
+// settleArgs reads 'settle N [--doing|--hold|--done] TEXT', or several:
+// 'settle [--state] N TEXT [--state] N TEXT ...' (each TEXT one argument; a
+// state before a number is that thought's). With one thought, the words
+// after N (and its state) are joined into TEXT.
+func settleArgs(args []string) ([]settlement, error) {
+	flag := func(a string) (string, bool) {
+		switch a {
+		case "--doing", "-doing":
+			return "doing", true
+		case "--hold", "-hold":
+			return "hold", true
+		case "--done", "-done":
+			return "done", true
+		}
+		return "", false
+	}
+	// Several: [state] N [state] TEXT, repeated, each TEXT one argument.
+	var many []settlement
+	ok := true
+	for i := 0; i < len(args) && ok; {
+		state := ""
+		if f, is := flag(args[i]); is {
+			state, i = f, i+1
+		}
+		if i >= len(args) {
+			ok = false
+			break
+		}
+		n, err := strconv.Atoi(args[i])
+		if err != nil {
+			ok = false
+			break
+		}
+		i++
+		if i < len(args) {
+			if f, is := flag(args[i]); is {
+				state, i = f, i+1
+			}
+		}
+		text := ""
+		if i < len(args) {
+			if _, is := flag(args[i]); !is {
+				text, i = args[i], i+1
+			}
+		}
+		many = append(many, settlement{n, state, text})
+	}
+	if ok && len(many) >= 2 {
+		return many, nil
+	}
+	// One: [state] N [state] TEXT...
+	rest, state := args, ""
+	if f, is := flag(rest[0]); is {
+		state, rest = f, rest[1:]
+	}
+	if len(rest) == 0 {
+		return nil, errors.New("usage: pitboard settle N [--doing|--hold|--done] TEXT")
+	}
+	n, err := strconv.Atoi(rest[0])
+	if err != nil {
+		return nil, fmt.Errorf("settle: %q is not a thought number", rest[0])
+	}
+	rest = rest[1:]
+	if len(rest) > 0 {
+		if f, is := flag(rest[0]); is {
+			state, rest = f, rest[1:]
+		}
+	}
+	return []settlement{{n, state, strings.Join(rest, " ")}}, nil
 }
 
 // exitError ends the program with a code, its message already printed.
@@ -385,14 +537,14 @@ func run(args []string, out io.Writer) error {
 			fmt.Fprintln(out, l)
 		}
 	case "settle":
-		if len(args) < 2 {
-			return errors.New("usage: pitboard settle N TEXT")
+		if len(args) < 1 {
+			return errors.New("usage: pitboard settle N [--doing|--hold|--done] TEXT [N TEXT ...]")
 		}
-		n, err := strconv.Atoi(args[0])
+		ss, err := settleArgs(args)
 		if err != nil {
-			return fmt.Errorf("settle: %q is not a thought number", args[0])
+			return err
 		}
-		return st.Settle(n, strings.Join(args[1:], " "))
+		return st.SettleAll(ss)
 	case "wait":
 		return runWait(st, args, out)
 	case "check":

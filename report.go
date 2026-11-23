@@ -38,7 +38,7 @@ type partSpec struct {
 var parts = map[string]partSpec{
 	"Title":   {attrs: map[string]bool{}, parents: []string{""}, oneLine: true},
 	"Section": {attrs: map[string]bool{"title": true}, parents: []string{""}, holdsAny: true},
-	"Item":    {attrs: map[string]bool{"id": true, "state": false, "status": false, "note": false, "ask": false}, parents: []string{"", "Section", "Fold"}},
+	"Item":    {attrs: map[string]bool{"id": true, "state": false, "status": false, "note": false, "ask": false, "wait": false}, parents: []string{"", "Section", "Fold"}},
 	"Ask":     {attrs: map[string]bool{"id": true}, parents: []string{"", "Section", "Fold"}},
 	"Option":  {attrs: map[string]bool{"key": true}, parents: []string{"Ask"}, oneLine: true},
 	"Link":    {attrs: map[string]bool{"id": true, "path": false, "url": false, "ask": false}, parents: []string{"", "Section", "Fold"}, oneLine: true},
@@ -47,15 +47,21 @@ var parts = map[string]partSpec{
 }
 
 var (
-	reOpen    = regexp.MustCompile(`^<([A-Z][A-Za-z0-9]*)((?:\s+[A-Za-z_][A-Za-z0-9_-]*="[^"]*")*)\s*>(.*)$`)
-	reOpenAny = regexp.MustCompile(`^<([A-Z][A-Za-z0-9]*)`)
-	reAttr    = regexp.MustCompile(`([A-Za-z_][A-Za-z0-9_-]*)="([^"]*)"`)
-	reClose   = regexp.MustCompile(`^</([A-Za-z][A-Za-z0-9]*)>\s*(.*)$`)
-	reTail    = regexp.MustCompile(`^(.*?)</([A-Za-z][A-Za-z0-9]*)>\s*$`)
-	reIDForm  = regexp.MustCompile(`^[a-z0-9-]{1,16}$`)
-	reKeyForm = regexp.MustCompile(`^[a-z]$`)
-	reTagName = regexp.MustCompile(`^</?([A-Za-z][A-Za-z0-9]*)`)
+	reOpen     = regexp.MustCompile(`^<([A-Z][A-Za-z0-9]*)((?:\s+[A-Za-z_][A-Za-z0-9_-]*="[^"]*")*)\s*>(.*)$`)
+	reOpenAny  = regexp.MustCompile(`^<([A-Z][A-Za-z0-9]*)`)
+	reAttr     = regexp.MustCompile(`([A-Za-z_][A-Za-z0-9_-]*)="([^"]*)"`)
+	reClose    = regexp.MustCompile(`^</([A-Za-z][A-Za-z0-9]*)>\s*(.*)$`)
+	reTail     = regexp.MustCompile(`^(.*?)</([A-Za-z][A-Za-z0-9]*)>\s*$`)
+	reIDForm   = regexp.MustCompile(`^[a-z0-9-]{1,16}$`)
+	reKeyForm  = regexp.MustCompile(`^[a-z]$`)
+	reTagName  = regexp.MustCompile(`^</?([A-Za-z][A-Za-z0-9]*)`)
+	reNumbered = regexp.MustCompile(`^([0-9]{1,3}\.)\s+(.*)$`)
+	reSubHead  = regexp.MustCompile(`^\*\*[^*]+\*\*$`)
+	reHeadWord = regexp.MustCompile(`^\*\*[^*]+\*\*[:：]`)
 )
+
+// maxListLevel is how deep lists nest (levels 0, 1, 2).
+const maxListLevel = 2
 
 // viewerKeys are the keys the viewer uses for itself; an Option cannot use
 // them as its key.
@@ -69,14 +75,27 @@ type frame struct {
 	para   *node // paragraph being read
 	indent int   // Code: indentation of the opening tag, removed from its lines
 	keys   map[string]bool
+	// The text in the part: base is the indentation of its first text line
+	// (-1 until there is one), list the list lines open at each level, brk
+	// that the last line ended with a line break, gap that a blank line came
+	// last.
+	base int
+	list []*node
+	brk  bool
+	gap  bool
 }
 
 type reportParser struct {
-	root  frame
-	stack []*frame
-	probs []Problem
-	ids   map[string]int
-	nodes []*node
+	// indent is the indentation of the line being read (-1: text on the
+	// line of a tag), brk whether it ends with a line break (two spaces or
+	// a backslash).
+	indent int
+	brk    bool
+	root   frame
+	stack  []*frame
+	probs  []Problem
+	ids    map[string]int
+	nodes  []*node
 }
 
 func (p *reportParser) errf(line int, format string, args ...any) {
@@ -119,7 +138,7 @@ func parseReport(src string) (nodes []*node, probs []Problem, err error) {
 }
 
 func parseReportUnsafe(src string) ([]*node, []Problem) {
-	p := &reportParser{ids: map[string]int{}}
+	p := &reportParser{ids: map[string]int{}, root: frame{base: -1}}
 	lines := strings.Split(strings.ReplaceAll(src, "\r\n", "\n"), "\n")
 	for i, raw := range lines {
 		p.line(i+1, raw)
@@ -158,9 +177,13 @@ func (p *reportParser) line(no int, raw string) {
 		}
 	}
 
+	p.indent = len(raw) - len(strings.TrimLeft(raw, " \t"))
+	p.brk = strings.HasSuffix(raw, "  ") || strings.HasSuffix(trim, "\\")
 	switch {
 	case trim == "":
-		p.top().para = nil
+		f := p.top()
+		f.para, f.list, f.brk = nil, nil, false
+		f.gap = true
 		return
 	case strings.HasPrefix(trim, "</"):
 		m := reClose.FindStringSubmatch(trim)
@@ -187,7 +210,7 @@ func (p *reportParser) line(no int, raw string) {
 }
 
 func (p *reportParser) open(no int, raw, trim string) {
-	p.top().para = nil
+	p.top().para, p.top().list = nil, nil
 	m := reOpen.FindStringSubmatch(trim)
 	if m == nil {
 		name := reOpenAny.FindStringSubmatch(trim)[1]
@@ -265,6 +288,16 @@ func (p *reportParser) open(no int, raw, trim string) {
 	case "Code":
 		n.kind, n.lang = kCode, attrs["lang"]
 	}
+	if v, ok := attrs["wait"]; ok {
+		switch {
+		case v != "you":
+			p.errf(no, "wait %q: the only value is \"you\" (it needs the person to move on)", v)
+		case n.kind == kDone:
+			p.errf(no, "a done <Item> waits for nobody: drop wait=\"you\"")
+		default:
+			n.wait = v
+		}
+	}
 	if v, ok := attrs["ask"]; ok {
 		switch {
 		case v != "y":
@@ -322,7 +355,7 @@ func (p *reportParser) open(no int, raw, trim string) {
 	p.add(parent, n)
 
 	indent := len(raw) - len(strings.TrimLeft(raw, " \t"))
-	p.stack = append(p.stack, &frame{name: name, n: n, line: no, indent: indent})
+	p.stack = append(p.stack, &frame{name: name, n: n, line: no, indent: indent, base: -1})
 	if name == "Code" {
 		if r := strings.TrimSpace(rest); r != "" {
 			if r == "</Code>" {
@@ -339,6 +372,7 @@ func (p *reportParser) open(no int, raw, trim string) {
 // rest is what follows an opening tag on its line: the first line of text,
 // possibly with the closing tag.
 func (p *reportParser) rest(no int, name, rest string) {
+	p.indent = -1
 	rest = strings.TrimSpace(rest)
 	if rest == "" {
 		return
@@ -427,16 +461,86 @@ func (p *reportParser) text(no int, s string) {
 		p.errf(no, "<Ask> holds its question and <Option> parts only")
 		return
 	}
-	if strings.HasPrefix(s, "- ") {
-		p.add(f, &node{kind: kPlain, text: strings.TrimSpace(s[2:]), line: no})
-		f.para = nil
+	p.block(no, f, s)
+}
+
+// block is a line of text in a part that holds text (not a title): a
+// paragraph line, a list line, or the continuation of one.
+func (p *reportParser) block(no int, f *frame, s string) {
+	brk := p.brk
+	if brk && strings.HasSuffix(s, "\\") {
+		s = strings.TrimSpace(strings.TrimSuffix(s, "\\"))
+	}
+	// Indentation counts from the part's first text line.
+	rel := 0
+	if p.indent >= 0 {
+		if f.base < 0 {
+			f.base = p.indent
+		}
+		rel = max(p.indent-f.base, 0)
+	}
+	gap := f.gap
+	f.gap = false
+	join := func(n *node) {
+		if f.brk {
+			n.text += "\n" + s
+		} else {
+			n.text = joinLines(n.text, s)
+		}
+		f.brk = brk
+	}
+
+	num, body, isList := "", "", false
+	switch {
+	case strings.HasPrefix(s, "- "):
+		body, isList = strings.TrimSpace(s[2:]), true
+	case s == "-":
+		isList = true
+	default:
+		if m := reNumbered.FindStringSubmatch(s); m != nil {
+			num, body, isList = m[1], strings.TrimSpace(m[2]), true
+		}
+	}
+	if isList {
+		if rel%2 != 0 {
+			p.errf(no, "list lines are indented by 2 spaces per level (this one by %d)", rel)
+		}
+		level := rel / 2
+		if level > maxListLevel {
+			p.errf(no, "lists nest %d levels at most", maxListLevel+1)
+			level = maxListLevel
+		}
+		level = min(level, len(f.list)) // no skipping a level
+		n := &node{kind: kPlain, text: body, num: num, level: level, line: no, gap: gap}
+		if level == 0 {
+			p.add(f, n)
+		} else {
+			parent := f.list[level-1]
+			parent.subs = append(parent.subs, n)
+		}
+		f.list = append(f.list[:level], n)
+		f.para, f.brk = nil, brk
 		return
 	}
-	if f.para != nil {
-		f.para.text = joinLines(f.para.text, s)
+	// Under a list line, a line indented past its mark continues it.
+	if k := len(f.list); k > 0 && rel > f.list[k-1].level*2 {
+		join(f.list[k-1])
 		return
 	}
-	f.para = &node{kind: kPara, text: s, line: no}
+	f.list = nil
+	if reSubHead.MatchString(s) {
+		p.add(f, &node{kind: kPara, text: s, head: true, line: no, gap: gap})
+		f.para, f.brk = nil, false
+		return
+	}
+	// A paragraph goes on, unless the line starts with a head word
+	// ("**word**: ..."), which starts a paragraph of its own.
+	if f.para != nil && !reHeadWord.MatchString(s) {
+		join(f.para)
+		return
+	}
+	f.para = &node{kind: kPara, text: s, line: no, gap: gap}
+	f.brk = brk
 	p.add(f, f.para)
 }
 

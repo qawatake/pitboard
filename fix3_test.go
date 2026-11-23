@@ -113,13 +113,13 @@ func TestStopDoesNotBlockForHides(t *testing.T) {
 	if got := runHook(t, "stop", in); got != "" {
 		t.Errorf("stop blocked for a hide: %q", got)
 	}
-	if got := runHook(t, "prompt-submit", in); !strings.Contains(got, "hide: x") {
+	if got := runHook(t, "prompt-submit", in); !strings.Contains(got, "hide (1): x") {
 		t.Errorf("the hide must wait for the next delivery: %q", got)
 	}
 	st.Append(Event{Op: "hide", Key: "-|y", Title: "y"})
 	st.Append(Event{Op: "react", ID: "hook", Value: "y"})
 	sendAll(st)
-	if got := runHook(t, "stop", in); !strings.Contains(got, "block") || !strings.Contains(got, "hide: y") {
+	if got := runHook(t, "stop", in); !strings.Contains(got, "block") || !strings.Contains(got, "hide (1): y") {
 		t.Errorf("stop with a reaction: %q", got)
 	}
 }
@@ -205,7 +205,7 @@ func TestSmallDisplayFixes(t *testing.T) {
 	st.Append(Event{Op: "thought", Text: "u"})
 	a.loadEvents()
 	p := reEsc.ReplaceAllString(strings.Join(a.pane(30), "\n"), "")
-	if !strings.Contains(p, "s で送る") {
+	if strings.Contains(p, "s で送る") {
 		t.Errorf("pane at width 40:\n%s", p)
 	}
 	// 9d: a long destination does not squeeze the thought in the list.

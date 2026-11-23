@@ -37,7 +37,7 @@ func TestPaneByJK(t *testing.T) {
 	if !a.inPane || a.pcur != 4 {
 		t.Fatalf("j past the end must go into the pane: inPane %v pcur %d", a.inPane, a.pcur)
 	}
-	if s := hintLine(a); s != "    enter 開く  x 取り消す  m 書く  ? キー" {
+	if s := hintLine(a); s != "    enter 開く  e 直す  x 取り消す  s 送る  m 書く  ? キー" {
 		t.Errorf("pane hints %q", s)
 	}
 	p := plainLines(a.pane(30))
@@ -56,7 +56,7 @@ func TestPaneByJK(t *testing.T) {
 	if a.pcur != 3 || !strings.Contains(p, "▾ 思いつき3 二行目") || !strings.Contains(p, "まだ送っていません (s で送る)") {
 		t.Errorf("enter opens the thought:\n%s", p)
 	}
-	if s := hintLine(a); s != "    enter 閉じる  x 取り消す  m 書く  ? キー" {
+	if s := hintLine(a); s != "    enter 閉じる  e 直す  x 取り消す  s 送る  m 書く  ? キー" {
 		t.Errorf("open thought hints %q", s)
 	}
 	// Nothing is recorded on a thought (x takes it back: tested apart).
@@ -164,9 +164,9 @@ func TestEditorHintsKeepEsc(t *testing.T) {
 		w    int
 		want string
 	}{
-		{80, "    enter 書く  ctrl+s 送る  esc やめる  ctrl+j 改行  ctrl+g エディタ"},
-		{60, "    enter 書く  ctrl+s 送る  esc やめる  ctrl+j 改行"},
-		{50, "    enter 書く  ctrl+s 送る  esc やめる"},
+		{80, "    enter 置く  esc やめる  ctrl+j 改行  ctrl+g エディタ"},
+		{44, "    enter 置く  esc やめる  ctrl+j 改行"},
+		{30, "    enter 置く  esc やめる"},
 	} {
 		a.t.w = c.w
 		if s := plainLines(a.editorHints()); s != c.want {

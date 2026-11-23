@@ -59,7 +59,7 @@ func TestHookWithoutBoardDoesNothing(t *testing.T) {
 func TestHookOutputs(t *testing.T) {
 	st := testStore(t)
 	in := hookInput(st.base, "s1", "")
-	const settleLine = `Settle each thought with "pitboard -s s1 settle N TEXT" once you know where it goes.`
+	const settleLine = `Settle each thought with "pitboard -s s1 settle N TEXT [N TEXT ...]" once you know where it goes.`
 
 	// Nothing to deliver: nothing printed.
 	for _, ev := range []string{"prompt-submit", "post-tool", "stop"} {
@@ -256,7 +256,7 @@ func TestHideAndUnhide(t *testing.T) {
 
 	sendAll(st)
 	got, _ := st.Changes()
-	want := []string{"hide: 板はセッションごと", "hide: 題 A", "unhide: 題 A"}
+	want := []string{"hide (2): 板はセッションごと / 題 A", "unhide (1): 題 A"}
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Errorf("changes:\n%s", strings.Join(got, "\n"))
 	}
@@ -311,7 +311,7 @@ func TestThoughtsPane(t *testing.T) {
 		p = append(p, reEsc.ReplaceAllString(l, ""))
 	}
 	s := strings.Join(p, "\n")
-	for _, w := range []string{"思いつき", "s で送る", "new", "six", "five", "受け取った"} {
+	for _, w := range []string{"コメント", "new", "six", "five", "既読"} {
 		if !strings.Contains(s, w) {
 			t.Errorf("pane lacks %q:\n%s", w, s)
 		}
@@ -335,7 +335,7 @@ func TestThoughtsPane(t *testing.T) {
 	if order[0].N != 9 || order[len(order)-1].N != 2 {
 		t.Errorf("order: first %d last %d", order[0].N, order[len(order)-1].N)
 	}
-	if w, _ := a.state.statusOf(order[len(order)-1]); w != "済" {
+	if w, _ := a.state.statusOf(order[len(order)-1]); w != "対応済" {
 		t.Errorf("settled status %q", w)
 	}
 	// The report keeps 6 rows: with 10 rows above the hints, one thought.
@@ -439,10 +439,10 @@ func TestNarrowHintsKeepLineKeys(t *testing.T) {
 	a.render()
 	s := reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), "")
 	// One line: x, enter, n, y go first; c, "m 書く" and "? キー" stay.
-	if s != "    c 行に書く  m 書く  ? キー" {
+	if s != "    c 行にコメント  m 書く  ? キー" {
 		t.Errorf("narrow hints: %q", s)
 	}
-	a.t.w = 90
+	a.t.w = 100
 	a.render()
 	s = reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), "")
 	if !strings.HasPrefix(s, "    enter 開く  y よし  n だめ  c 行に書く  x 隠す  space 次へ  m 書く  ? キー") || strings.Contains(s, "tab") || strings.Contains(s, "\n") {

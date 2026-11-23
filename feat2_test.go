@@ -50,7 +50,7 @@ func TestSendThroughHerdr(t *testing.T) {
 	st := testStore(t)
 	a := testApp(t, st)
 	a.handle(key{r: 's'})
-	if a.msg != "送るものはありません" {
+	if a.msg != "未送信のものはありません" {
 		t.Errorf("nothing to send: %q", a.msg)
 	}
 	if _, err := os.Stat(prompted); err == nil {
@@ -63,11 +63,11 @@ func TestSendThroughHerdr(t *testing.T) {
 		t.Fatalf("msg %q", a.msg)
 	}
 	b, _ := os.ReadFile(prompted)
-	want := "w1:p2\n" + wakeMessage("s1", 2) + "\n"
+	want := "w1:p2\n" + wakeMessage(st, 2) + "\n"
 	if string(b) != want {
 		t.Errorf("prompted %q, want %q", b, want)
 	}
-	if !strings.Contains(want, `the person sent 2 item(s) from the board. Run "pitboard -s s1 changes" and act on them.`) {
+	if !strings.Contains(want, `pitboard: 2 sent. Run: pitboard -s s1 changes`) {
 		t.Errorf("message: %q", want)
 	}
 	if st.Seen() != 0 {
@@ -84,7 +84,7 @@ func TestSendHerdrWithoutTheSession(t *testing.T) {
 	st.Append(Event{Op: "thought", Text: "a"})
 	a := testApp(t, st)
 	a.handle(key{r: 's'})
-	if !strings.Contains(a.msg, "送る印は付けました") || !strings.Contains(a.msg, "herdr にこのセッション (s1) の AI がいません。AI を herdr の中で動かすか、PITBOARD_SEND を設定してください") {
+	if !strings.Contains(a.msg, "送りました。ただ") || !strings.Contains(a.msg, "herdr にこのセッション (s1) の AI がいません。AI を herdr の中で動かすか、PITBOARD_SEND を設定してください") {
 		t.Errorf("msg %q", a.msg)
 	}
 	if _, err := os.Stat(prompted); err == nil {
@@ -98,7 +98,7 @@ func TestSendNowhere(t *testing.T) {
 	st.Append(Event{Op: "thought", Text: "a"})
 	a := testApp(t, st)
 	a.handle(key{r: 's'})
-	if a.msg != "送る印は付けました。AI が待っていないので、チャットで一言伝えてください。\n"+`AI に pitboard wait を動かしてもらうか、PITBOARD_SEND を設定してください (pitboard -h の "Send")` {
+	if a.msg != "送りました。ただ AI が待っていないので、チャットで一言伝えてください。\n"+`AI に pitboard wait を動かしてもらうか、PITBOARD_SEND を設定してください (pitboard -h の "Send")` {
 		t.Errorf("msg %q", a.msg)
 	}
 	// The mark stays: the AI gets the thought from changes.
@@ -119,17 +119,22 @@ func TestSendCommand(t *testing.T) {
 	t.Setenv("HERDR_ENV", "1") // PITBOARD_SEND comes first
 	st := testStore(t)
 	a := testApp(t, st)
-	// ctrl+s in the editor writes, then sends.
+	// ctrl+s in the editor does nothing; s sends once written.
 	a.handle(key{r: 'm'})
 	for _, r := range "思いつき" {
 		a.handle(key{r: r})
 	}
 	a.handle(key{name: "ctrl+s"})
+	if a.in == nil || len(st.Events()) != 0 {
+		t.Fatalf("ctrl+s in the editor must do nothing: %+v", st.Events())
+	}
+	a.handle(key{name: "enter"})
+	a.handle(key{r: 's'})
 	if a.in != nil || len(st.Events()) != 2 || st.Events()[0].Text != "思いつき" || st.Events()[1].Op != "send" {
-		t.Fatalf("ctrl+s must write the thought: %+v", st.Events())
+		t.Fatalf("enter then s must write and send: %+v", st.Events())
 	}
 	b, _ := os.ReadFile(out)
-	if string(b) != "s1|"+wakeMessage("s1", 1) {
+	if string(b) != "s1|"+wakeMessage(st, 1) {
 		t.Errorf("PITBOARD_SEND got %q", b)
 	}
 	if a.msg != "AI に送りました" {
@@ -230,18 +235,18 @@ func TestUnsentMark(t *testing.T) {
 	t.Setenv("PITBOARD_SEND", "true")
 	a.handle(key{r: 's'})
 	ls, _ = screen(t, a)
-	if strings.Contains(ls[0], "未送信") || !strings.HasSuffix(ls[0], "送信済み 3") {
+	if strings.Contains(ls[0], "未送信") || !strings.HasSuffix(ls[0], "送信済 3") {
 		t.Errorf("after s: %q", ls[0])
 	}
 	// Something new after the send: both.
 	st.Append(Event{Op: "thought", Text: "b"})
 	a.loadEvents()
-	if ls, _ := screen(t, a); !strings.HasSuffix(ls[0], "送信済み 3  ● 未送信 1") {
+	if ls, _ := screen(t, a); !strings.HasSuffix(ls[0], "送信済 3  ● 未送信 1") {
 		t.Errorf("sent and unsent: %q", ls[0])
 	}
 	st.Changes()
 	a.loadEvents()
-	if ls, _ := screen(t, a); strings.Contains(ls[0], "送信済み") || !strings.HasSuffix(ls[0], "● 未送信 1") {
+	if ls, _ := screen(t, a); strings.Contains(ls[0], "送信済") || !strings.HasSuffix(ls[0], "● 未送信 1") {
 		t.Errorf("after changes: %q", ls[0])
 	}
 }
@@ -255,7 +260,7 @@ func TestHintsShowM(t *testing.T) {
 	a.handle(key{r: 'j'}) // the Item
 	a.render()
 	s := reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), "")
-	if s != "    y よし  n だめ  c 行に書く  x 隠す  space 次へ  m 書く  ? キー" {
+	if s != "    y よし  n だめ  c 行にコメント  x 隠す  space 次へ  m 書く  ? キー" {
 		t.Errorf("hints: %q", s)
 	}
 	// Dropped in order x, enter, n, y, c; m and ? stay.
@@ -263,9 +268,9 @@ func TestHintsShowM(t *testing.T) {
 		w    int
 		want string
 	}{
-		{48, "    y よし  n だめ  c 行に書く  m 書く  ? キー"},
-		{42, "    y よし  c 行に書く  m 書く  ? キー"},
-		{34, "    c 行に書く  m 書く  ? キー"},
+		{52, "    y よし  n だめ  c 行にコメント  m 書く  ? キー"},
+		{46, "    y よし  c 行にコメント  m 書く  ? キー"},
+		{38, "    c 行にコメント  m 書く  ? キー"},
 		{24, "    m 書く  ? キー"},
 	} {
 		a.t.w = c.w
@@ -334,7 +339,7 @@ func TestAskOpensToItsOptions(t *testing.T) {
 	a.handle(key{r: 'j'})
 	a.handle(key{r: 'k'}) // on the Ask, pointed at
 	a.render()
-	if s := reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), ""); s != "    enter 開く  c 行に書く  x 隠す  space 次へ  m 書く  ? キー" {
+	if s := reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), ""); s != "    enter 開く  c 行にコメント  x 隠す  space 次へ  m 書く  ? キー" {
 		t.Errorf("closed hints: %q", s)
 	}
 	a.handle(key{r: 'a'})
@@ -386,7 +391,7 @@ func TestSkillIsThin(t *testing.T) {
 	}
 	out.Reset()
 	run([]string{"-h"}, &out)
-	for _, w := range []string{"pitboard hook post-tool", "settle", "scratchpad", "PITBOARD_SEND", "herdr agent prompt", "→ いまは"} {
+	for _, w := range []string{"pitboard hook post-tool", "settle", "scratchpad", "PITBOARD_SEND", "herdr agent prompt", "→ now:"} {
 		if !strings.Contains(out.String(), w) {
 			t.Errorf("-h lacks %q", w)
 		}

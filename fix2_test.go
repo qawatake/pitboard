@@ -127,7 +127,7 @@ func TestThoughtShowsTheTitleItWasWrittenOn(t *testing.T) {
 	for _, r := range a.rows(pv) {
 		screen = append(screen, reEsc.ReplaceAllString(r.line, ""))
 	}
-	if s := strings.Join(screen, "\n"); !strings.Contains(s, "(書いたときの題: hook を入れるか決める)") {
+	if s := strings.Join(screen, "\n"); !strings.Contains(s, "(書いたときは: hook を入れるか決める)") {
 		t.Errorf("under the line:\n%s", s)
 	}
 	a.lopen[1] = true
@@ -135,7 +135,7 @@ func TestThoughtShowsTheTitleItWasWrittenOn(t *testing.T) {
 	for _, r := range a.listRows() {
 		screen = append(screen, reEsc.ReplaceAllString(r.line, ""))
 	}
-	if s := strings.Join(screen, "\n"); !strings.Contains(s, "行: まったく別の物 (書いたときの題: hook を入れるか決める)") {
+	if s := strings.Join(screen, "\n"); !strings.Contains(s, "行: まったく別の物 (書いたときは: hook を入れるか決める)") {
 		t.Errorf("in the list:\n%s", s)
 	}
 }

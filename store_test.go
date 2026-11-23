@@ -82,7 +82,7 @@ func TestChangesAndSettle(t *testing.T) {
 		"answer unit = b (プロジェクトごと)",
 		"thought 3 on hook (hook を入れるか決める): post-tool だけ入れたい",
 		"thought 4: 経過は要らないかも\n  2 行目",
-		"n gone (いまは無い)",
+		"n gone (gone)",
 	}
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Errorf("changes:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -105,10 +105,10 @@ func TestChangesAndSettle(t *testing.T) {
 		t.Error("settling a reaction (not a thought) must fail")
 	}
 	s := replayEvents(st.Events(), st.Seen())
-	if w, _ := s.statusOf(s.thoughts[0]); w != "済" {
+	if w, _ := s.statusOf(s.thoughts[0]); w != "対応済" {
 		t.Errorf("settled thought status = %q", w)
 	}
-	if w, _ := s.statusOf(s.thoughts[1]); w != "受け取った" {
+	if w, _ := s.statusOf(s.thoughts[1]); w != "既読" {
 		t.Errorf("received thought status = %q", w)
 	}
 	// A settle is the AI's own; changes does not repeat it.
@@ -184,10 +184,10 @@ func TestChangesTellsTheTitleSeen(t *testing.T) {
 	sendAll(st)
 	got, _ := st.Changes()
 	want := []string{
-		"y hook (hook を入れるか決める → いまは: hook は入れない (決定))",
-		"answer unit = a (セッションごと; question: ページの単位 → いまは: 板の単位)",
-		"thought 3 on hook (hook を入れるか決める → いまは: hook は入れない (決定)): x",
-		"n old (古い行 → いまは無い)",
+		"y hook (hook を入れるか決める → now: hook は入れない (決定))",
+		"answer unit = a (セッションごと; question: ページの単位 → now: 板の単位)",
+		"thought 3 on hook (hook を入れるか決める → now: hook は入れない (決定)): x",
+		"n old (古い行 → now gone)",
 	}
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Errorf("changes:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))

@@ -40,14 +40,14 @@ func TestChangesStopsAtTheLatestSend(t *testing.T) {
 	}
 	sendAll(st)
 	s = replayEvents(st.Events(), st.Seen())
-	if w, _ := s.statusOf(s.thoughts[1]); w != "未読" {
+	if w, _ := s.statusOf(s.thoughts[1]); w != "送信済" {
 		t.Errorf("status after the second send: %q", w)
 	}
 	if lines, _ := st.Changes(); strings.Join(lines, "\n") != "thought 4: after the send" {
 		t.Errorf("second send: %q", lines)
 	}
 	s = replayEvents(st.Events(), st.Seen())
-	if w, _ := s.statusOf(s.thoughts[1]); w != "受け取った" {
+	if w, _ := s.statusOf(s.thoughts[1]); w != "既読" {
 		t.Errorf("status after changes: %q", w)
 	}
 }
@@ -58,7 +58,7 @@ func TestSendRecordsOnlyWhenThereIsSomething(t *testing.T) {
 	st := testStore(t)
 	a := testApp(t, st)
 	a.handle(key{r: 's'})
-	if len(st.Events()) != 0 || a.msg != "送るものはありません" {
+	if len(st.Events()) != 0 || a.msg != "未送信のものはありません" {
 		t.Errorf("s with nothing: %d events, %q", len(st.Events()), a.msg)
 	}
 	st.Append(Event{Op: "thought", Text: "a"})
@@ -70,14 +70,14 @@ func TestSendRecordsOnlyWhenThereIsSomething(t *testing.T) {
 			n++
 		}
 	}
-	if n != 1 || a.msg != "送るものはありません" {
+	if n != 1 || a.msg != "未送信のものはありません" {
 		t.Errorf("sends %d, msg %q", n, a.msg)
 	}
 	// A thought taken back before it was sent: nothing to send.
 	th, _ := st.Append(Event{Op: "thought", Text: "b"})
 	st.Append(Event{Op: "retract", Thought: th.N})
 	a.handle(key{r: 's'})
-	if a.msg != "送るものはありません" {
+	if a.msg != "未送信のものはありません" {
 		t.Errorf("only a taken-back thought: %q", a.msg)
 	}
 }
@@ -143,7 +143,7 @@ func TestOpenedContentsColor(t *testing.T) {
 		{"中身の文", dim + "中身の文"},
 		{dim + "理由: ", magenta + "上の答え待ち"},
 		{"上の答え待ち", dim + "上の答え待ち"},
-		{dim + "行き先: ", dim + "行き先: todo"},
+		{dim + "対応: ", dim + "対応: todo"},
 		{dim + "済んだ中身", ""},
 	} {
 		if !strings.Contains(s, c.want) || (c.not != "" && strings.Contains(s, c.not)) {
