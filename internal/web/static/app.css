@@ -5,9 +5,16 @@
   --bg: #ffffff; --fg: #1d1d1f; --faint: #5f6368; --line: #c9c9cf;
   --need: #8a5300; --move: #18733a; --no: #b3261e;
   --opt: #0b6e85; --head: #1f4f8f; --link: #1a5fb4; --focus: #1a5fb4;
-  --gut: 3.2em; /* the cursor, mark and sign columns */
+  /* One text edge: headings, paragraphs and titles all start on it. The
+     gutter (cursor, mark, sign) hangs left of it, in the page's padding.
+     A nested row's sign hangs left of its own edge (--ind steps in); its
+     cursor and mark stay in the outermost columns. */
+  --cw: 1em; --mw: 1.1em; --sw: 1.4em;
+  --gw: calc(var(--cw) + var(--mw) + var(--sw));
+  --step: 1.5em;
   color-scheme: light dark;
 }
+@media (max-width: 30em) { :root { --cw: .8em; --mw: .9em; --sw: 1.2em; } }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #1b1b1d; --fg: #e6e6e8; --faint: #a3a3aa; --line: #4a4a52;
@@ -24,12 +31,12 @@ body {
 }
 .skip { position: absolute; left: -999px; }
 .skip:focus { left: 1rem; top: 1rem; z-index: 9; background: var(--bg); }
-#top, #board, #pane, #status, #bar { max-width: 46em; margin: 0 auto; padding: 0 1rem; }
+#top, #board, #pane, #status, #bar { max-width: calc(46em + var(--gw)); margin: 0 auto; padding: 0 1rem 0 calc(1rem + var(--gw)); }
 #top { position: sticky; top: 0; z-index: 3; background: var(--bg); max-height: 40vh; overflow-y: auto; }
 #summary { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .2rem 1rem; font-size: .9em; min-height: 1.6em; padding-top: .3rem; }
 #notices:not(:empty) { padding-bottom: .6rem; }
 code, pre, kbd { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .92em; }
-pre { white-space: pre-wrap; word-break: break-all; margin: .4rem 0 .4rem 1em; }
+pre { white-space: pre-wrap; word-break: break-all; margin: .4rem 0; }
 a { color: var(--link); }
 .faint, .quiet { color: var(--faint); }
 .need { color: var(--need); }
@@ -40,47 +47,60 @@ a { color: var(--link); }
 .msg { color: var(--faint); margin: 1.5rem 0; }
 .err { color: var(--no); }
 h1 { font-size: 1.3em; margin: 1rem 0 .5rem; }
-h2.section { font-size: 1.1em; color: var(--head); margin: 1.4rem 0 .3rem; }
+/* The same gap above every Section and top-level Fold heading. */
+h2.section { font-size: 1.1em; line-height: 1.4; color: var(--head); margin: 1.6rem 0 .4rem; }
+.none { margin: .25rem 0; }
 .para { margin: .3rem 0; }
 .para.gap, .list.gap { margin-top: .9rem; }
 .para.head { font-weight: 700; color: var(--head); margin-top: .9rem; }
 .list { display: flex; gap: .4em; }
 .list > .lm { color: var(--faint); flex: none; min-width: 1em; }
-.subs { padding-left: 1.4em; }
-.row { margin: 0; }
+.subs { padding-left: var(--step); }
+/* Rows evenly spaced; a wrapped title keeps its lines tight. */
+.row { margin-block: .25rem; display: flow-root; }
+/* A row's box takes in the gutter (left of its text edge), so nothing of
+   it is clipped when an off-screen row is contained; what it holds starts
+   on its text edge. */
+.row {
+  --hang: calc(var(--gw) + var(--ind, 0) * var(--step));
+  margin-left: calc(-1 * var(--hang)); padding-left: var(--hang);
+}
 /* A long report: rows off screen are not laid out or painted until near. */
 #board > .row, #board .kids > .row, #pane > .row { content-visibility: auto; contain-intrinsic-size: auto 2em; }
 #board > .row.cur, #board .kids > .row.cur { content-visibility: visible; }
 .rowbtn {
-  all: unset; box-sizing: border-box; display: grid; width: 100%;
-  grid-template-columns: 1ch 1.1em 1.2em 1fr auto; column-gap: .3em; align-items: baseline;
-  padding: .1rem 0; cursor: pointer;
+  all: unset; box-sizing: border-box; display: grid;
+  /* back over the row's padding: the gutter columns are its own */
+  width: calc(100% + var(--hang)); margin-left: calc(-1 * var(--hang));
+  grid-template-columns: var(--cw) var(--mw) calc(var(--ind, 0) * var(--step)) var(--sw) 1fr auto;
+  column-gap: 0; align-items: baseline; line-height: 1.4; cursor: pointer;
 }
-/* The cursor is the terminal's: a > in its own column, nothing more. */
-.gut { color: var(--fg); font-weight: 700; }
+/* The cursor is the terminal's: a > in its own column, nothing more. It is
+   also the focus indicator: no outline on the row, from the keyboard too. */
+.gut { color: var(--focus); font-weight: 800; }
 .row.cur > .rowbtn > .gut::before { content: ">"; }
-.rowbtn:focus { outline: none; }
-/* Focus from the keyboard: the > says where; a faint dotted edge says it is focus. */
-.rowbtn:focus-visible { outline: 1px dotted var(--faint); outline-offset: 1px; }
+.rowbtn:focus, .rowbtn:focus-visible, #board:focus, #board:focus-visible { outline: none; }
 .editor textarea:focus { outline: none; border-color: var(--focus); }
-button:focus-visible, a:focus-visible, #board:focus-visible { outline: 1px solid var(--focus); outline-offset: 2px; }
+button:focus-visible, a:focus-visible, .editor textarea:focus-visible { outline: 1px solid var(--focus); outline-offset: 2px; }
 .dot { font-size: .8em; }
 .dot.waiting { color: var(--need); }
 .dot.new { color: var(--move); }
-.sign { color: var(--faint); text-align: center; }
+.rowbtn > .gut { grid-column: 1; } .rowbtn > .dot { grid-column: 2; }
+.rowbtn > .sign { grid-column: 4; } .rowbtn > .title { grid-column: 5; } .rowbtn > .right { grid-column: 6; }
+.sign { color: var(--faint); text-align: center; padding-right: .3em; }
 .title { overflow-wrap: anywhere; }
-.right { white-space: nowrap; text-align: right; font-size: .9em; display: flex; gap: .5em; justify-content: flex-end; }
+.right { white-space: nowrap; text-align: right; font-size: .9em; display: flex; gap: .5em; justify-content: flex-end; padding-left: .8em; }
 .open > .rowbtn > .title { font-weight: 700; }
 .done .title, .hidden .title { color: var(--faint); }
 .linkrow .title { color: var(--link); }
 .heading > .rowbtn > .title, .heading > .rowbtn > .sign { color: var(--head); font-weight: 700; font-size: 1.1em; }
-.heading { margin-top: 1rem; }
+.row.heading { margin-block: 1.6rem .4rem; }
 .notice > .rowbtn .title, .notice > .rowbtn .sign { color: var(--need); }
 .notice > .rowbtn .sign { font-weight: 700; }
 .ask > .rowbtn .sign { color: var(--need); }
-.body, .target, .option, .cdetail { padding-left: var(--gut); }
-.body { padding-bottom: .3rem; }
-.kids { padding-left: 1.6em; }
+/* What an opened row holds: one step in from its text edge. */
+.body, .option, .cdetail, .kids { padding-left: var(--step); }
+.body { padding-bottom: .2rem; }
 .target { color: var(--faint); font-size: .9em; overflow-wrap: anywhere; }
 .option { display: grid; grid-template-columns: max-content 1fr; column-gap: .6em; }
 .option .okey { white-space: nowrap; }
@@ -102,7 +122,7 @@ button:focus-visible, a:focus-visible, #board:focus-visible { outline: 1px solid
 #bar button.need { color: var(--need); font-weight: 700; }
 #bar kbd, .sheet kbd, #viewer kbd { font-weight: 700; }
 .jumpkey { color: var(--need); font-weight: 700; font-family: ui-monospace, Menlo, monospace; margin-right: .3em; }
-.editor { margin: .3rem 0 .5rem var(--gut); }
+.editor { margin: .3rem 0 .5rem; }
 .editor label { display: block; font-size: .9em; color: var(--faint); }
 /* An input needs an edge to be seen as one: the only line on the page. */
 .editor textarea { width: 100%; min-height: 4.5em; font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); padding: .4rem; }
@@ -112,8 +132,8 @@ button:focus-visible, a:focus-visible, #board:focus-visible { outline: 1px solid
 #pane h2, #board h2.listhead { font-size: 1.05em; color: var(--head); margin: .8rem 0 .3rem; }
 .cdetail { font-size: .95em; }
 #foot { position: fixed; bottom: 0; left: 0; right: 0; z-index: 4; background: var(--bg); padding: .3rem 0 .5rem; }
-#status { color: var(--need); white-space: pre-line; font-size: .9em; }
-#bar { display: flex; flex-wrap: wrap; align-items: baseline; gap: .2rem 1.1rem; font-size: .95em; }
+#status { color: var(--need); white-space: pre-line; }
+#bar { display: flex; flex-wrap: wrap; align-items: baseline; gap: .2rem 1.1rem; }
 #hints { display: contents; }
 #hints > span { font-size: .9em; }
 #offline { position: sticky; top: 0; z-index: 5; background: var(--bg); color: var(--need); font-weight: 700; padding: .4rem 1rem; text-align: center; }
@@ -129,5 +149,5 @@ body.offline #top, body.offline #board, body.offline #pane { opacity: .55; }
 #viewer button { color: #fff; }
 #viewer img { max-width: 95vw; max-height: 85vh; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-@media (max-width: 30em) { .rowbtn { grid-template-columns: 1ch 1em 1.1em 1fr; } .right { grid-column: 4; justify-content: flex-start; } }
+
 .end { margin-left: auto; }

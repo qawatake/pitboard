@@ -301,3 +301,25 @@ func TestListHeadsAndNumberedIndent(t *testing.T) {
 		t.Errorf("partial report:\n%s", s)
 	}
 }
+
+// ---- an empty Section says so ----
+
+func TestEmptySectionSaysNone(t *testing.T) {
+	st := testStore(t)
+	os.WriteFile(st.ReportPath(), []byte(`<Section title="あなたへ"></Section>
+<Section title="進行中">
+<Item id="a">一</Item>
+</Section>`), 0o644)
+	a := testApp(t, st)
+	var raw []string
+	for _, r := range a.rows(a.top()) {
+		raw = append(raw, r.line)
+	}
+	s := strings.Join(raw, "\n")
+	if n := strings.Count(s, dim+"なし"); n != 1 {
+		t.Errorf("want one faint なし (under あなたへ only), got %d in:\n%q", n, s)
+	}
+	if i, j := strings.Index(s, "あなたへ"), strings.Index(s, "なし"); i < 0 || j < i || strings.Contains(s[i:j], "進行中") {
+		t.Errorf("なし is not under あなたへ:\n%q", s)
+	}
+}

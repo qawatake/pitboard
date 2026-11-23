@@ -18,6 +18,7 @@ const (
 	MsgNoSession = "pitboard にはまだ報告がありません。AI が報告を書くと、ここに出ます"
 	MsgProblems  = "報告に書き方の誤りがあります"
 	MsgPartial   = " (読めた所までを出しています)"
+	MsgNone      = "なし" // under the heading of a Section that holds nothing (faint)
 )
 
 // MsgNoSuchSession is what is shown for a session that has no board yet.

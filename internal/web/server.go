@@ -53,7 +53,7 @@ const tabIdle = time.Hour
 type Options struct {
 	Base  string       // where boards are looked for (as the viewer's)
 	Store *board.Store // the session; nil: the first one to appear under Base
-	Port  int          // 0: a free port chosen by the system
+	Port  int          // 0: a free port chosen by the system; PortDefault: see Listen
 	Open  bool         // open the URL in the default browser
 	Out   io.Writer    // where the URL is printed (nil: nowhere; the token is never logged)
 	// Listening is called once the server listens, with its port and token
@@ -119,6 +119,38 @@ func New(o Options) (*Server, error) {
 	}, nil
 }
 
+// The default port is "PITB" on a phone keypad (P=7 I=4 T=8 B=2), as mo's
+// 6275 is "MARK". Each session has a server of its own, so the next ones
+// are tried when it is taken.
+const (
+	DefaultPort  = 7482
+	DefaultTries = 10 // DefaultPort .. DefaultPort+9, then any free one
+	PortDefault  = -1 // Options.Port: the default (DefaultPort and on)
+)
+
+// Listen listens on 127.0.0.1: port exactly (0: a free one chosen by the
+// system), or for PortDefault, the first free of DefaultPort and the
+// DefaultTries-1 after it, else a free one.
+func Listen(port int) (net.Listener, error) {
+	if port == PortDefault {
+		return listenFrom(DefaultPort, DefaultTries)
+	}
+	ln, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(port)))
+	if err != nil && port != 0 {
+		return nil, fmt.Errorf("port %d: %w (leave out --port to use a free one)", port, err)
+	}
+	return ln, err
+}
+
+func listenFrom(first, tries int) (net.Listener, error) {
+	for p := first; p < first+tries; p++ {
+		if ln, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(p))); err == nil {
+			return ln, nil
+		}
+	}
+	return net.Listen("tcp", "127.0.0.1:0")
+}
+
 // Run serves until ctx ends: prints the URL, opens it unless told not to,
 // and shuts down cleanly.
 func Run(ctx context.Context, o Options) error {
@@ -126,7 +158,7 @@ func Run(ctx context.Context, o Options) error {
 	if err != nil {
 		return err
 	}
-	ln, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(o.Port)))
+	ln, err := Listen(o.Port)
 	if err != nil {
 		return err
 	}

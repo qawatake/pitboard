@@ -300,6 +300,9 @@ function drawRow(t, open, opts) {
   if (t.Hidden) box.classList.add('hidden');
   if (opts.heading && !t.Hidden) box.classList.add('heading');
   if (open) box.classList.add('open');
+  // How deep in Folds: the row's cursor and mark stay in the outermost
+  // gutter, its sign hangs left of its own text edge.
+  if (t.Depth) box.style.setProperty('--ind', String(t.Depth));
   const b = el('button', 'rowbtn');
   b.type = 'button';
   b.dataset.nav = t.Key;
@@ -464,6 +467,7 @@ function things2(parent, ts, top) {
         if (S.jumping && t.JumpKey) h.appendChild(el('span', 'jumpkey', t.JumpKey));
         spans(h, t.Title);
         parent.appendChild(h);
+        if (t.None) parent.appendChild(el('p', 'none faint', t.None));
         things2(parent, t.Kids);
         break;
       }

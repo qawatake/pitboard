@@ -183,6 +183,9 @@ func (a *app) rows(pv *view) []row {
 			h := a.para(0, inline(n.Text, bold+blue))
 			h[0].jump = n
 			rows = append(rows, h...)
+			if page.EmptySection(n) {
+				rows = append(rows, a.para(0, plainText(page.MsgNone, dim))...)
+			}
 		case report.KindPara:
 			blank()
 			rows = append(rows, a.para(ind, paraText(n, ""))...)

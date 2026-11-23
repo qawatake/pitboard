@@ -237,3 +237,21 @@ func TestPageMessages(t *testing.T) {
 		t.Errorf("problems: %+v", p.Problems)
 	}
 }
+
+func TestEmptySectionNone(t *testing.T) {
+	b := open(t, `<Section title="空"></Section>
+<Section title="ある">
+  <Item id="a">一</Item>
+</Section>
+`)
+	p := b.Page(false)
+	if len(p.Things) != 2 {
+		t.Fatalf("things: %d", len(p.Things))
+	}
+	if got := p.Things[0].None; got != MsgNone {
+		t.Errorf("empty Section: None %q, want %q", got, MsgNone)
+	}
+	if got := p.Things[1].None; got != "" {
+		t.Errorf("Section with an Item: None %q", got)
+	}
+}

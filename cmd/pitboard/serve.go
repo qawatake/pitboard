@@ -100,7 +100,7 @@ type serveArgs struct {
 const serveUsage = "usage: pitboard serve [--port N] [--no-open] [--foreground] | serve --stop | serve --status [--url]"
 
 func parseServe(args []string) (serveArgs, error) {
-	a := serveArgs{o: web.Options{Open: true}}
+	a := serveArgs{o: web.Options{Open: true, Port: web.PortDefault}}
 	for len(args) > 0 {
 		k := args[0]
 		v, hasV := "", false
@@ -260,7 +260,11 @@ func startBackground(st *board.Store, port int) (serveState, error) {
 	}
 	defer logf.Close()
 	os.Remove(statePath(st)) // stale: no live server holds it
-	cmd := exec.Command(exe, "-s", st.Session, "serve", "--foreground", "--no-open", "--port", strconv.Itoa(port))
+	args := []string{"-s", st.Session, "serve", "--foreground", "--no-open"}
+	if port != web.PortDefault {
+		args = append(args, "--port", strconv.Itoa(port))
+	}
+	cmd := exec.Command(exe, args...)
 	cmd.Dir = st.Base // where .pitboard/ is
 	cmd.Env = append(os.Environ(), detachedEnv+"=1")
 	cmd.Stdout, cmd.Stderr = logf, logf

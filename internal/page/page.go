@@ -142,6 +142,9 @@ type Thing struct {
 	Lang      string   `json:",omitempty"` // Code: its language ("diff" is colored)
 	Code      []string `json:",omitempty"` // Code: its lines
 	Depth     int      `json:",omitempty"` // how deep in Folds (and Asks, for options)
+	// None is what a Section that holds nothing shows, faint, under its
+	// heading (MsgNone; "" otherwise). See EmptySection.
+	None string `json:",omitempty"`
 	// Jump is which of Page.Jumps it is (1 for the first; 0 none), and
 	// JumpKey the letter g goes there with (JumpLetter).
 	Jump    int    `json:",omitempty"`
@@ -235,6 +238,9 @@ func (b *Board) Page(showHidden bool) *Page {
 			t := b.thing(n, comments)
 			byNode[n] = t
 			t.Kids = build(n.Kids)
+			if EmptySection(n) {
+				t.None = MsgNone
+			}
 			if t.Kind == KindAsk {
 				for _, o := range t.Kids {
 					o.Chosen = t.Right.Reaction != "" && o.OptionKey == t.Right.Reaction
@@ -270,6 +276,22 @@ func (b *Board) Page(showHidden bool) *Page {
 		p.Next = append(p.Next, nx)
 	}
 	return p
+}
+
+// EmptySection says whether n is a Section that holds nothing: every
+// screen shows MsgNone, faint, under its heading (rather than a bare
+// heading, which reads as if something failed to show). A Section whose
+// lines are all hidden is not shown at all, so it is not one of these.
+func EmptySection(n *report.Node) bool {
+	if n.Kind != report.KindSection {
+		return false
+	}
+	for _, k := range n.Kids {
+		if k.Kind != report.KindNotice {
+			return false
+		}
+	}
+	return true
 }
 
 var kinds = map[report.Kind]Kind{
