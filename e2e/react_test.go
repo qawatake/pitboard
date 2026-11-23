@@ -106,26 +106,51 @@ const reactReport = `<Title>題</Title>
 </Section>
 `
 
-// SPEC.md "報告の画面のカーソル": a cursor the person never moved takes
-// no y / n / option / x; c, m, enter and r work.
+// SPEC.md "報告の画面のカーソル": a cursor the person never moved takes no
+// y / n / option (answers to the AI) and says why; x r c m enter work.
 func TestPlacedCursorTakesNoReaction(t *testing.T) {
 	t.Parallel()
 	v, ss := open(t, reactReport, 120, 24, "最初の項目")
 	v.WaitCursorOn("最初の項目")
-	v.WaitBottom("j k ↑↓ 動かすと y n が効く")
-	v.Keys("y", "n", "x")
+	v.WaitBottom("j k 動かすと y n が効く")
+	v.Keys("y")
+	v.WaitFor("j k で動かすと y n が効きます")
+	v.Keys("n")
 	v.Sync()
 	ss.noRecords(t, "react")
-	ss.noRecords(t, "hide")
 	// c works on the placed cursor.
 	v.Keys("c")
 	v.WaitFor("enter 置く")
 	v.Keys("esc")
 	v.WaitGone("enter 置く")
+	// So does x (seen at once, not sent until s, undone with u).
+	v.Keys("x")
+	rs := ss.waitRecords(t, "hide", 1)
+	if rs[0].str("title") != "最初の項目" {
+		t.Errorf("hide record: %v", rs[0])
+	}
 
 	t.Run("narrow: shrinks to j k but is not dropped", func(t *testing.T) {
-		v.In(t).Resize(24, 24)
+		v, _ := open(t, reactReport, 24, 24, "最初の項目")
 		v.Until("a narrow guide", func() bool { return strings.Contains(v.Bottom(), "j k") })
+	})
+
+	t.Run("an open Ask: j k 動かすと答えられる", func(t *testing.T) {
+		v, ss := open(t, "<Ask id=\"q\">問い\n  <Option key=\"a\">A</Option>\n  <Option key=\"b\">B</Option>\n</Ask>\n", 100, 20, "問い")
+		v.Keys("enter")
+		v.WaitFor("A")
+		v.WaitBottom("j k 動かすと答えられる")
+		v.Keys("a")
+		v.WaitFor("j k で動かすと答えられます")
+		v.Sync()
+		ss.noRecords(t, "react")
+	})
+
+	t.Run("r works on a placed cursor", func(t *testing.T) {
+		v, _ := open(t, "<Item id=\"g\" look=\"y\">読む</Item>\n<Item id=\"b\">次</Item>\n", 100, 20, "読む")
+		v.WaitFor("未読 1")
+		v.Keys("r")
+		v.WaitGone("未読 1")
 	})
 }
 
@@ -396,12 +421,13 @@ func TestHide(t *testing.T) {
 	if rs[0].str("title") != "hook を入れるか決める" || rs[0].str("key") == "" {
 		t.Errorf("hide record: %v", rs[0])
 	}
-	v.WaitFor("隠しました (H で表示)")
+	v.WaitFor("隠しました (H で表示、u で戻す)")
 	v.WaitGone("hook を入れるか決める")
-	// The cursor moves to the next line, which takes no x for 0.4 s.
+	// The cursor moves to the next line, which takes no x for 0.4 s: a
+	// dropped x says why, and pressing it again takes it.
 	v.WaitCursorOn("土台を選ぶ")
 	v.Keys("x")
-	v.Sync()
+	v.WaitForJoined("いま移った行です。もう一度押すと隠れます")
 	if n := len(ss.records("hide")); n != 1 {
 		t.Fatalf("x right after hiding was taken (%d hides)", n)
 	}
@@ -427,7 +453,7 @@ func TestHide(t *testing.T) {
 		if rs[0].str("key") != ss.records("hide")[0].str("key") {
 			t.Errorf("unhide key differs from hide key")
 		}
-		v.WaitFor("表示に戻しました")
+		v.WaitForJoined("表示に戻しました")
 		v.Keys("H")
 		v.WaitBottom("隠した行 1")
 		if !strings.Contains(v.Screen(), "hook を入れるか決める") {

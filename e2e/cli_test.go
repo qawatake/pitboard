@@ -40,7 +40,7 @@ func wantLines(t *testing.T, got string, want ...string) {
 func TestHelpMentionsEveryCommand(t *testing.T) {
 	s := newSandbox(t)
 	out := s.mustRun("-h")
-	for _, cmd := range []string{"view", "path", "changes", "settle", "open", "check", "wait", "hook", "--skill", "-h",
+	for _, cmd := range []string{"view", "serve", "path", "changes", "settle", "open", "check", "wait", "hook", "--skill", "-h",
 		"prompt-submit", "post-tool", "stop", "PITBOARD_SEND", "A layout to start from", "Manners"} {
 		if !strings.Contains(out, cmd) {
 			t.Errorf("-h does not mention %q", cmd)

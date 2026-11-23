@@ -98,6 +98,8 @@ func TestSpaceToNextMark(t *testing.T) {
 </Fold>
 `
 	v, ss := open(t, report, 80, 24, "普通A")
+	v.MoveTo("普通B")
+	v.MoveTo("普通A")
 	v.WaitBottom("space 次へ")
 	for _, want := range []string{"印一", "待ちの項目", "畳んだ中の未読", "印一"} {
 		v.Keys("space")
