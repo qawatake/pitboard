@@ -25,7 +25,9 @@ Usage:
                                    set thought N's state and what you did with it
                                    (several: --STATE N TEXT --STATE N TEXT ...)
   pitboard -s SESSION open         list the thoughts still --doing or --hold (nothing if none)
-  pitboard -s SESSION check        check report.md; prints problems with line numbers, exit 1 if any
+  pitboard -s SESSION check        check report.md; prints problems with line numbers, exit 1 if any,
+                                   and warnings about removed rows (they do not change the exit code)
+  pitboard -s SESSION ack-removed  stop the warnings about the rows removed so far
   pitboard -s SESSION wait [--timeout DURATION]
                                    wait until the person sends, then print what
                                    'changes' prints (run it in the background
@@ -253,8 +255,9 @@ Manners:
     capital letter (<Item>, not <item>).
   - Run 'pitboard check' after every rewrite of report.md and fix what it
     reports. The other commands ('changes', 'settle', 'wait') and the hooks
-    also end with "report.md has N problem(s). Run: pitboard -s SESS check"
-    while the report has problems: when you see it, run that and fix them.
+    also end with "report.md has N problem(s), M warning(s). Run: pitboard -s SESS check"
+    while the report has problems or warnings: when you see it, run that and
+    fix them.
   - Where to reply: what arrives from the board (through 'wait', 'changes'
     or the hooks) is answered in the report: the answer to a question, what
     you changed and how, what happens next. In the chat, say only a line or
@@ -284,6 +287,14 @@ Manners:
     only spends your context every time you read it. Always drop an answer
     the person hid. A line you still use (progress you keep updating, a
     line still in progress) may stay.
+  - When to remove a row: once the person hid it, or it is resolved (its
+    question answered, its comments settled done). Do not drop a row the
+    person has not answered yet (look="y", ask="y" or an Ask they have not
+    reacted to, read or hidden) or one with a comment you have not settled
+    done: 'check' warns of each such removal (warning: row "ID" (title) was
+    removed but the person has not hidden or answered it / ... but it has an
+    open comment (N)). Put the row back, or, if removing it was right, settle
+    its comments and run 'pitboard -s SESS ack-removed'.
   - Mark with wait="you" every Item that needs the person's hand (its
     status words alone get no color).
   - Put look="y" only on lines you want the person to read: an answer you

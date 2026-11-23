@@ -321,3 +321,90 @@ func TestServePort(t *testing.T) {
 		t.Errorf("taken --port: %v", err)
 	}
 }
+
+// serves run at once all find the same server and print the same URL
+// (REVIEW13 c: they took a lock-free race, and the losers failed).
+func TestServeConcurrent(t *testing.T) {
+	serveBoard(t)
+	const n = 4
+	urls := make(chan string, n)
+	errs := make(chan error, n)
+	for range n {
+		go func() {
+			var b bytes.Buffer
+			if err := run([]string{"-s", "srv1", "serve", "--no-open", "--port", "0"}, &b); err != nil {
+				errs <- err
+				return
+			}
+			urls <- strings.TrimSpace(b.String())
+		}()
+	}
+	var got []string
+	for range n {
+		select {
+		case u := <-urls:
+			got = append(got, u)
+		case err := <-errs:
+			t.Fatal(err)
+		case <-time.After(30 * time.Second):
+			t.Fatal("a serve did not return")
+		}
+	}
+	for _, u := range got[1:] {
+		if u != got[0] {
+			t.Errorf("different URLs: %q", got)
+		}
+	}
+}
+
+// A state file without the process's start time never takes a live
+// process of that pid for the server.
+func TestServeStateNeedsStart(t *testing.T) {
+	_, sd := serveBoard(t)
+	other := exec.Command("sleep", "30")
+	if err := other.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { other.Process.Kill(); other.Wait() })
+	os.MkdirAll(sd, 0o700)
+	writeStateFile(t, statePath(sd), serveState{PID: other.Process.Pid, Port: 1, Token: "x"})
+	if _, ok := runningServe(sd); ok {
+		t.Fatal("a state with no Start was taken as running")
+	}
+	var b bytes.Buffer
+	if err := run([]string{"serve", "--stop"}, &b); err != nil {
+		t.Fatal(err)
+	}
+	if err := other.Process.Signal(syscall.Signal(0)); err != nil {
+		t.Errorf("--stop stopped another process: %v", err)
+	}
+}
+
+// serve.json is 0600 even when a stale serve.json.tmp of another mode is
+// left.
+func TestStateFileMode(t *testing.T) {
+	d := t.TempDir()
+	if err := os.WriteFile(statePath(d)+".tmp", []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeState(d, serveState{PID: 1, Start: "x", Port: 1, Token: "secret"}); err != nil {
+		t.Fatal(err)
+	}
+	fi, err := os.Stat(statePath(d))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Mode().Perm() != 0o600 {
+		t.Errorf("serve.json mode %v", fi.Mode().Perm())
+	}
+}
+
+func TestServeHelp(t *testing.T) {
+	var b bytes.Buffer
+	if err := run([]string{"serve", "-h"}, &b); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(b.String(), "usage: pitboard") || !strings.Contains(b.String(), "--forget") {
+		t.Errorf("serve -h: %q", b.String())
+	}
+}

@@ -8,11 +8,15 @@
 <link rel="stylesheet" href="/app.css">
 <script type="module" src="/home.js"></script>
 </head>
-<body class="home">
-<div id="offline" role="alert" hidden></div>
-<main id="board" tabindex="-1" aria-labelledby="home-title">
+<body class="live">
+<div class="app home" id="app">
+<div class="scroller">
+<div id="offline" class="banner" role="alert" hidden></div>
+<main id="board" class="board" tabindex="-1" aria-labelledby="home-title">
   <h1 id="home-title">ボード</h1>
   <div id="boards"></div>
 </main>
+</div>
+</div>
 </body>
 </html>

@@ -6,37 +6,8 @@
 <title>pitboard</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/app.css">
-<script type="module" src="/app.js"></script>
+<script type="module" src="/main.js"></script>
 </head>
-<body>
-<a class="skip" href="#board">報告へ</a>
-<div id="offline" role="alert" hidden></div>
-<header id="top">
-  <div id="summary" aria-label="状況"></div>
-  <div id="notices" aria-label="お知らせ"></div>
-</header>
-<main id="board" tabindex="-1" aria-label="報告"></main>
-<footer id="foot">
-<div id="status" role="status" aria-live="polite"></div>
-<nav id="bar" aria-label="キー">
-  <span id="hints"></span>
-  <button type="button" id="b-comments" aria-haspopup="dialog" aria-expanded="false" aria-controls="cpanel"></button>
-</nav>
-</footer>
-<div id="cpanel" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="cpanel-title" hidden>
-  <h2 id="cpanel-title">コメント</h2>
-  <div id="clist"></div>
-</div>
-<div id="help" class="overlay" role="dialog" aria-modal="true" aria-labelledby="help-title" hidden>
-  <div class="sheet">
-    <h2 id="help-title">キー</h2>
-    <dl id="help-keys"></dl>
-    <button type="button" id="help-close">閉じる <kbd>esc</kbd></button>
-  </div>
-</div>
-<div id="viewer" class="overlay" role="dialog" aria-modal="true" aria-label="画像" hidden>
-  <img id="viewer-img" alt="">
-  <button type="button" id="viewer-close">閉じる <kbd>esc</kbd></button>
-</div>
+<body class="live">
 </body>
 </html>

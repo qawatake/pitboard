@@ -8,6 +8,7 @@ import (
 	"image"
 	"image/png"
 	"io"
+	"io/fs"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -195,7 +196,7 @@ func TestHeadersOnEveryResponse(t *testing.T) {
 	noCookie := func(r *http.Request) { r.Header.Del("Cookie") }
 	for _, resp := range []*http.Response{
 		f.req("GET", "/", nil, nil),
-		f.req("GET", "/app.js", nil, nil),
+		f.req("GET", "/main.js", nil, nil),
 		f.req("GET", "/api/page", nil, nil),
 		f.req("GET", "/nope", nil, nil),
 		f.req("GET", "/", nil, noCookie),
@@ -205,15 +206,15 @@ func TestHeadersOnEveryResponse(t *testing.T) {
 	} {
 		checkHeaders(t, resp)
 	}
-	if ct := f.req("GET", "/app.js", nil, nil).Header.Get("Content-Type"); !strings.HasPrefix(ct, "text/javascript") {
-		t.Errorf("app.js: %s", ct)
+	if ct := f.req("GET", "/main.js", nil, nil).Header.Get("Content-Type"); !strings.HasPrefix(ct, "text/javascript") {
+		t.Errorf("main.js: %s", ct)
 	}
 }
 
 func TestAuth(t *testing.T) {
 	f := setup(t)
 	noCookie := func(r *http.Request) { r.Header.Del("Cookie") }
-	for _, p := range []string{"/", "/app.js", "/api/page", "/api/events", "/api/image/1"} {
+	for _, p := range []string{"/", "/main.js", "/api/page", "/api/events", "/api/image/1"} {
 		resp := f.req("GET", p, nil, noCookie)
 		b, _ := io.ReadAll(resp.Body)
 		if resp.StatusCode != 403 || !strings.Contains(string(b), "pitboard serve") {
@@ -507,7 +508,17 @@ func TestEvents(t *testing.T) {
 }
 
 func TestStaticHasNoInnerHTML(t *testing.T) {
-	for _, js := range []string{"app.js", "home.js"} {
+	var jss []string
+	fs.WalkDir(staticFS, "static", func(p string, d fs.DirEntry, err error) error {
+		if err == nil && strings.HasSuffix(p, ".js") {
+			jss = append(jss, strings.TrimPrefix(p, "static/"))
+		}
+		return nil
+	})
+	if len(jss) < 10 {
+		t.Fatalf("only %q", jss)
+	}
+	for _, js := range jss {
 		b, err := staticFS.ReadFile("static/" + js)
 		if err != nil {
 			t.Fatal(err)
@@ -518,7 +529,7 @@ func TestStaticHasNoInnerHTML(t *testing.T) {
 			}
 		}
 	}
-	for _, h := range []string{"index.html", "home.html"} {
+	for _, h := range []string{"index.html", "home.html", "gallery.html"} {
 		idx, _ := staticFS.ReadFile("static/" + h)
 		if bytes.Contains(idx, []byte("<script>")) || bytes.Contains(idx, []byte("style=")) || bytes.Contains(idx, []byte("http")) {
 			t.Errorf("%s has inline script/style or an external URL", h)

@@ -319,7 +319,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		id, sub, _ := strings.Cut(rest, "/")
 		b := s.board(id)
 		if b == nil {
-			http.Error(w, "pitboard: このボードはありません (pitboard serve で開き直してください)", http.StatusNotFound)
+			// Never registered, or dropped since (its directory went): its
+			// page says this on its banner.
+			http.Error(w, MsgGone, http.StatusNotFound)
 			return
 		}
 		if !strings.Contains(rest, "/") {
@@ -339,8 +341,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case p == "/api/forget" && r.Method == http.MethodPost && bearer:
 		s.post(w, r, s.handleForget)
 	case (r.Method == http.MethodGet || r.Method == http.MethodHead) && !strings.HasPrefix(p, "/api/"):
-		if p == "/" {
+		switch p {
+		case "/":
 			p = "/home.html"
+		case "/_gallery":
+			p = "/gallery.html" // every part and layer in each of its states
 		}
 		s.handleStatic(w, r, p)
 	default:
@@ -431,6 +436,8 @@ func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request, name strin
 		ct = "text/css; charset=utf-8"
 	case strings.HasSuffix(name, ".svg"):
 		ct = "image/svg+xml"
+	case strings.HasSuffix(name, ".json"):
+		ct = "application/json; charset=utf-8"
 	}
 	w.Header().Set("Content-Type", ct)
 	w.Write(b)

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pitboard gallery</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/app.css">
+<link rel="stylesheet" href="/gallery/gallery.css">
+<script type="module" src="/gallery/gallery.js"></script>
+</head>
+<body class="gallery">
+<header class="g-head">
+  <h1>pitboard: every part and layer, in each of its states</h1>
+  <p>Drawn by the page's own render.js from fixtures the Go code makes (internal/web/gallery_test.go). Each module lists its variants next to its code; see docs/spec/web-states.md.</p>
+  <nav class="g-controls" aria-label="axes">
+    <span>width <a data-set="w=1280">1280</a> <a data-set="w=390">390</a></span>
+    <span>theme <a data-set="theme=light">light</a> <a data-set="theme=dark">dark</a></span>
+    <span>cursor <a data-set="cur=0">off</a> <a data-set="cur=1">on the part</a></span>
+  </nav>
+  <div class="g-report" role="status"></div>
+</header>
+<main class="g-main"></main>
+</body>
+</html>

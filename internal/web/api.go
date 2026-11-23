@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -45,13 +46,27 @@ type PageJSON struct {
 	// More and Tail are the keys of the bar after the line's own (page's
 	// Bar, in the terminal's order).
 	More, Tail []page.Hint
+	// Comment is the keys on a comment of the comment panel
+	// (page.CommentHints), Editor the only keys while writing
+	// (page.EditorHints).
+	Comment, Editor []page.Hint
+	// Clears is when the message on the bottom line goes (page.MsgClears):
+	// key, editor, panel, pointer.
+	Clears []string
+	// Drop is, for each key's Do, the order the bar leaves it out in when
+	// there is no room (page.DropRank: lowest first; absent, never).
+	Drop map[string]int
 }
 
 var words = map[string]string{
 	"offline": page.MsgOffline, "jumping": page.MsgJumpLetter, "noMarked": page.MsgNoMarked,
 	"imageTooLarge": board.ErrTooLarge.Error(),
 	"signClosed":    page.SignClosed, "signOpen": page.SignOpen,
+	"gone": MsgGone, "go": page.WordGo, "close": page.WordClose, "noComments": MsgNoComments,
 }
+
+// MsgNoComments is what the comment panel says with no comment.
+const MsgNoComments = "コメントはまだありません。m で書けます"
 
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -63,12 +78,8 @@ func (b *hosted) handlePage(w http.ResponseWriter, r *http.Request) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.fresh()
-	p := t.b.Page(r.URL.Query().Get("hidden") == "1")
-	t.remember(p)
-	out := PageJSON{Page: p, ImageMax: board.ImageMax, Say: t.say, Words: words}
-	out.More, out.Tail = t.b.Bar(r.URL.Query().Get("hidden") == "1")
+	out := t.pageJSON(b.st, r.URL.Query().Get("hidden") == "1")
 	t.say = ""
-	out.Session, out.Dir = board.ShortSession(b.st), b.st.Base
 	body, err := json.Marshal(out)
 	if err != nil {
 		http.Error(w, "pitboard: "+err.Error(), http.StatusInternalServerError)
@@ -86,6 +97,33 @@ func (b *hosted) handlePage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Write(body)
 }
+
+// pageJSON is the page as the tab is to be shown it now (and remembered
+// by token, for its actions).
+func (t *tab) pageJSON(st *board.Store, showHidden bool) PageJSON {
+	p := t.b.Page(showHidden)
+	t.remember(p)
+	out := PageJSON{Page: p, ImageMax: board.ImageMax, Say: t.say, Words: words, Clears: clears}
+	out.More, out.Tail = t.b.Bar(showHidden)
+	out.Drop = page.DropRanks()
+	out.Comment = page.CommentHints(p.CanWrite)
+	out.Editor = page.EditorHints("shift+enter")
+	out.Session, out.Dir = board.ShortSession(st), st.Base
+	return out
+}
+
+// clears is the events that take the message off the bottom line
+// (page.MsgClears), by the names the page uses.
+var clears = func() []string {
+	var out []string
+	for e, n := range map[page.MsgEvent]string{page.OnKey: "key", page.OnEditor: "editor", page.OnPanel: "panel", page.OnPointer: "pointer", page.OnReload: "reload"} {
+		if page.MsgClears(e) {
+			out = append(out, n)
+		}
+	}
+	slices.Sort(out)
+	return out
+}()
 
 // remember keeps the lines of p by token, as the tab was shown them: an
 // action carries the token, and is done on the line as the person saw it.

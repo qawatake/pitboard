@@ -2,6 +2,7 @@ package viewer
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -428,5 +429,47 @@ func TestLowNoticeRightOneRow(t *testing.T) {
 		if i := rowOf(ls, "21:46"); i >= 0 && !strings.Contains(ls[i], "未送信") && sz[1]/3 >= 3 {
 			t.Errorf("%v: right part split:\n%s", sz, strings.Join(ls, "\n"))
 		}
+	}
+}
+
+// A wrapped line of code goes on under the code's own first column: past
+// a diff's sign and its indentation (REVIEW13 h2).
+func TestCodeWrapHangs(t *testing.T) {
+	a := &app{t: &term{w: 40, h: 20, out: io.Discard}}
+	n := &report.Node{Kind: report.KindCode, Lang: "diff", Code: []string{"-  .row.cur { outline: 1px solid var(--accent); }"}}
+	rows := a.code(n, 4)
+	if len(rows) < 2 {
+		t.Fatalf("not wrapped: %v", rows)
+	}
+	first, second := reEsc.ReplaceAllString(rows[0].line, ""), reEsc.ReplaceAllString(rows[1].line, "")
+	col := strings.Index(first, ".row")
+	if lead := len(second) - len(strings.TrimLeft(second, " ")); lead != col {
+		t.Errorf("continuation at %d, code at %d:\n%s\n%s", lead, col, first, second)
+	}
+}
+
+// A top-level Fold after an empty Section has the same blank line above it
+// as a Section heading has, so it does not read as the Section's (REVIEW13
+// h1).
+func TestFoldAfterEmptySectionGap(t *testing.T) {
+	st := testStore(t)
+	src := "<Title>題</Title>\n\n<Section title=\"あとで\">\n</Section>\n\n<Fold title=\"決まったこと\">\n- 一つ\n</Fold>\n\n<Section title=\"次\">\n<Item id=\"x\">項目</Item>\n</Section>\n"
+	if err := os.WriteFile(st.ReportPath(), []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a := testApp(t, st)
+	lines, _ := screen(t, a)
+	at := func(s string) int {
+		for i, l := range lines {
+			if strings.Contains(l, s) {
+				return i
+			}
+		}
+		t.Fatalf("%q not on screen:\n%s", s, strings.Join(lines, "\n"))
+		return -1
+	}
+	none, fold, next := at("なし"), at("決まったこと"), at("次")
+	if fold-none != next-fold || fold-none != 2 {
+		t.Errorf("gap above the Fold %d, above a Section %d:\n%s", fold-none, next-fold, strings.Join(lines, "\n"))
 	}
 }

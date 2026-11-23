@@ -578,12 +578,12 @@ func TestUndoGuide(t *testing.T) {
 	t.Parallel()
 	v, ss := open(t, hideReport, 120, 20, "最初の項目")
 	v.MoveTo("hook を入れるか決める")
-	if strings.Contains(v.Bottom(), "u 取り消す") {
+	if strings.Contains(v.Bottom(), "u 元に戻す") {
 		t.Errorf("u in the guide with nothing to take back")
 	}
 	v.Keys("y")
 	ss.waitRecords(t, "react", 1)
-	v.WaitBottom("u 取り消す")
+	v.WaitBottom("u 元に戻す")
 }
 
 // SPEC.md "送る": every way of waking the AI.

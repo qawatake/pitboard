@@ -81,7 +81,9 @@ func readState(p string) (serveState, bool) {
 	if err != nil || json.Unmarshal(b, &s) != nil {
 		return s, false
 	}
-	return s, board.ProcessLive(s.PID, s.Start) && s.Port > 0 && s.Token != ""
+	// Start is how a pid is told from a reused one: without it, a live
+	// process of that pid is never taken for the server.
+	return s, s.Start != "" && board.ProcessLive(s.PID, s.Start) && s.Port > 0 && s.Token != ""
 }
 
 // runningServe is the server, if one runs (a stale file is ignored).
@@ -103,11 +105,22 @@ func writeState(dir string, s serveState) error {
 	if err != nil {
 		return err
 	}
-	tmp := statePath(dir) + ".tmp"
-	if err := os.WriteFile(tmp, append(b, '\n'), 0o600); err != nil {
-		return err
+	return web.WritePrivate(statePath(dir), append(b, '\n'))
+}
+
+// lockServe holds the state directory's lock until the returned func is
+// called: one serve at a time looks for the server and starts it, so
+// serves run at once all find the same one.
+func lockServe(dir string) (func(), error) {
+	f, err := os.OpenFile(filepath.Join(dir, "serve.lock"), os.O_RDWR|os.O_CREATE, 0o600)
+	if err != nil {
+		return nil, err
 	}
-	return os.Rename(tmp, statePath(dir))
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
+		f.Close()
+		return nil, err
+	}
+	return func() { syscall.Flock(int(f.Fd()), syscall.LOCK_UN); f.Close() }, nil
 }
 
 // removeState removes serve.json if it is this process's.
@@ -121,10 +134,28 @@ func removeState(dir string) {
 type serveArgs struct {
 	o                                web.Options
 	foreground, stop, status, forget bool
-	showURL                          bool
+	showURL, help                    bool
 }
 
 const serveUsage = "usage: pitboard [-s SESSION] serve [--port N] [--no-open] [--foreground] | serve --stop | serve --status [--url] | [-s SESSION] serve --forget"
+
+// serveHelp is 'pitboard serve -h'.
+const serveHelp = serveUsage + `
+
+  (no flag)       start the server if it is not running, add the board, print
+                  its URL and open it
+  --port N        listen on port N exactly (0: any free one); default 7482,
+                  else the next free up to 7491, else any free one
+  --no-open       only print the URL
+  --foreground    serve in this terminal (ctrl+c stops it)
+  --stop          stop the server
+  --status        show the server and its boards (--url: with their URLs)
+  --forget        take the board of -s SESSION off the server
+
+The server keeps serve.json, serve.log and boards.json in
+$XDG_STATE_HOME/pitboard/ (or ~/.local/state/pitboard/), and stops by itself
+after 30 minutes with no page open. 'pitboard -h' says more ("Browser").
+`
 
 func parseServe(args []string) (serveArgs, error) {
 	a := serveArgs{o: web.Options{Open: true, Port: web.PortDefault}}
@@ -155,6 +186,8 @@ func parseServe(args []string) (serveArgs, error) {
 			err = flag(&a.forget, true)
 		case "--url", "-url":
 			err = flag(&a.showURL, true)
+		case "-h", "--help", "-help":
+			err = flag(&a.help, true)
 		case "--port", "-port":
 			if !hasV {
 				if len(args) < 2 {
@@ -193,6 +226,10 @@ func runServe(base string, st *board.Store, args []string, out io.Writer) error 
 	if err != nil {
 		return err
 	}
+	if a.help {
+		_, err := fmt.Fprint(out, serveHelp)
+		return err
+	}
 	dir, err := stateDir()
 	if err != nil {
 		return err
@@ -228,12 +265,18 @@ func runServe(base string, st *board.Store, args []string, out io.Writer) error 
 		}
 		return serveForeground(dir, bs, a.o, out)
 	}
+	unlock, err := lockServe(dir)
+	if err != nil {
+		return err
+	}
 	s, ok := runningServe(dir)
 	if !ok || !answers(s.Port) {
 		if s, err = startBackground(dir, a.o.Port); err != nil {
+			unlock()
 			return err
 		}
 	}
+	unlock()
 	url := s.url()
 	if st != nil {
 		id, err := register(s, "/api/register", st)

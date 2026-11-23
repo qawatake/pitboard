@@ -13,9 +13,10 @@ import (
 var errOut io.Writer = os.Stderr
 
 // ProblemNote is the line every command the AI runs ends with while the
-// report has problems, so that the AI learns of them without running
-// 'check' itself. It is empty when the report has none, does not exist or
-// cannot be read.
+// report has problems or warnings (rows removed that the person still has
+// business with, see Removed), so that the AI learns of them without
+// running 'check' itself. It is empty when there are none, or the report
+// does not exist or cannot be read.
 func (s *Store) ProblemNote() (note string) {
 	defer func() {
 		if recover() != nil {
@@ -27,10 +28,14 @@ func (s *Store) ProblemNote() (note string) {
 		return ""
 	}
 	_, probs, err := report.Parse(string(b))
-	if err != nil || len(probs) == 0 {
+	if err != nil {
 		return ""
 	}
-	return fmt.Sprintf("report.md has %d problem(s). Run: pitboard -s %s check", len(probs), ShortSession(s))
+	warns := s.Removed()
+	if len(probs) == 0 && len(warns) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("report.md has %d problem(s), %d warning(s). Run: pitboard -s %s check", len(probs), len(warns), ShortSession(s))
 }
 
 // NoteProblems prints ProblemNote on its own line, if there is one.

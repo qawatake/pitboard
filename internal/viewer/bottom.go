@@ -2,6 +2,7 @@ package viewer
 
 import (
 	"fmt"
+	"github.com/qawatake/pitboard/internal/page"
 	"os"
 	"path/filepath"
 	"strings"
@@ -66,7 +67,7 @@ func (a *app) helpRows() []row {
 		{"r", "読んだ: カーソルの行の緑の ● (右上の「未読」) を消す (カーソルを当てる・開くだけでは消えない。y n・答え・コメント・x でも消える)"},
 		{"A", "いま報告にある行をすべて読んだことにする (緑の ● を消す)"},
 		{"enter", "開く・閉じる (コメントの欄でも)"},
-		{"u", "直前の操作を取り消す (y n・答え・コメントを置く / 直す / 取り消す・隠す / 表示に戻す・r・A。新しい順に 1 つずつ。送ったあとなら、取り消しを次に送る)"},
+		{"u", "元に戻す: 直前の操作を取り消す (y n・答え・コメントを置く / 直す / 取り消す・隠す / 表示に戻す・r・A。新しい順に 1 つずつ。送ったあとなら、取り消しを次に送る)"},
 		{"y", "よし (項目・リンク・お知らせ)"},
 		{"n", "だめ (項目・リンク・お知らせ)"},
 		{"a b …", "問いに答える (選択肢のキー。問いを開いているときだけ。閉じていれば開く)"},
@@ -182,8 +183,8 @@ func (a *app) bottom() []string {
 				keys = append(keys, hint{k: "enter", d: "開く", rank: rankEnter})
 			}
 		}
-		if len(keys) > 0 && a.canWrite() {
-			keys = append(keys, hint{k: "e", d: "直す", rank: rankN}, hint{k: "x", d: "取り消す", rank: rankX})
+		if len(keys) > 0 {
+			keys = append(keys, commentHints(a.canWrite())...)
 		}
 		if len(keys) == 0 {
 			keys = append(keys, hint{k: "tab", d: "報告へ", rank: rankX})
@@ -196,9 +197,7 @@ func (a *app) bottom() []string {
 		} else {
 			keys = append(keys, hint{k: "enter", d: "開く", rank: rankEnter})
 		}
-		if a.canWrite() {
-			keys = append(keys, hint{k: "e", d: "直す", rank: rankN}, hint{k: "x", d: "取り消す", rank: rankX})
-		}
+		keys = append(keys, commentHints(a.canWrite())...)
 		return a.oneLine(keys, nil)
 	}
 	pv := a.top()
@@ -221,20 +220,11 @@ func (a *app) bottom() []string {
 	// The keys for this line, in the order shown (page's Offer: never a
 	// key its guard refuses); an open Ask leads with its options.
 	for _, h := range a.b.Offer(n, pv.touch()).Hints {
-		x := hint{k: h.Key, d: h.Word}
+		x := hint{k: h.Key, d: h.Word, rank: page.DropRank(h.Do)}
 		switch h.Do {
-		case "open", "close":
-			x.rank = rankEnter
-		case "read", "answer", "y":
-			x.rank = rankY
-		case "n":
-			x.rank = rankN
-		case "comment":
-			x.rank = rankC
 		case "wait":
 			x.short = h.Key
 		case "hide":
-			x.rank = rankX
 			if pv.placed {
 				// Before the person moves, x is what works on the line (a
 				// notice read and done with): kept over g, space and enter.
@@ -248,6 +238,20 @@ func (a *app) bottom() []string {
 	return a.oneLine(keys, right)
 }
 
+// commentHints is the keys on a comment (page's CommentHints): e to edit,
+// x to take it back.
+func commentHints(canWrite bool) []hint {
+	var out []hint
+	for _, h := range page.CommentHints(canWrite) {
+		x := hint{k: h.Key, d: h.Word, rank: rankN}
+		if h.Do == "retract" {
+			x.rank = rankX
+		}
+		out = append(out, x)
+	}
+	return out
+}
+
 func concat(hs ...[]hint) []hint {
 	var out []hint
 	for _, h := range hs {
@@ -259,14 +263,15 @@ func concat(hs ...[]hint) []hint {
 // The order in which hints are left out when the line is narrow: lowest
 // first (u, then x and space, g, enter, n, y, c). A hint with rank 0 (one with a short
 // form, m, ?) is kept.
+// They are page's (DropRank), the same on every screen.
 const (
-	rankU = iota + 1
-	rankX
-	rankG
-	rankEnter
-	rankN
-	rankY
-	rankC
+	rankU     = page.RankUndo
+	rankX     = page.RankHide
+	rankG     = page.RankJump
+	rankEnter = page.RankEnter
+	rankN     = page.RankN
+	rankY     = page.RankY
+	rankC     = page.RankComment
 )
 
 // oneLine is the hints: always one line, the keys for this line, then
@@ -293,15 +298,15 @@ func (a *app) oneLineKeep(keys []hint, keep, right text) []string {
 		switch h.Do {
 		case "undo":
 			// Something to take back: dropped first when narrow.
-			keys = append(append([]hint{}, keys...), hint{k: h.Key, d: h.Word, rank: rankU})
+			keys = append(append([]hint{}, keys...), hint{k: h.Key, d: h.Word, rank: page.DropRank(h.Do)})
 		case "next":
 			if !a.list && !a.inPane {
 				// Where to go next: before "m 書く", dropped first when narrow.
-				keys = append(append([]hint{}, keys...), hint{k: h.Key, d: h.Word, rank: rankX})
+				keys = append(append([]hint{}, keys...), hint{k: h.Key, d: h.Word, rank: page.DropRank(h.Do)})
 			}
 		case "jump":
 			if !a.list && !a.inPane && len(a.jumpTargets(a.top())) > 0 {
-				keys = append(append([]hint{}, keys...), hint{k: h.Key, d: h.Word, rank: rankG})
+				keys = append(append([]hint{}, keys...), hint{k: h.Key, d: h.Word, rank: page.DropRank(h.Do)})
 			}
 		}
 	}

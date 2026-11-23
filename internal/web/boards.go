@@ -212,9 +212,36 @@ func WriteRegistry(p string, bs []Registered) error {
 	if err != nil {
 		return err
 	}
+	return WritePrivate(p, append(b, '\n'))
+}
+
+// WritePrivate writes data to p readable by this user only (0600), by way
+// of p.tmp: a stale p.tmp is removed first and the new one made with
+// O_EXCL (a file left by someone else, or with a looser mode, is never
+// written into), and its mode is checked before it takes p's place.
+func WritePrivate(p string, data []byte) error {
 	tmp := p + ".tmp"
-	if err := os.WriteFile(tmp, append(b, '\n'), 0o600); err != nil {
+	if err := os.Remove(tmp); err != nil && !os.IsNotExist(err) {
 		return err
+	}
+	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return err
+	}
+	_, werr := f.Write(data)
+	if cerr := f.Close(); werr == nil {
+		werr = cerr
+	}
+	if werr == nil {
+		if fi, err := os.Lstat(tmp); err != nil {
+			werr = err
+		} else if fi.Mode().Perm() != 0o600 || !fi.Mode().IsRegular() {
+			werr = fmt.Errorf("%s: mode %v, not 0600", tmp, fi.Mode())
+		}
+	}
+	if werr != nil {
+		os.Remove(tmp)
+		return werr
 	}
 	return os.Rename(tmp, p)
 }

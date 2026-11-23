@@ -16,7 +16,9 @@ func (a *app) handle(k key) (quit bool) {
 		a.kbd = true // the terminal's answer, not a key the person pressed
 		return false
 	}
-	a.msg, a.msgLines = "", 0
+	if page.MsgClears(page.OnKey) {
+		a.msg, a.msgLines = "", 0
+	}
 	if k.name == "ctrl+c" {
 		return true
 	}

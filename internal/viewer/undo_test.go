@@ -171,16 +171,16 @@ func TestUndoHint(t *testing.T) {
 	st := testStore(t)
 	a := testApp(t, st)
 	onHook(t, a)
-	if strings.Contains(hintLine(a), "u 取り消す") {
+	if strings.Contains(hintLine(a), "u 元に戻す") {
 		t.Error("u shown with nothing to take back")
 	}
 	a.handle(key{r: 'y'})
 	// Narrow: u goes first.
-	if s := hintLine(a); strings.Contains(s, "u 取り消す") || !strings.Contains(s, "c 行に書く") {
+	if s := hintLine(a); strings.Contains(s, "u 元に戻す") || !strings.Contains(s, "c 行に書く") {
 		t.Errorf("narrow hints %q", s)
 	}
 	a.handle(key{name: "tab"})
-	if s := hintLine(a); !strings.Contains(s, "u 取り消す") {
+	if s := hintLine(a); !strings.Contains(s, "u 元に戻す") {
 		t.Errorf("hints %q", s)
 	}
 	a.handle(key{r: 'u'}) // works in the list too

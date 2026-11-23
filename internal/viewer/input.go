@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/qawatake/pitboard/internal/board"
+	"github.com/qawatake/pitboard/internal/page"
 	"github.com/qawatake/pitboard/internal/report"
 )
 
@@ -457,7 +458,15 @@ func (a *app) editorHints() []string {
 	if a.kbd {
 		nl = "shift+enter" // the terminal tells it from enter
 	}
-	all := []hint{{k: "enter", d: "置く"}, {k: "esc", d: "やめる"}, {k: nl, d: "改行", rank: 2}, {k: "ctrl+g", d: "エディタ", rank: 1}}
+	var all []hint
+	for _, h := range page.EditorHints(nl) {
+		x := hint{k: h.Key, d: h.Word}
+		if h.Do == "newline" {
+			x.rank = 2
+		}
+		all = append(all, x)
+	}
+	all = append(all, hint{k: "ctrl+g", d: "エディタ", rank: 1})
 	var ks []hint
 	for lvl := 0; lvl <= 2; lvl++ {
 		ks = ks[:0]

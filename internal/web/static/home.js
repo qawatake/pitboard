@@ -19,7 +19,7 @@ function setOffline(on) {
   if (on === !b.hidden) return;
   b.textContent = on ? ((data && data.Words.offline) || 'つながっていません') : '';
   b.hidden = !on;
-  document.body.classList.toggle('offline', on);
+  $('app').classList.toggle('offline', on);
   clearInterval(offlineTimer);
   if (on) offlineTimer = setInterval(refresh, 3000);
 }

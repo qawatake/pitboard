@@ -454,7 +454,7 @@ func TestChangesTrailingLines(t *testing.T) {
 	// A broken report adds the problem line, after open:.
 	ss.write(changesReport + "<Item id=\"z\">\n")
 	n := len(strings.Split(strings.TrimSpace(ss.run("check").stdout), "\n"))
-	problem := fmt.Sprintf("report.md has %d problem(s). Run: pitboard -s abcdef12 check", n)
+	problem := fmt.Sprintf("report.md has %d problem(s), 0 warning(s). Run: pitboard -s abcdef12 check", n)
 	r := ss.run("changes")
 	wantLines(t, r.stdout, "open: 1 2 (oldest 0s). Details: pitboard -s abcdef12 open", problem)
 	if r.code != 0 {
@@ -603,4 +603,36 @@ func TestOpen(t *testing.T) {
 	// A retracted one is not open.
 	ss.appendEvents(ev(6, "retract", `"thought":2`))
 	wantLines(t, ss.mustRun("open"), "doing 1 (0s): "+strings.Repeat("あ", 29)+"…")
+}
+
+// SPEC.md "行を消したときの警告": a row the person has not answered, or one
+// with an open comment, removed from the report is warned of by check (the
+// exit code stays 0) and counted on the line other commands end with,
+// until ack-removed.
+func TestRemovedRowWarnings(t *testing.T) {
+	s := newSandbox(t)
+	ss := s.session("abcdef12345")
+	ss.write("<Item id=\"a-flat\" look=\"y\">> フラットな一覧はメンテナブルか</Item>\n<Item id=\"c\">コメントのある行</Item>\n<Item id=\"keep\">残る行</Item>\n")
+	if r := ss.run("check"); r.code != 0 || strings.TrimSpace(r.stdout) != "" {
+		t.Fatalf("before: %d %q", r.code, r.stdout)
+	}
+	ss.appendEvents(ev(1, "thought", `"id":"c","text":"これは？"`))
+	ss.write("<Item id=\"keep\">残る行</Item>\n")
+	r := ss.run("check")
+	wantLines(t, r.stdout,
+		`warning: row "a-flat" (> フラットな一覧はメンテナブルか) was removed but the person has not hidden or answered it`,
+		`warning: row "c" (コメントのある行) was removed but it has an open comment (1)`)
+	if r.code != 0 {
+		t.Errorf("warnings changed the exit code: %d", r.code)
+	}
+	ss.appendEvents(ev(2, "send", ""))
+	if out := ss.mustRun("changes"); !strings.Contains(out, "report.md has 0 problem(s), 2 warning(s). Run: pitboard -s abcdef12 check") {
+		t.Errorf("changes: %q", out)
+	}
+	if out := ss.mustRun("ack-removed"); !strings.Contains(out, "acknowledged 2 removed row(s)") {
+		t.Errorf("ack: %q", out)
+	}
+	if out := ss.mustRun("check"); strings.TrimSpace(out) != "" {
+		t.Errorf("after ack: %q", out)
+	}
 }

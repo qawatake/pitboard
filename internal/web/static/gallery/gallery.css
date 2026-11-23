@@ -1,0 +1,23 @@
+/* The gallery's own frame around the page's frames. */
+body.gallery { font: 14px/1.5 system-ui, sans-serif; margin: 0; background: #eceef1; color: #1d1d1f; }
+.g-head { padding: 1rem 1.5rem .5rem; }
+.g-head h1 { font-size: 1.2rem; margin: 0 0 .3rem; }
+.g-head p { margin: 0 0 .5rem; color: #555; }
+.g-controls { display: flex; gap: 1.5rem; }
+.g-controls a { cursor: pointer; text-decoration: underline; margin-left: .3rem; }
+.g-controls a.on { font-weight: 700; text-decoration: none; }
+.g-report { margin-top: .5rem; font-weight: 700; white-space: pre-line; }
+.g-report.bad { color: #b3261e; }
+.g-main { padding: 0 1.5rem 3rem; }
+.g-module { margin: 1.5rem 0 2rem; }
+.g-module > h2 { font-size: 1.05rem; margin: 0 0 .2rem; font-family: ui-monospace, Menlo, monospace; }
+.g-module > .g-covers { margin: 0 0 .6rem; color: #555; font-size: .85rem; }
+.g-grid { display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-start; }
+.g-story { background: #fff; padding: .4rem; border: 1px solid #cfd3da; }
+.g-story > .g-name { font-size: .8rem; color: #444; margin: 0 0 .3rem; font-family: ui-monospace, Menlo, monospace; }
+.g-story.error { border-color: #b3261e; }
+.g-story.error > .g-name { color: #b3261e; }
+.g-story .app { outline: 1px dashed #cfd3da; }
+/* Every row drawn, wherever the frame is on the gallery's page (the live
+   page skips rows far off screen). */
+.gallery .app .row { content-visibility: visible; }

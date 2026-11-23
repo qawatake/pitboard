@@ -354,11 +354,44 @@ func (a *app) code(n *report.Node, ind int) []row {
 				st = ""
 			}
 		}
-		for _, w := range plainText(ln, st).wrap(a.room(ind, nil)) {
-			rows = append(rows, row{line: a.compose(false, ind, nil, w, nil)})
+		// A wrapped line goes on under the code's own first column (past
+		// its indentation, and a diff's sign), so it reads as one line.
+		room := a.room(ind, nil)
+		hang := min(codeHang(ln, n.Lang == "diff"), room/2)
+		t := plainText(ln, st)
+		first := t.wrap(room)
+		if len(first) <= 1 || hang == 0 {
+			for _, w := range first {
+				rows = append(rows, row{line: a.compose(false, ind, nil, w, nil)})
+			}
+			continue
+		}
+		rows = append(rows, row{line: a.compose(false, ind, nil, first[0], nil)})
+		rest := t[len(first[0]):]
+		for len(rest) > 0 && rest[0].r == ' ' {
+			rest = rest[1:] // the space the line broke at
+		}
+		for _, w := range rest.wrap(room - hang) {
+			rows = append(rows, row{line: a.compose(false, ind+hang, nil, w, nil)})
 		}
 	}
 	return rows
+}
+
+// codeHang is where a code line's own text starts: past its leading
+// spaces, and for a diff past the sign and the spaces after it.
+func codeHang(ln string, diff bool) int {
+	i := 0
+	if diff && len(ln) > 0 && strings.ContainsRune("+- ", rune(ln[0])) {
+		i = 1
+	}
+	for i < len(ln) && (ln[i] == ' ' || ln[i] == '\t') {
+		i++
+	}
+	if i >= len(ln) {
+		return 0
+	}
+	return i
 }
 
 // contents is what an opened item shows under itself: the reason of its

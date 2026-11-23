@@ -299,7 +299,7 @@ func (b *Board) Reappeared(before map[string]bool) string {
 // and tail (s to send, m to write, ? for the keys; kept to the end).
 func (b *Board) Bar(showHidden bool) (more, tail []Hint) {
 	if b.CanWrite() && len(b.Hist) > 0 {
-		more = append(more, Hint{"undo", "u", "取り消す"})
+		more = append(more, Hint{"undo", "u", WordUndo})
 	}
 	if b.AnyMarked(showHidden) {
 		more = append(more, Hint{"next", "space", "次へ"})

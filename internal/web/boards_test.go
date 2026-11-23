@@ -71,7 +71,7 @@ func TestBoardsByPath(t *testing.T) {
 	if c, b := get(f.base + "/api/page"); c != 200 || !strings.Contains(b, "ページの単位") {
 		t.Errorf("board 1: %d", c)
 	}
-	if c, b := get("/s/abcdefgh/"); c != 200 || !strings.Contains(b, "/app.js") {
+	if c, b := get("/s/abcdefgh/"); c != 200 || !strings.Contains(b, "/main.js") {
 		t.Errorf("board page: %d", c)
 	}
 	if resp := f.req("GET", "/s/abcdefgh", nil, nil); resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/s/abcdefgh/" {
@@ -226,5 +226,60 @@ func TestRegistryRestored(t *testing.T) {
 	}
 	if rs := ReadRegistry(reg); len(rs) != 1 || rs[0].ID != ida || rs[0].Added.After(time.Now()) {
 		t.Errorf("registry %+v", rs)
+	}
+}
+
+// A board whose directory went while the server runs is dropped: its
+// event streams are told "gone", its calls answer MsgGone (404), the
+// registry forgets it.
+func TestBoardGone(t *testing.T) {
+	old := PollInterval
+	PollInterval = 20 * time.Millisecond
+	t.Cleanup(func() { PollInterval = old })
+	f := setup(t)
+	go f.s.watchLoop()
+	resp := f.req("GET", f.base+"/api/events", nil, nil)
+	defer resp.Body.Close()
+	if err := os.RemoveAll(f.st.Dir); err != nil {
+		t.Fatal(err)
+	}
+	got := make(chan string, 1)
+	go func() {
+		b := make([]byte, 4096)
+		var all string
+		for {
+			n, err := resp.Body.Read(b)
+			all += string(b[:n])
+			if strings.Contains(all, "event: gone") || err != nil {
+				got <- all
+				return
+			}
+		}
+	}()
+	select {
+	case s := <-got:
+		if !strings.Contains(s, "event: gone\ndata: "+MsgGone) {
+			t.Errorf("stream: %q", s)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("no gone event")
+	}
+	r := f.req("GET", f.base+"/api/page", nil, nil)
+	b, _ := io.ReadAll(r.Body)
+	if r.StatusCode != http.StatusNotFound || !strings.Contains(string(b), MsgGone) {
+		t.Errorf("page: %d %q", r.StatusCode, b)
+	}
+}
+
+// The registry is written 0600 even when a stale .tmp of another mode is
+// left.
+func TestWritePrivateMode(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "boards.json")
+	os.WriteFile(p+".tmp", []byte("old"), 0o644)
+	if err := WriteRegistry(p, nil); err != nil {
+		t.Fatal(err)
+	}
+	if fi, err := os.Stat(p); err != nil || fi.Mode().Perm() != 0o600 {
+		t.Errorf("mode %v %v", fi.Mode().Perm(), err)
 	}
 }

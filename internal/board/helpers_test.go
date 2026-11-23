@@ -21,7 +21,7 @@ func badStore(t *testing.T) *Store {
 	return st
 }
 
-const wantNote = "report.md has 2 problem(s). Run: pitboard -s s1 check\n"
+const wantNote = "report.md has 2 problem(s), 0 warning(s). Run: pitboard -s s1 check\n"
 
 func changes(t *testing.T, st *Store) string {
 	t.Helper()

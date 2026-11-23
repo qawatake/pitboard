@@ -16,7 +16,7 @@ func TestHookTellsProblems(t *testing.T) {
 		st.Append(board.Event{Op: "thought", Text: ev})
 		sendAll(st)
 		got := runHook(t, ev, hookInput(st.Base, "s1", ""))
-		if !strings.Contains(got, "report.md has 2 problem(s). Run: pitboard -s s1 check") {
+		if !strings.Contains(got, "report.md has 2 problem(s), 0 warning(s). Run: pitboard -s s1 check") {
 			t.Errorf("%s: %q", ev, got)
 		}
 	}

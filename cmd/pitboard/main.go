@@ -245,9 +245,20 @@ func run(args []string, out io.Writer) error {
 		for _, p := range probs {
 			fmt.Fprintf(out, "%s:%d: %s\n", st.ReportPath(), p.Line, p.Msg)
 		}
+		// Warnings do not change the exit code: the report is fine, but a
+		// row the person still has business with is gone.
+		for _, w := range st.Removed() {
+			fmt.Fprintln(out, w)
+		}
 		if len(probs) > 0 {
 			return exitError(1)
 		}
+	case "ack-removed":
+		n, err := st.AckRemoved()
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(out, "acknowledged %d removed row(s)\n", n)
 	default:
 		return fmt.Errorf("unknown command %q (see pitboard -h)", cmd)
 	}
