@@ -352,22 +352,59 @@ func (a *app) viewAll(pv *view) {
 	a.msg = "いまある行をすべて読んだことにしました"
 }
 
-// leave marks the line the cursor was on (on screen, in the report) as
-// looked at once the cursor is no longer on it. Called before each frame
-// is laid out; stay is called after, when it is known whether the cursor's
-// line is on screen.
-func (a *app) leave(pv *view) {
-	if pv.onKey == "" || (pv.cur == pv.onKey && !a.inPane && !a.list) {
-		return
+// readTarget is the line r acts on: the cursor's line, on screen, with a
+// green mark (its own, or for a Fold, of what it holds; not a line whose
+// mark is yellow), and the page not changed under it.
+func (a *app) readTarget(pv *view) *node {
+	if !pv.curShown || pv.lock || pv.settling() || !a.canWrite() {
+		return nil
 	}
-	if n := pv.nodeAt(pv.onKey); n != nil {
-		a.markViewed(n)
+	n := pv.nodeAt(pv.cur)
+	if n == nil || a.markOfLine(pv, n) != markNew {
+		return nil
 	}
-	pv.onKey = ""
+	return n
 }
 
-func (a *app) stay(pv *view) {
-	if pv.curShown && !a.inPane && !a.list && !a.help && pv.nodeAt(pv.cur) != nil {
-		pv.onKey = pv.cur
+// unreadIn is what makes n's green mark: n if unread, and for a Fold, the
+// unread lines it holds (not hidden ones).
+func (a *app) unreadIn(pv *view, n *node) []*node {
+	if pv.isHidden(n) {
+		return nil
+	}
+	var out []*node
+	if a.isNew(n) {
+		out = append(out, n)
+	}
+	if n.kind == kDetails {
+		var rec func(ns []*node)
+		rec = func(ns []*node) {
+			for _, c := range ns {
+				if pv.isHidden(c) {
+					continue
+				}
+				if c.kind != kSection && !a.waiting(c) && a.isNew(c) {
+					out = append(out, c)
+				}
+				if c.kind == kSection || c.kind == kDetails {
+					rec(c.kids)
+				}
+			}
+		}
+		rec(n.kids)
+	}
+	return out
+}
+
+// read marks the cursor's line as read (r): its green mark goes. u takes it
+// back. Only the person says a line is read; moving the cursor, opening or
+// showing it does not.
+func (a *app) read(pv *view) {
+	n := a.readTarget(pv)
+	if n == nil {
+		return
+	}
+	if hs := a.markViewed(a.unreadIn(pv, n)...); len(hs) > 0 {
+		a.hist = append(a.hist, done{viewed: hs, desc: "r (読んだ) を取り消しました: " + plainOf(n.title())})
 	}
 }

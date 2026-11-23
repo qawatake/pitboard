@@ -68,7 +68,7 @@ const maxListLevel = 2
 
 // viewerKeys are the keys the viewer uses for itself; an Option cannot use
 // them as its key.
-const viewerKeys = "cjkmnqsxy"
+const viewerKeys = "cjkmnqrsxy"
 
 type frame struct {
 	name   string // "" for the top level

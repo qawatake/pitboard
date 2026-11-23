@@ -239,9 +239,10 @@ func TestOnlyChangedRowsAreWritten(t *testing.T) {
 			t.Errorf("%c: %d rows written:\n%q", k, n, f)
 		}
 	}
-	// The marks stay in their column under the cursor and beside it.
+	// The marks stay in their column under the cursor and beside it, and
+	// moving the cursor does not read a line.
 	rows := shown(a)
-	for _, want := range []string{"  ● ○ 一", ">   ○ 二", "    ○ 三"} {
+	for _, want := range []string{"  ● ○ 一", "> ● ○ 二", "    ○ 三"} {
 		if !strings.Contains(rows, want) {
 			t.Errorf("want %q in\n%s", want, rows)
 		}

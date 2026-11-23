@@ -92,12 +92,36 @@ func TestWaitingAndNewMarks(t *testing.T) {
 	if rows := shown(a); !strings.Contains(rows, "> ● ○ ただの項目") {
 		t.Errorf("the mark goes under the cursor:\n%s", rows)
 	}
-	// Leaving it: read.
+	// Leaving it, coming back, opening: still unread.
 	a.handle(key{r: 'k'})
 	a.render()
-	if _, f := a.counts(pv); f != 0 {
-		t.Errorf("unread after leaving: %d", f)
+	a.handle(key{r: 'j'})
+	a.render()
+	wait(t, settleDelay)
+	a.render()
+	a.handle(key{name: "enter"})
+	a.render()
+	if _, f := a.counts(pv); f != 1 {
+		t.Errorf("unread after leaving and opening: %d", f)
 	}
+	// r: read. The hint says so only while there is a green mark.
+	if s := hintLine(a); !strings.Contains(s, "r 読んだ") {
+		t.Errorf("hints %q", s)
+	}
+	a.handle(key{r: 'r'})
+	a.render()
+	if _, f := a.counts(pv); f != 0 {
+		t.Errorf("unread after r: %d", f)
+	}
+	if s := hintLine(a); strings.Contains(s, "r 読んだ") {
+		t.Errorf("hints after r %q", s)
+	}
+	// u takes r back; r again.
+	a.handle(key{r: 'u'})
+	if _, f := a.counts(pv); f != 1 || a.msg != "r (読んだ) を取り消しました: ただの項目" {
+		t.Errorf("after u: %d %q", f, a.msg)
+	}
+	a.handle(key{r: 'r'})
 	// It is remembered in the file, not in events.jsonl.
 	a2 := testApp(t, st)
 	if _, f := a2.counts(a2.top()); f != 0 {

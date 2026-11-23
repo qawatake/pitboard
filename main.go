@@ -150,7 +150,7 @@ Writing report.md:
               sense on its own, without the options. (look="y" is allowed
               but adds nothing: an Ask is marked anyway.)
     Option    key (required, one letter a-z, unique in its Ask; not one of
-              the viewer's own keys c j k m n q s x y). One line.
+              the viewer's own keys c j k m n q r s x y). One line.
     Link      id (required), and exactly one of path (a file, shown as
               written) or url (http:// or https://). One line: its title.
               The board shows the path or URL under the title; it does not
@@ -169,8 +169,9 @@ Writing report.md:
   Marks: the board puts a yellow ● beside each line waiting for the person
   (an Ask not answered yet, an Item or Link with ask="y" without a y / n on
   what it says now) and a green ● (unread) beside each line with look="y"
-  that they have not read since it last changed (the cursor has been on it
-  and left, or they opened it, reacted or wrote on it). space takes them to
+  that they have not read since it last changed. Only the person clears
+  it: r (read) on the line, or reacting, commenting on or hiding it; moving
+  the cursor over it or opening it does not. space takes them to
   the nearest marked line below the cursor (yellow, green, or an Item with
   wait="you"; all alike), from the top when there is none below. Lines
   without look="y" get no green mark, whatever changes.

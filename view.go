@@ -66,9 +66,6 @@ type view struct {
 	// atEnd says whether the last frame showed the end of the page: j past
 	// the last stop then goes into the thoughts pane.
 	atEnd bool
-	// onKey is the line the cursor was on, on screen: when the cursor
-	// leaves it, it is marked as looked at (see leave).
-	onKey string
 }
 
 // settleDelay is how long a line the viewer moved the cursor to must have
@@ -455,6 +452,8 @@ func (a *app) handle(k key) (quit bool) {
 		a.jump(pv)
 	case k.r == 'A':
 		a.viewAll(pv)
+	case k.r == 'r':
+		a.read(pv)
 	case k.r == 'k' || k.name == "up":
 		pv.lock, pv.placed = false, false
 		if !pv.step(-1) {
@@ -554,7 +553,6 @@ func (a *app) react(pv *view, r rune) {
 	case contains(choices, s):
 		value = s
 	case thought && s == "c":
-		a.markViewed(n)
 		a.in = newInput(n.id, n.title(), "「"+plainText(n.title(), "").capped(4*a.textWidth()).plain()+"」にコメント")
 		return
 	default:
@@ -777,7 +775,6 @@ func (a *app) enter(pv *view) {
 	case n == nil:
 	case a.canOpen(pv, n):
 		pv.open[pv.cur] = !pv.open[pv.cur]
-		a.markViewed(n)
 	}
 }
 
@@ -874,6 +871,12 @@ func (a *app) write(text string) bool {
 		return false
 	}
 	a.did(rec, undoMsg+textHead(text))
+	if e.Op == "thought" && e.ID != "" {
+		// A comment on a line: the line is read, as it is when reacted to.
+		if n := byID(a.rep.nodes, e.ID); n != nil && n.title() == e.Title {
+			a.markViewed(n)
+		}
+	}
 	a.in = nil
 	a.loadEvents()
 	return true
@@ -1231,13 +1234,11 @@ func (a *app) draw() {
 	var follow *bool
 	var shown *bool
 	if a.list {
-		a.leave(a.top()) // the report is not on screen
 		rows = a.listRows()
 		top, follow, shown = &a.ltop, &a.lfollow, &a.lcurShown
 	} else {
 		pv := a.top()
 		pv.settleCursor()
-		a.leave(pv)
 		if a.in != nil && a.in.id != "" && a.in.id == pv.cur {
 			// While writing about the cursor's line, keep it in view however
 			// tall the editor grows.
@@ -1300,7 +1301,6 @@ func (a *app) draw() {
 	}
 	if cur != nil {
 		*cur = ci
-		a.stay(a.top())
 		if pv := a.top(); pv.auto != "" {
 			switch {
 			case pv.cur != pv.auto:
@@ -1526,10 +1526,11 @@ func (a *app) helpRows() []row {
 		{"", "報告の終わりからさらに j で、報告の下のコメントへ (欄が広がる)。コメントの 1 件目で k で報告へ"},
 		{"", "日本語入力のままでも、↑↓ ctrl+n ctrl+p と全角の英字 (ｊ ｙ など) が効く"},
 		{"space", "カーソルより下で、いちばん近い印のある行 (黄の ●・人待ちの項目・緑の ●) へ。下に無ければ上から。折りたたみは開く"},
+		{"r", "読んだ: カーソルの行の緑の ● を消す (カーソルを当てる・開くだけでは消えない。y n・答え・コメント・x でも消える)"},
 		{"A", "いま報告にある行をすべて読んだことにする (緑の ● を消す)"},
 		{"enter", "開く・閉じる (コメントの欄でも)"},
 		{"x (コメント)", "コメントの欄と一覧では、そのコメントを取り消す"},
-		{"u", "直前の操作を取り消す (y n・答え・コメントを置く / 直す / 取り消す・隠す / 表示に戻す・A。新しい順に 1 つずつ。送ったあとなら、取り消しを次に送る)"},
+		{"u", "直前の操作を取り消す (y n・答え・コメントを置く / 直す / 取り消す・隠す / 表示に戻す・r・A。新しい順に 1 つずつ。送ったあとなら、取り消しを次に送る)"},
 		{"e (コメント)", "コメントの欄と一覧で、そのコメントを直す (enter で置き換える。esc でやめる)"},
 		{"y", "よし (項目・リンク)"},
 		{"n", "だめ (項目・リンク)"},
@@ -1681,7 +1682,7 @@ func (a *app) bottom() []string {
 		}
 		return a.oneLine(keys, right)
 	}
-	var enter, answer, yn, write, hide []hint
+	var enter, read, answer, yn, write, hide []hint
 	switch {
 	case a.canOpen(pv, n) && pv.open[pv.cur]:
 		enter = []hint{{k: "enter", d: "閉じる", rank: rankEnter}}
@@ -1720,6 +1721,9 @@ func (a *app) bottom() []string {
 		// A plain line, a Fold or a closed Ask the viewer put the cursor on.
 		answer = []hint{{k: "j k ↑↓", d: "動かすと x が効く", short: "→ x"}}
 	}
+	if a.readTarget(pv) != nil {
+		read = []hint{{k: "r", d: "読んだ", rank: rankY}}
+	}
 	if a.hideTarget(pv) != nil {
 		if pv.isHidden(n) {
 			hide = []hint{{k: "x", d: "表示に戻す", rank: rankX}}
@@ -1730,9 +1734,9 @@ func (a *app) bottom() []string {
 	// The keys for this line, in the order shown; an open Ask leads with
 	// its options.
 	if askOpen {
-		keys = concat(answer, enter, write, hide)
+		keys = concat(answer, enter, read, write, hide)
 	} else {
-		keys = concat(enter, answer, yn, write, hide)
+		keys = concat(enter, read, answer, yn, write, hide)
 	}
 	// m tab q H work everywhere: the list of keys (?) tells them; m is also
 	// shown, since writing works wherever the cursor is.
