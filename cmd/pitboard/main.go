@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -217,7 +216,7 @@ func run(args []string, out io.Writer) error {
 		st.NoteOpen(out)
 		st.NoteProblems(out)
 	case "open":
-		st.NoteOpen(out)
+		st.ListOpen(out)
 	case "settle":
 		if len(args) < 1 {
 			return errors.New("usage: pitboard settle N [--doing|--hold|--done] TEXT, or settle --STATE N TEXT --STATE N TEXT ...")
@@ -227,10 +226,6 @@ func run(args []string, out io.Writer) error {
 			return err
 		}
 		err = st.SettleAll(ss)
-		if err == nil && slices.ContainsFunc(ss, func(x board.Settlement) bool { return x.State == "done" || x.State == "" }) {
-			// Done with something: what is left open, if anything.
-			st.NoteOpen(out)
-		}
 		st.NoteProblems(out)
 		return err
 	case "wait":

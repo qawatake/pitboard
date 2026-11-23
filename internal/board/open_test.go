@@ -28,25 +28,31 @@ func TestOpenLines(t *testing.T) {
 	st.Append(Event{Op: "retract", Thought: 4})
 	st.Append(Event{Op: "settle", Thought: 5, Text: "x", State: "doing", T: at(time.Hour)})
 	got := strings.Join(st.OpenLines(), "\n")
-	want := `open (settle --done N "what happened" when finished):
-  hold  1 (3h): コメント 1
-  doing 5 (2h): ` + strings.Repeat("長い", 14) + "長…" + `
-  doing 2 (12m): コメント 2`
+	want := `hold 1 (3h): コメント 1
+doing 5 (2h): ` + strings.Repeat("長い", 14) + "長…" + `
+doing 2 (12m): コメント 2`
 	if got != want {
 		t.Errorf("got\n%s\nwant\n%s", got, want)
+	}
+	if got, want := st.OpenLine(), "open: 1 5 2 (oldest 3h). Details: pitboard -s "+ShortSession(st)+" open"; got != want {
+		t.Errorf("line\n%s\nwant\n%s", got, want)
 	}
 	// Rewritten: its state is gone, and so is it from the list.
 	st.Append(Event{Op: "edit", Thought: 5, Text: "書き直し"})
 	if got := strings.Join(st.OpenLines(), "\n"); strings.Contains(got, " 5 ") {
 		t.Errorf("rewritten still open:\n%s", got)
 	}
-	// More than 10: the oldest 10, and how many more.
-	for i := range 12 {
+	// More than 20: the oldest 20 numbers, then …; the list has them all.
+	var ns []string
+	for i := range 20 {
 		e, _ := st.Append(Event{Op: "thought", Text: "多い"})
 		st.Append(Event{Op: "settle", Thought: e.N, Text: "x", State: "doing", T: at(time.Duration(i) * time.Minute)})
+		ns = append(ns, fmt.Sprint(e.N))
 	}
-	ls := st.OpenLines()
-	if len(ls) != 12 || ls[11] != "  … and 4 more" || !strings.Contains(ls[1], "hold  1 ") {
+	if got, want := st.OpenLine(), "open: 1 "+strings.Join(ns[:19], " ")+" … (oldest 3h). Details: pitboard -s "+ShortSession(st)+" open"; got != want {
+		t.Errorf("line\n%s\nwant\n%s", got, want)
+	}
+	if ls := st.OpenLines(); len(ls) != 22 {
 		t.Errorf("%d lines:\n%s", len(ls), strings.Join(ls, "\n"))
 	}
 }

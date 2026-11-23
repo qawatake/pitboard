@@ -20,7 +20,7 @@ Usage:
   pitboard -s SESSION settle N [--doing|--hold|--done] TEXT
                                    set thought N's state and what you did with it
                                    (several: --STATE N TEXT --STATE N TEXT ...)
-  pitboard -s SESSION open         print the thoughts still --doing or --hold (nothing if none)
+  pitboard -s SESSION open         list the thoughts still --doing or --hold (nothing if none)
   pitboard -s SESSION check        check report.md; prints problems with line numbers, exit 1 if any
   pitboard -s SESSION wait [--timeout DURATION]
                                    wait until the person sends, then print what
@@ -343,15 +343,13 @@ Thoughts:
   and settle it --done with the result when finished.
   What you put --doing, settle --done when it is done, saying what
   happened; if you wrote an answer line for it, rewrite that too. What is
-  still --doing or --hold is listed at the end of what 'changes' and
-  'wait' print (and of 'settle' when it settles one --done), every time:
+  left is shown by 'changes' every time: what 'changes' and 'wait' print
+  ends with one line of the numbers still --doing or --hold (oldest first):
 
-    open (settle --done N "what happened" when finished):
-      doing 186 (12m): the comments pane sits too low…
-      hold  147 (3h): could this work like…
+    open: 186 201 202 (oldest 2h). Details: pitboard -s ID open
 
-  (number, how long it has had that state, the head of the thought; the
-  oldest 10). 'pitboard -s ID open' prints only this list.
+  'pitboard -s ID open' lists them, one a line:
+    doing 186 (12m): the comments pane sits too low…
   Settle several in one call only with a state before each number:
     pitboard -s ID settle --doing 50 "looking into it" --done 51 "answered"
   Without a state first, it is one thought and every word after N is its

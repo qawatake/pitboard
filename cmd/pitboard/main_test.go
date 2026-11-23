@@ -224,8 +224,9 @@ func TestSessionFlagAfterCommand(t *testing.T) {
 	}
 }
 
-// What is still doing or hold ends what changes, settle --done and open
-// print, before the note on the report's problems.
+// The numbers of what is still doing or hold end what changes prints, in one
+// line before the note on the report's problems; settle does not print it;
+// open lists them.
 func TestOpenComments(t *testing.T) {
 	st := badStore(t)
 	t.Chdir(st.Base)
@@ -243,20 +244,22 @@ func TestOpenComments(t *testing.T) {
 		t.Errorf("open with nothing open: %q", got)
 	}
 	cmd("changes")
-	if got := cmd("settle", "--doing", "1", "見ています", "--hold", "2", "あとで"); strings.Contains(got, "open (") {
-		t.Errorf("settle without done: %q", got)
+	if got := cmd("settle", "--doing", "1", "見ています", "--hold", "2", "あとで"); strings.Contains(got, "open:") {
+		t.Errorf("settle: %q", got)
 	}
-	head := "open (settle --done N \"what happened\" when finished):\n"
-	got := cmd("changes")
-	if !strings.HasPrefix(got, head) || !strings.Contains(got, "  doing 1 (") || !strings.Contains(got, "  hold  2 (") || !strings.HasSuffix(got, wantNote) {
+	// (oldest 0s or 1s: the settle was just now.)
+	if got := cmd("changes"); !strings.HasPrefix(got, "open: 1 2 (oldest ") || !strings.HasSuffix(got, "s). Details: pitboard -s s1 open\n"+wantNote) || strings.Count(got, "\n") != 2 {
 		t.Errorf("changes:\n%s", got)
 	}
-	if got := cmd("open"); !strings.HasPrefix(got, head) || strings.Contains(got, "problem") {
+	got := cmd("open")
+	if !strings.HasPrefix(got, "doing 1 (") || !strings.Contains(got, "\nhold 2 (") || strings.Contains(got, "problem") {
 		t.Errorf("open:\n%s", got)
 	}
-	got = cmd("settle", "1", "--done", "済んだ")
-	if !strings.HasPrefix(got, head) || strings.Contains(got, "doing 1") || !strings.Contains(got, "hold  2") {
+	if got := cmd("settle", "1", "--done", "済んだ"); strings.Contains(got, "open:") {
 		t.Errorf("settle done:\n%s", got)
+	}
+	if got := cmd("changes"); !strings.HasPrefix(got, "open: 2 (") {
+		t.Errorf("changes after done:\n%s", got)
 	}
 	cmd("settle", "2", "--done", "済んだ")
 	if got := cmd("open"); got != "" {
