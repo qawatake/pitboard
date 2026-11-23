@@ -239,10 +239,15 @@ func (a *app) bottom() []string {
 			// Placed by the viewer, not by the person: say how to react.
 			switch {
 			case askOpen:
-				answer = []hint{{k: "j k ↑↓", d: "動かすと答えられる", short: "j k"}}
+				answer = []hint{{k: "j k", d: "動かすと答えられる", short: "j k"}}
 			case y:
-				answer = []hint{{k: "j k ↑↓", d: "動かすと y n が効く", short: "j k"}}
+				answer = []hint{{k: "j k", d: "動かすと y n が効く", short: "j k"}}
 			}
+			y, choices = false, nil
+		}
+		if pv.settling() {
+			// A line the viewer just moved the cursor to: these keys are
+			// dropped for a moment, so they are not offered.
 			y, choices = false, nil
 		}
 		if y {
@@ -255,18 +260,20 @@ func (a *app) bottom() []string {
 			write = []hint{{k: "c", d: "行に書く", rank: rankC}}
 		}
 	}
-	if pv.placed && len(answer) == 0 && report.HideKey(n) != "" && !pv.lock && a.canWrite() {
-		// A plain line, a Fold or a closed Ask the viewer put the cursor on.
-		answer = []hint{{k: "j k ↑↓", d: "動かすと x が効く", short: "j k"}}
-	}
 	if a.readTarget(pv) != nil {
 		read = []hint{{k: "r", d: "読んだ", rank: rankY}}
 	}
-	if a.hideTarget(pv) != nil {
+	if a.hideTarget(pv) != nil && !pv.settling() {
+		rank := rankX
+		if pv.placed {
+			// Before the person moves, x is what works on the line (a
+			// notice read and done with): kept over g, space and enter.
+			rank = rankN
+		}
 		if pv.isHidden(n) {
-			hide = []hint{{k: "x", d: "表示に戻す", rank: rankX}}
+			hide = []hint{{k: "x", d: "表示に戻す", rank: rank}}
 		} else {
-			hide = []hint{{k: "x", d: "隠す", rank: rankX}}
+			hide = []hint{{k: "x", d: "隠す", rank: rank}}
 		}
 	}
 	// The keys for this line, in the order shown; an open Ask leads with
@@ -364,7 +371,13 @@ func (a *app) oneLineKeep(keys []hint, keep, right text) []string {
 				ks = append(ks, k)
 			}
 		}
-		for _, cand := range [][]hint{ks, alt(ks), shorten(alt(ks))} {
+		cands := [][]hint{ks, alt(ks)}
+		if lvl == rankC {
+			// A hint with a short form keeps its words until every key
+			// that can go has gone.
+			cands = append(cands, shorten(alt(ks)))
+		}
+		for _, cand := range cands {
 			cand = append(cand, tail...)
 			for _, r := range []text{join(keep, right), keep} { // right goes before any key
 				if fits(cand, r) {

@@ -108,11 +108,14 @@ func (a *app) viewAll(pv *view) {
 // green mark (its own, or for a Fold, of what it holds; not a line whose
 // mark is yellow), and the page not changed under it.
 func (a *app) readTarget(pv *view) *report.Node {
-	if !pv.curShown || pv.lock || pv.settling() || !a.canWrite() {
+	if !pv.curShown || pv.lock || !a.canWrite() {
 		return nil
 	}
 	n := pv.nodeAt(pv.cur)
 	if n == nil || a.markOfLine(pv, n) != markNew {
+		return nil
+	}
+	if pv.placed && !a.b.ActionsOf(n).Untouched().Read {
 		return nil
 	}
 	return n
@@ -122,7 +125,14 @@ func (a *app) readTarget(pv *view) *report.Node {
 // back. Only the person says a line is read; moving the cursor, opening or
 // showing it does not.
 func (a *app) read(pv *view) {
-	if n := a.readTarget(pv); n != nil {
-		a.b.Read(n.Key, "r (読んだ)")
+	n := a.readTarget(pv)
+	if n == nil {
+		return
+	}
+	a.b.Read(n.Key, "r (読んだ)")
+	if pv.settling() {
+		// On a line the viewer just moved the cursor to, r works (the line
+		// stays, and u takes it back), but says which line it was.
+		a.msg = "読んだことにしました: " + report.PlainOf(n.Title()) + " (u で戻す)"
 	}
 }

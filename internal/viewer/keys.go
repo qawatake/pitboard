@@ -65,10 +65,17 @@ func (a *app) handle(k key) (quit bool) {
 		// The cursor's line is off the screen: a reaction only brings it
 		// back, so nothing goes on a line the person is not looking at.
 		pv.follow = true
+		a.msg = msgBack
+	case pv.lock && pv.curShown && reactKey(pv, k):
+		// The line under the cursor was rewritten: no key acts on it until
+		// j/k, and every one says so.
+		a.msg = msgMoved
 	case k.r == 'j' || k.name == "down":
 		// What is between the cursor's line and the next stop is read
-		// first, half a screen at a time; the cursor stays.
+		// first, half a screen at a time; the cursor stays. Reading on is
+		// the person's own move: the cursor is no longer only placed.
 		if a.scrollToward(pv, 1) {
+			pv.placed = false
 			break
 		}
 		if pv.step(1) {
@@ -91,6 +98,7 @@ func (a *app) handle(k key) (quit bool) {
 		a.read(pv)
 	case k.r == 'k' || k.name == "up":
 		if a.scrollToward(pv, -1) {
+			pv.placed = false
 			break
 		}
 		pv.lock, pv.placed = false, false
@@ -156,9 +164,6 @@ func (a *app) react(pv *view, r rune) {
 		pv.open[n.Key] = true
 		return
 	}
-	if pv.placed {
-		yn, choices = false, nil // the person has not pointed at this line yet
-	}
 	value := ""
 	switch s := string(r); {
 	case yn && (s == "y" || s == "n"):
@@ -171,8 +176,19 @@ func (a *app) react(pv *view, r rune) {
 	default:
 		return
 	}
-	if pv.settling() {
-		return // dropped, not kept for later
+	if pv.placed {
+		// The person has not pointed at this line yet: answers wait.
+		if u := a.b.ActionsOf(n).Untouched(); !(u.YN && (value == "y" || value == "n")) && !slices.Contains(u.Options, value) {
+			a.msg = msgPlacedYN
+			if n.Kind == report.KindQuestion {
+				a.msg = msgPlacedAnswer
+			}
+			return
+		}
+	}
+	if pv.dropSettling(r) {
+		a.msg = msgSettlingReact
+		return
 	}
 	if _, err := a.b.React(page.SeenOf(n), value); err != nil {
 		a.failed(pv, err)
@@ -195,11 +211,14 @@ func (a *app) failed(pv *view, err error) {
 // hideTarget is the line x acts on: the cursor's line under the same rules
 // as reactions (on screen, pointed at by the person, page unchanged).
 func (a *app) hideTarget(pv *view) *report.Node {
-	if !pv.curShown || pv.lock || pv.placed || !a.canWrite() {
+	if !pv.curShown || pv.lock || !a.canWrite() {
 		return nil
 	}
 	n := pv.nodeAt(pv.cur)
 	if n == nil || report.HideKey(n) == "" {
+		return nil
+	}
+	if pv.placed && !a.b.ActionsOf(n).Untouched().Hide {
 		return nil
 	}
 	return n
@@ -210,7 +229,15 @@ func (a *app) hideTarget(pv *view) *report.Node {
 // what the line says, and the viewer leaves out lines that say that.
 func (a *app) hide(pv *view) {
 	n := a.hideTarget(pv)
-	if n == nil || pv.settling() {
+	if n == nil {
+		return
+	}
+	if pv.dropSettling('x') {
+		// x pressed twice must not hide a line the person has not seen.
+		a.msg = msgSettlingHide
+		if pv.isHidden(n) {
+			a.msg = msgSettlingShow
+		}
 		return
 	}
 	before, i := pv.navKeys(), index(pv.navKeys(), pv.cur)
@@ -221,7 +248,9 @@ func (a *app) hide(pv *view) {
 	}
 	pv.moveFrom(before, i)
 	if hidden && !pv.showHidden {
-		msg += " (H で表示)"
+		msg += " (H で表示、u で戻す)"
+	} else {
+		msg += " (u で戻す)"
 	}
 	a.msg = msg
 }

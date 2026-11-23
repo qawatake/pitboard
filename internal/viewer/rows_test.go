@@ -200,10 +200,10 @@ func TestNoticeFixedAtTop(t *testing.T) {
 	if pv.cur != "restart" || !pv.placed {
 		t.Fatalf("cursor %q placed %v", pv.cur, pv.placed)
 	}
-	// The placed cursor takes no x.
-	a.handle(key{r: 'x'})
-	if len(st.Events()) != 0 {
-		t.Fatal("x on a placed cursor")
+	// The placed cursor takes no y: it says how to make it work.
+	a.handle(key{r: 'y'})
+	if len(st.Events()) != 0 || a.msg != msgPlacedYN {
+		t.Fatalf("y on a placed cursor: %q", a.msg)
 	}
 	for range 50 {
 		a.handle(key{r: 'j'})

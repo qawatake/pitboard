@@ -49,6 +49,9 @@ type view struct {
 	// the new line, must not act on a line the person has not seen.
 	auto   string
 	autoAt time.Time
+	// again is the line and key of a press dropped while settling: the
+	// same key pressed again there works (see dropSettling).
+	again string
 	// atEnd says whether the last frame showed the end of the page: j past
 	// the last stop then goes into the thoughts pane.
 	atEnd bool
@@ -261,7 +264,22 @@ func (a *app) tickReload() {
 // point at.
 func (a *app) reload(pv *view) {
 	old := pv.nodeAt(pv.cur)
+	hidden := map[string]bool{}
+	report.WalkAll(pv.Nodes, func(n *report.Node) {
+		if n.Key != "" && pv.isHidden(n) {
+			hidden[n.Key] = true
+		}
+	})
 	pv.Load()
+	// A line the person hid comes back when the AI rewrites it (hiding goes
+	// by what it says): say so, or it looks as if x did nothing. This is
+	// newer than any message still shown.
+	said := false
+	report.WalkAll(pv.Nodes, func(n *report.Node) {
+		if !said && hidden[n.Key] && !pv.isHidden(n) && report.HideKey(n) != "" {
+			a.msg, a.msgLines, said = msgReappeared+report.PlainOf(n.Title()), 0, true
+		}
+	})
 	if old == nil {
 		return
 	}

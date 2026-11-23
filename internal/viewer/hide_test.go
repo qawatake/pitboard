@@ -70,11 +70,6 @@ func TestHideAndUnhide(t *testing.T) {
 	if pv.cur != "-1:板はセッションごと" {
 		t.Fatalf("the cursor must stop at the plain line first: %q", pv.cur)
 	}
-	// A cursor the person never moved does not hide.
-	a.handle(key{r: 'x'})
-	if len(st.Events()) != 0 {
-		t.Fatal("x worked on a placed cursor")
-	}
 	a.handle(key{r: 'j'})
 	a.handle(key{r: 'k'})
 	a.draw()
@@ -198,15 +193,27 @@ func TestHMovesCursorAndWaits(t *testing.T) {
 		t.Fatalf("cursor %q", pv.cur)
 	}
 	a.handle(key{r: 'H'}) // the line goes away; the cursor moves to a
-	a.handle(key{r: 'n'})
 	a.draw()
-	a.handle(key{r: 'n'})
-	if pv.cur != "a" || len(st.Events()) != 1 {
-		t.Fatalf("n acted on a line the viewer moved to: cur %q %+v", pv.cur, st.Events())
+	a.handle(key{r: 'y'})
+	if pv.cur != "a" || len(st.Events()) != 1 || a.msg != msgSettlingReact {
+		t.Fatalf("y acted on a line the viewer moved to: cur %q %q %+v", pv.cur, a.msg, st.Events())
 	}
-	wait(t, settleDelay)
+	// Another key is dropped too; only the same key again works.
+	a.handle(key{r: 'n'})
+	if len(st.Events()) != 1 || a.msg != msgSettlingReact {
+		t.Fatalf("n after y: %q %+v", a.msg, st.Events())
+	}
 	a.handle(key{r: 'n'})
 	if evs := st.Events(); len(evs) != 2 || evs[1].Value != "n" || evs[1].ID != "a" {
+		t.Fatalf("n pressed again works: %+v", evs)
+	}
+	a.handle(key{r: 'u'})
+	a.handle(key{r: 'H'})
+	a.handle(key{r: 'H'}) // shown and left out again: the cursor stays on a
+	a.draw()
+	wait(t, settleDelay)
+	a.handle(key{r: 'n'})
+	if evs := st.Events(); evs[len(evs)-1].Op != "react" || evs[len(evs)-1].Value != "n" {
 		t.Errorf("after the delay n works without j/k: %+v", evs)
 	}
 }
