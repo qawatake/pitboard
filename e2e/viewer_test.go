@@ -313,6 +313,37 @@ func (v *viewer) Sync() {
 	v.WaitGone(helpMarker)
 }
 
+// In rebinds the viewer's failures to t (a subtest sharing the viewer).
+func (v *viewer) In(t *testing.T) *viewer {
+	v.t = t
+	return v
+}
+
+// MoveTo presses j or k until the cursor's row contains sub (searching
+// down first when sub is not on screen).
+func (v *viewer) MoveTo(sub string) {
+	v.t.Helper()
+	for i := 0; i < 80; i++ {
+		cur := v.CursorRow()
+		if cur >= 0 && strings.Contains(v.Line(cur), sub) {
+			return
+		}
+		r, _ := v.Find(sub)
+		k := "j"
+		if r >= 0 && cur >= 0 && r < cur {
+			k = "k"
+		}
+		before := v.Screen()
+		v.Keys(k)
+		// Wait for the key to take effect (or a sync when nothing changes).
+		deadline := time.Now().Add(time.Second)
+		for v.Screen() == before && time.Now().Before(deadline) {
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
+	v.t.Fatalf("could not move the cursor to %q:\n%s", sub, v.dump())
+}
+
 // Resize changes the terminal size.
 func (v *viewer) Resize(w, h int) {
 	v.t.Helper()
