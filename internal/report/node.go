@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // The report (named parts, see parse.go) is read into a tree of nodes.
@@ -36,15 +37,18 @@ type Node struct {
 	Ask    string // Item / Link: "y" when the AI asks for y / n on it
 	Wait   string // Item: "you" when it cannot move on without the person
 	Look   string // Item / Link / Fold (/ Ask): "y" when the AI wants it read
-	Path   string // Link: a file path, as written
-	URL    string // Link: an http(s) URL
-	Lang   string // Code language ("diff" is colored)
-	Code   []string
-	Body   []*Node // shown when an item is opened: paragraphs, list lines, code
-	Kids   []*Node // Section / Fold contents, Ask options
-	line   int     // 1-based line in the file where the part starts
-	Depth  int     // indentation level: Fold contents and Ask options are nested
-	Key    string  // cursor identity: the id, or "fold:<n>" for a Fold
+	// At is when the AI put up a Notice (local time; zero when not given).
+	// Not part of what the line is: it never shows a hidden notice again.
+	At    time.Time
+	Path  string // Link: a file path, as written
+	URL   string // Link: an http(s) URL
+	Lang  string // Code language ("diff" is colored)
+	Code  []string
+	Body  []*Node // shown when an item is opened: paragraphs, list lines, code
+	Kids  []*Node // Section / Fold contents, Ask options
+	line  int     // 1-based line in the file where the part starts
+	Depth int     // indentation level: Fold contents and Ask options are nested
+	Key   string  // cursor identity: the id, or "fold:<n>" for a Fold
 	// A list line (KindPlain): num is its number as written ("1.") when it is
 	// numbered, level its nesting (0-2), subs the lines nested under it.
 	// Nested lines are read only: the cursor never stops at them.
@@ -189,11 +193,33 @@ func WalkAll(ns []*Node, f func(*Node)) {
 func ByID(ns []*Node, id string) *Node {
 	var found *Node
 	WalkAll(ns, func(n *Node) {
-		if found == nil && id != "" && n.ID == id {
+		if found == nil && id != "" && Target(n) == id {
 			found = n
 		}
 	})
 	return found
+}
+
+// foldTarget starts the target of a Fold without an id.
+const foldTarget = "Fold|title="
+
+// Target is what reactions and comments on n are recorded against: its id,
+// or for a Fold without one, its title (as hiding goes by: see HideKey),
+// which can never be an id. "" when n takes none.
+func Target(n *Node) string {
+	switch {
+	case n.ID != "":
+		return n.ID
+	case n.Kind == KindDetails:
+		return foldTarget + n.Text
+	}
+	return ""
+}
+
+// FoldTitle is the title in the target of a Fold without an id, and
+// whether target is one.
+func FoldTitle(target string) (string, bool) {
+	return strings.CutPrefix(target, foldTarget)
 }
 
 // joinLines joins two source lines of a paragraph: with a space between

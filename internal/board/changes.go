@@ -259,6 +259,14 @@ func describe(e Event, nodes []*report.Node) string {
 		case now.Title() != seen:
 			ctx += " → now: " + CutTitle(now.Title(), thoughtTitleMax)
 		}
+		if title, ok := report.FoldTitle(e.ID); ok {
+			// A Fold without an id: named by its title, which is what finds it.
+			where := fmt.Sprintf("fold %q", CutTitle(report.PlainOf(title), thoughtTitleMax))
+			if now == nil {
+				where += " (now gone)"
+			}
+			return fmt.Sprintf("thought %d on %s: %s", e.N, where, text)
+		}
 		return fmt.Sprintf("thought %d on %s (%s): %s", e.N, e.ID, ctx, text)
 	case "hide", "unhide":
 		return fmt.Sprintf("%s: %s", e.Op, strings.ReplaceAll(e.Title, "\n", " "))

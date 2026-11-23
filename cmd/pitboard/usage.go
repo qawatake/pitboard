@@ -81,7 +81,7 @@ Writing report.md:
   numbered lines, and lists in an Item, are read only. Inside Code nothing
   of this applies.
 
-    <Notice id="reopen">Reopen pitboard
+    <Notice id="reopen" at="2026-11-23 21:46">Reopen pitboard
       I installed a new version: quit with q and run pitboard again.
     </Notice>
     <Title>Build the minimal pitboard</Title>
@@ -124,11 +124,12 @@ Writing report.md:
     </Fold>
 
   Parts (anything else is an error):
-    Notice    id (required). Like an Item: the first line is the title, the
-              lines after it (text and Code) what opening it shows. At the
-              top level only, 3 at most. The board shows it above the page,
-              in yellow, however far the person scrolls; the title is never
-              cut. See Manners for when to use it.
+    Notice    id (required), at="YYYY-MM-DD HH:MM" (local time it was put
+              up; shown at its right end). Like an Item: the first line is
+              the title, the lines after it (text and Code) what opening it
+              shows. At the top level only, 3 at most. The board shows it
+              above the page, in yellow, however far the person scrolls; the
+              title is never cut. See Manners for when to use it.
     Title     the page title, one line
     Section   title="..." (required). Holds Item Ask Link Code Fold and text.
               Not inside another Section or a Fold.
@@ -164,7 +165,8 @@ Writing report.md:
               indentation of the <Code> tag is removed from its lines.
   id: 1-16 of a-z 0-9 -, unique in the page. The person reacts to Item, Ask,
   Link and Notice through their id: y / n on Items, Links and Notices, an
-  Option key on an Ask, and thoughts written on any of them.
+  Option key on an Ask, and thoughts written on any of them. They may write
+  thoughts on a Fold too: through its id, or by its title if it has none.
 
   Marks: the board puts a yellow ● beside each line waiting for the person
   (an Ask not answered yet, an Item or Link with ask="y" without a y / n on
@@ -215,7 +217,9 @@ Manners:
     something up), or when your work is stuck. Not for ordinary questions
     or answers. Remove it once it has done its job. Its title is one
     sentence saying what the person is to do; steps and commands go in its
-    contents.
+    contents. Always give it at="..." from date '+%Y-%m-%d %H:%M', and when
+    you rewrite it to tell something anew, give the new time (a change of at
+    alone does not show a hidden notice again).
   - Say a title in one sentence; details go in the contents. (A long title
     wraps, it is not cut; still, do not cram who does it or remarks in
     parentheses into it.)
@@ -301,7 +305,8 @@ Manners:
   since: the person judged the old title, so think about which one the
   reaction is for before applying it. "→ now gone" means the line is gone.
   thought N is a thought; "on ID" when written on that line (the titles are
-  cut to 30 characters there). A thought may hold images, "[Image #N]" in
+  cut to 30 characters there), 'on fold "TITLE"' when written on a Fold
+  without an id. A thought may hold images, "[Image #N]" in
   its text: the line under it gives the image's path; open it (Read) to see
   it.
   A line the person reacted to more than once (y, then n; one option, then

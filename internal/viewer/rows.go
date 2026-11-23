@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/qawatake/pitboard/internal/board"
 	"github.com/qawatake/pitboard/internal/report"
@@ -27,12 +28,16 @@ func (a *app) right(pv *view, n *report.Node) text {
 	default:
 		st = plainText(n.Status, dim)
 	}
-	if n.ID == "" {
+	if n.Kind == report.KindNotice && !n.At.IsZero() {
+		st = plainText(atWord(n.At), dim) // when the AI put it up
+	}
+	id := report.Target(n)
+	if id == "" {
 		return st
 	}
 	// The reaction, while the line is what it was reacted to.
 	var re text
-	e, reacted := a.state.React[n.ID]
+	e, reacted := a.state.React[id]
 	reacted = reacted && e.Line == n.Sig()
 	if reacted {
 		switch e.Value {
@@ -46,7 +51,7 @@ func (a *app) right(pv *view, n *report.Node) text {
 	}
 	// The state of the latest input: the reaction's, or the latest
 	// comment's (with how many comments there are, when more than one).
-	cs := a.state.On(n.ID)
+	cs := a.state.On(id)
 	var last *board.Thought
 	for _, t := range cs {
 		if last == nil || t.LastN > last.LastN {
@@ -55,7 +60,7 @@ func (a *app) right(pv *view, n *report.Node) text {
 	}
 	var word text
 	switch {
-	case a.state.Undoing[n.ID] || a.state.UndoingKey[report.HideKey(n)]:
+	case a.state.Undoing[id] || a.state.UndoingKey[report.HideKey(n)]:
 		// A sent reaction (or hide) taken back, the taking back not sent.
 		re, word = nil, plainText("取消 未送信", yellow)
 	case reacted && (last == nil || e.N > last.LastN):
@@ -93,6 +98,15 @@ func (a *app) right(pv *view, n *report.Node) text {
 		}
 	}
 	return join(mine(re), st)
+}
+
+// atWord is when a notice was put up: the time today, else the day too.
+func atWord(t time.Time) string {
+	now := clock()
+	if y, m, d := now.Date(); t.Year() == y && t.Month() == m && t.Day() == d {
+		return t.Format("15:04")
+	}
+	return t.Format("1/2 15:04")
 }
 
 // answerHead is how much of the chosen option a closed question shows.
@@ -267,12 +281,19 @@ func (a *app) rows(pv *view) []row {
 			if shown {
 				// What it holds, 2 past the title's text (4 past its mark),
 				// and a blank line after it when opened.
-				c := a.contents(pv, n, ind+2)
+				var c []row
+				if n.Kind == report.KindDetails {
+					// An open Fold: the thoughts on it right under its
+					// title, among what it holds (marks in their column).
+					c = a.thoughtRows(n, ind+2)
+				} else {
+					c = a.contents(pv, n, ind+2)
+				}
 				rows = append(rows, c...)
 				if nav {
 					pv.ends[n.Key] = len(rows)
 				}
-				if can && open && len(c) > 0 {
+				if can && open && len(c) > 0 && n.Kind != report.KindDetails {
 					blank()
 				}
 			} else if nav {
@@ -370,21 +391,28 @@ func (a *app) contents(pv *view, n *report.Node, ind int) []row {
 			rows = append(rows, a.listItem(false, ind+markW, b, base, nil, nil)...)
 		}
 	}
-	if n.ID != "" {
-		for _, t := range a.state.On(n.ID) {
+	return append(rows, a.thoughtRows(n, ind+markW)...)
+}
+
+// thoughtRows is the thoughts written on n, as shown under it when it is
+// open.
+func (a *app) thoughtRows(n *report.Node, ind int) []row {
+	var rows []row
+	if id := report.Target(n); id != "" {
+		for _, t := range a.state.On(id) {
 			word, color := a.statusOf(t)
 			for i, l := range strings.Split(strings.TrimSpace(t.Text), "\n") {
 				if i == 0 {
-					rows = append(rows, a.line(false, ind+markW, plainText("✎", dim), withImages(l, ""), plainText(word, color))...)
+					rows = append(rows, a.line(false, ind, plainText("✎", dim), withImages(l, ""), plainText(word, color))...)
 				} else {
-					rows = append(rows, a.line(false, ind+markW, nil, withImages(l, ""), nil)...)
+					rows = append(rows, a.line(false, ind, nil, withImages(l, ""), nil)...)
 				}
 			}
 			if t.Title != "" && t.Title != n.Title() {
-				rows = append(rows, a.line(false, ind+markW, nil, plainText("(書いたときは: "+t.Title+")", dim).capped(8*a.textWidth()), nil)...)
+				rows = append(rows, a.line(false, ind, nil, plainText("(書いたときは: "+t.Title+")", dim).capped(8*a.textWidth()), nil)...)
 			}
 			if t.SettledState != "" {
-				rows = append(rows, a.line(false, ind+markW, nil, headed(settleHead(t.SettledState), t.Settled).capped(8*a.textWidth()), nil)...)
+				rows = append(rows, a.line(false, ind, nil, headed(settleHead(t.SettledState), t.Settled).capped(8*a.textWidth()), nil)...)
 			}
 		}
 	}

@@ -100,7 +100,8 @@ func TestEditorUnderTheLine(t *testing.T) {
 			if line < 0 || hints < 0 {
 				t.Fatalf("h %d at %d:\n%s", h, at, strings.Join(ls, "\n"))
 			}
-			if strings.Trim(ls[line+1], " ─") != "" || strings.TrimSpace(ls[line+2]) != "❯ 一" {
+			// A blank line above the rule, and under the hints.
+			if strings.TrimSpace(ls[line+1]) != "" || strings.Trim(ls[line+2], " ─") != "" || strings.TrimSpace(ls[line+3]) != "❯ 一" || strings.TrimSpace(ls[hints+1]) != "" {
 				t.Errorf("h %d at %d: the editor is not right under the line:\n%s", h, at, strings.Join(ls, "\n"))
 			}
 			if rowOf(ls, "にコメント") >= 0 {
@@ -131,7 +132,7 @@ func TestEditorM(t *testing.T) {
 	a.handle(key{r: 'm'})
 	ls, _ := screen(t, a)
 	line, label := rowOf(ls, "項目 1"), rowOf(ls, "宛先なしのコメント")
-	if line < 0 || label != line+1 {
+	if line < 0 || label != line+2 {
 		t.Errorf("m: line %d label %d:\n%s", line, label, strings.Join(ls, "\n"))
 	}
 }
@@ -170,7 +171,7 @@ func TestEditorRewriteInPlace(t *testing.T) {
 	ls, _ := screen(t, a)
 	line := rowOf(ls, fmt.Sprintf("コメント文 %d", n))
 	label := rowOf(ls, fmt.Sprintf("コメント %d を直す", n))
-	if line < 0 || label != line+1 {
+	if line < 0 || label != line+2 {
 		t.Errorf("e in the list: line %d label %d:\n%s", line, label, strings.Join(ls, "\n"))
 	}
 	a.handle(key{name: "esc"})
@@ -189,7 +190,7 @@ func TestEditorRewriteInPlace(t *testing.T) {
 	n = a.in.edit
 	line = rowOf(ls, fmt.Sprintf("コメント文 %d", n))
 	label = rowOf(ls, fmt.Sprintf("コメント %d を直す", n))
-	if line < 0 || label != line+1 {
+	if line < 0 || label != line+2 {
 		t.Errorf("e in the pane: line %d label %d:\n%s", line, label, strings.Join(ls, "\n"))
 	}
 }
@@ -269,14 +270,25 @@ func TestEditorUnderANotice(t *testing.T) {
 		a.handle(key{r: 'c'})
 		a.in.ed = newEdit("コメント")
 		ls, raw := screen(t, a)
-		if !strings.Contains(ls[0], "一つ目のお知らせ") || strings.Trim(ls[1], " ─") != "" || strings.TrimSpace(ls[2]) != "❯ コメント" || !strings.Contains(ls[5], "二つ目のお知らせ") {
+		if !strings.Contains(ls[0], "一つ目のお知らせ") || strings.TrimSpace(ls[1]) != "" || strings.Trim(ls[2], " ─") != "" || strings.TrimSpace(ls[3]) != "❯ コメント" || !strings.Contains(ls[5], "enter 置く") || strings.TrimSpace(ls[6]) != "" || !strings.Contains(ls[7], "二つ目のお知らせ") {
 			t.Errorf("h %d:\n%s", h, strings.Join(ls, "\n"))
 		}
 		if rowOf(ls, "にコメント") >= 0 {
 			t.Errorf("h %d: a label", h)
 		}
-		if !strings.HasSuffix(raw, fmt.Sprintf("\x1b[3;%dH\x1b[?25h", lgutter+markW+width("コメント")+1)) {
+		if !strings.HasSuffix(raw, fmt.Sprintf("\x1b[4;%dH\x1b[?25h", lgutter+markW+width("コメント")+1)) {
 			t.Errorf("h %d: terminal cursor %q", h, raw[max(len(raw)-20, 0):])
 		}
+	}
+	// A screen too low for the blank lines: they go, the input and the
+	// hints stay.
+	a := testApp(t, st)
+	a.t.w, a.t.h = 80, 9
+	a.render()
+	a.handle(key{r: 'c'})
+	a.in.ed = newEdit("コメント")
+	ls, _ := screen(t, a)
+	if !strings.Contains(ls[0], "一つ目のお知らせ") || strings.Trim(ls[1], " ─") != "" || strings.TrimSpace(ls[2]) != "❯ コメント" || !strings.Contains(ls[4], "enter 置く") {
+		t.Errorf("h 9:\n%s", strings.Join(ls, "\n"))
 	}
 }

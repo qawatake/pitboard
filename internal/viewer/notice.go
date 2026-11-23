@@ -22,22 +22,20 @@ type pinning struct {
 }
 
 // noticeHead is a notice's title, wrapped, not cut (most > 0 cuts it to
-// that many rows, ending in …, for a screen too low for it); ▸ / ▾ after
-// it when it opens.
+// that many rows, ending in …, for a screen too low for it). Its mark is
+// ▸ / ▾ (yellow) when it opens, as an Item's, and ! when it does not.
 func (a *app) noticeHead(pv *view, n *report.Node, most int) []row {
 	sel := n.Key != "" && n.Key == pv.cur && !a.inPane
 	mark, base := plainText("!", yellow+bold), yellow
-	if pv.isHidden(n) {
+	switch {
+	case pv.isHidden(n):
 		mark, base = plainText("⌀", dim), dim
+	case a.canOpen(pv, n) && pv.open[n.Key]:
+		mark = plainText("▾", yellow)
+	case a.canOpen(pv, n):
+		mark = plainText("▸", yellow)
 	}
 	body := inline(n.Text, base).capped(titleCap)
-	if a.canOpen(pv, n) {
-		arrow := "▸"
-		if pv.open[n.Key] {
-			arrow = "▾"
-		}
-		body = append(body, plainText(" "+arrow, "")...)
-	}
 	lns := a.titled(sel, 0, 0, mark, body, a.right(pv, n), most)
 	lns[0].key = n.Key
 	return lns

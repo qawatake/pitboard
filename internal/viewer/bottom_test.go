@@ -23,7 +23,7 @@ func TestNoOldWords(t *testing.T) {
 		all = append(all, r.line)
 	}
 	a.in = newInput("", "", "コメントを書く")
-	all = append(all, a.editorLines()...)
+	all = append(all, a.editorLines(true)...)
 	a.in = nil
 	a.handle(key{name: "tab"})
 	a.lopen[1] = true

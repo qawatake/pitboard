@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 )
 
 // The report is written with named parts:
@@ -46,9 +47,12 @@ var parts = map[string]partSpec{
 	"Option":  {attrs: map[string]bool{"key": true}, parents: []string{"Ask"}, oneLine: true},
 	"Link":    {attrs: map[string]bool{"id": true, "path": false, "url": false, "ask": false, "look": false}, parents: []string{"", "Section", "Fold"}, oneLine: true},
 	"Fold":    {attrs: map[string]bool{"title": true, "id": false, "look": false}, parents: []string{"", "Section", "Fold"}, holdsAny: true},
-	"Notice":  {attrs: map[string]bool{"id": true}, parents: []string{""}},
+	"Notice":  {attrs: map[string]bool{"id": true, "at": false}, parents: []string{""}},
 	"Code":    {attrs: map[string]bool{"lang": false}, parents: []string{"", "Section", "Fold", "Item", "Notice"}},
 }
+
+// AtLayout is how a Notice's at is written: local time to the minute.
+const AtLayout = "2006-01-02 15:04"
 
 // partNames is every part, in the order the format introduces them, for
 // messages (TestPartNamesListEveryPart keeps it in step with parts).
@@ -308,6 +312,14 @@ func (p *reportParser) open(no int, raw, trim string) {
 		n.Kind = KindQuestion
 	case "Notice":
 		n.Kind = KindNotice
+		if v, ok := attrs["at"]; ok {
+			t, err := time.ParseInLocation(AtLayout, v, time.Local)
+			if err != nil {
+				p.errf(no, "at %q: write the local time as YYYY-MM-DD HH:MM (date '+%%Y-%%m-%%d %%H:%%M')", v)
+			} else {
+				n.At = t
+			}
+		}
 		if p.notices++; p.notices > maxNotices {
 			p.errf(no, "at most %d <Notice> parts: say only what the person must know first", maxNotices)
 		}

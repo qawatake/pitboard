@@ -348,3 +348,20 @@ func TestChangesTellsTheTitleSeen(t *testing.T) {
 		t.Errorf("changes:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 }
+
+// A comment on a Fold: by its id, or (none) by its title.
+func TestThoughtOnAFold(t *testing.T) {
+	st := testStore(t)
+	os.WriteFile(st.ReportPath(), []byte("<Fold title=\"済んだこと (2)\">\n<Item id=\"a\">a</Item>\n</Fold>\n<Fold id=\"old\" title=\"古いこと\">\n- 行\n</Fold>\n"), 0o644)
+	st.Append(Event{Op: "thought", ID: "Fold|title=済んだこと (2)", Title: "済んだこと (2)", Text: "これは要る？"})
+	st.Append(Event{Op: "thought", ID: "old", Title: "古いこと", Text: "消して"})
+	st.Append(Event{Op: "thought", ID: "Fold|title=もう無い", Title: "もう無い", Text: "x"})
+	want := strings.Join([]string{
+		`thought 1 on fold "済んだこと (2)": これは要る？`,
+		`thought 2 on old (古いこと): 消して`,
+		`thought 3 on fold "もう無い" (now gone): x`,
+	}, "\n")
+	if got := changes(t, st); got != want {
+		t.Errorf("got\n%s\nwant\n%s", got, want)
+	}
+}

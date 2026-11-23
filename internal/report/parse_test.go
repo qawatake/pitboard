@@ -3,6 +3,7 @@ package report
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestWaitAttribute(t *testing.T) {
@@ -41,12 +42,20 @@ func TestNoticeParse(t *testing.T) {
 		{"<Section title=\"s\">\n<Notice id=\"n\">x</Notice>\n</Section>", "cannot be inside <Section>"},
 		{"<Fold title=\"f\">\n<Notice id=\"n\">x</Notice>\n</Fold>", "cannot be inside <Fold>"},
 		{"<Notice id=\"a\">a</Notice>\n<Notice id=\"b\">b</Notice>\n<Notice id=\"c\">c</Notice>\n<Notice id=\"d\">d</Notice>", "at most 3"},
+		{"<Notice id=\"n\" at=\"21:46\">x</Notice>", "YYYY-MM-DD HH:MM"},
+		{"<Notice id=\"n\" at=\"2026/11/23 21:46\">x</Notice>", "YYYY-MM-DD HH:MM"},
+		{"<Item id=\"i\" at=\"2026-11-23 21:46\">x</Item>", "at"},
 	}
 	for _, c := range cases {
 		_, probs, _ := Parse(c.src)
 		if len(probs) != 1 || !strings.Contains(probs[0].Msg, c.want) {
 			t.Errorf("%q: %v", c.src, probs)
 		}
+	}
+	// at: the local time it was put up.
+	nodes, probs, _ = Parse("<Notice id=\"n\" at=\"2026-11-23 21:46\">x</Notice>")
+	if want := time.Date(2026, 11, 23, 21, 46, 0, 0, time.Local); len(probs) != 0 || !nodes[0].At.Equal(want) {
+		t.Errorf("at: %v %v", probs, nodes[0].At)
 	}
 	// Like an Item: the first line is the title, the rest (text and Code)
 	// what opening it shows.

@@ -42,7 +42,7 @@ func (a *app) target(pv *view) *report.Node {
 		return nil
 	}
 	n := pv.nodeAt(pv.cur)
-	if n == nil || n.ID == "" || n.Kind == report.KindDetails || !a.canWrite() {
+	if n == nil || report.Target(n) == "" || !a.canWrite() {
 		return nil
 	}
 	return n
@@ -153,7 +153,8 @@ func (a *app) canOpen(pv *view, n *report.Node) bool {
 	if n.Kind == report.KindDetails || n.Kind == report.KindQuestion || len(n.Body) > 0 || n.Reason != "" {
 		return true
 	}
-	return n.ID != "" && len(a.state.On(n.ID)) > 0
+	id := report.Target(n)
+	return id != "" && len(a.state.On(id)) > 0
 }
 
 // ---- walking the visible tree ----

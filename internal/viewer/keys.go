@@ -161,7 +161,7 @@ func (a *app) react(pv *view, r rune) {
 	case slices.Contains(choices, s):
 		value = s
 	case thought && s == "c":
-		a.in = newInput(n.ID, n.Title(), "「"+plainText(n.Title(), "").trunc(max(a.textWidth()-24, 8)).plain()+"」にコメント")
+		a.in = newInput(report.Target(n), n.Title(), "「"+plainText(n.Title(), "").trunc(max(a.textWidth()-24, 8)).plain()+"」にコメント")
 		return
 	default:
 		return
@@ -177,7 +177,7 @@ func (a *app) react(pv *view, r rune) {
 		return
 	}
 	fresh, _, perr := report.Parse(string(b))
-	now := report.ByID(fresh, n.ID)
+	now := report.ByID(fresh, report.Target(n))
 	if perr != nil || now == nil || now.Sig() != n.Sig() {
 		a.reload(pv)
 		if !pv.lock {
@@ -185,7 +185,7 @@ func (a *app) react(pv *view, r rune) {
 		}
 		return
 	}
-	e := board.Event{Op: "react", ID: n.ID, Value: value, Line: n.Sig(), Title: n.Title()}
+	e := board.Event{Op: "react", ID: report.Target(n), Value: value, Line: n.Sig(), Title: n.Title()}
 	if ch := n.Choice(value); n.Kind == report.KindQuestion && ch != nil {
 		e.Option = report.PlainOf(ch.Text)
 	}

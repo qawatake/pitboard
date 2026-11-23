@@ -21,7 +21,7 @@ func (a *app) bottomLines(n int) []string {
 		}
 		return a.packKeys(hs, nil, false)
 	case a.in != nil:
-		return a.editorLines()
+		return a.editorLines(true)
 	}
 	hints := a.bottom()
 	if a.list {

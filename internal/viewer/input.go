@@ -111,7 +111,12 @@ func (a *app) write(text string) bool {
 	if e.Op == "thought" && e.ID != "" {
 		// A comment on a line: the line is read, as it is when reacted to.
 		if n := report.ByID(a.rep.nodes, e.ID); n != nil && n.Title() == e.Title {
-			a.markViewed(n)
+			if n.Kind == report.KindDetails {
+				// A Fold's mark is what it holds too: it goes, as with r.
+				a.markViewed(a.unreadIn(a.top(), n)...)
+			} else {
+				a.markViewed(n)
+			}
 		}
 	}
 	a.in = nil
@@ -181,8 +186,10 @@ func (a *app) external() {
 
 // editorLines is the editor and its hints, as drawEditing puts them among
 // the lines: a label saying what is being written (when it shows one), the
-// text, growing up to a third of the screen, and the hints.
-func (a *app) editorLines() []string {
+// text, growing up to a third of the screen, and the hints. pad puts a
+// blank line above it and under the hints (left out when the screen is too
+// low for them).
+func (a *app) editorLines(pad bool) []string {
 	e, w := &a.in.ed, a.editWidth()
 	rs := e.rows(w)
 	crow, ccol := e.Cursor(w)
@@ -217,7 +224,11 @@ func (a *app) editorLines() []string {
 	if a.in.showLabel && a.in.label != "" {
 		label = plainText(a.in.label, cyan+bold)
 	}
-	out := []string{a.rule(label, changed)}
+	var out []string
+	if pad {
+		out = append(out, "")
+	}
+	out = append(out, a.rule(label, changed))
 	for i := *top; i < len(rs) && i < *top+limit; i++ {
 		if i == crow {
 			// The input position, past the gutter and the mark field (the
@@ -232,7 +243,11 @@ func (a *app) editorLines() []string {
 		out = append(out, a.compose(false, ind, mark, l, nil))
 	}
 	out = append(out, a.rule(nil, nil))
-	return append(out, hints...)
+	out = append(out, hints...)
+	if pad {
+		out = append(out, "")
+	}
+	return out
 }
 
 // rule is a faint line across the text's width, around the editor: with
@@ -286,6 +301,9 @@ func (a *app) drawEditing() {
 	// cursor on one) is written right under it, among them.
 	var pins pinning
 	key := a.in.id
+	if n := report.ByID(a.rep.nodes, key); n != nil && n.Key != "" {
+		key = n.Key // a Fold without an id: its comments go by its title
+	}
 	if key == "" {
 		key = a.in.at
 	}
@@ -301,6 +319,12 @@ func (a *app) drawEditing() {
 		_, pinned = pins.ends[key]
 		pinned = pinned && key != "" && must != ""
 	}
+	// The counts at the top right, on a line of their own (see draw).
+	mark := a.sendMark()
+	head := 0
+	if len(mark) > 0 {
+		head = 1
+	}
 	var banner []string
 	bannerAt := -1 // where the editor's input starts among the banner lines
 	if pinned {
@@ -309,10 +333,19 @@ func (a *app) drawEditing() {
 		for _, r := range pins.rows[:e] {
 			banner = append(banner, r.line)
 		}
-		block := a.editorLines()
+		rest := pins.rows[e:]
+		block := a.editorLines(true)
+		if len(rest) > 0 && rest[0].line == "" {
+			block = block[:len(block)-1] // the blank line under the notices is its own
+		}
+		if len(pins.rows)+len(block)+head+2 > a.t.h {
+			// Too low a screen: the blank lines go first, so that the
+			// input and the hints stay.
+			block = a.editorLines(false)
+		}
 		bannerAt = len(banner)
 		banner = append(banner, block...)
-		for _, r := range pins.rows[e:] {
+		for _, r := range rest {
 			banner = append(banner, r.line)
 		}
 	} else {
@@ -321,12 +354,6 @@ func (a *app) drawEditing() {
 				banner = append(banner, r.line)
 			}
 		}
-	}
-	// The counts at the top right, on a line of their own (see draw).
-	mark := a.sendMark()
-	head := 0
-	if len(mark) > 0 {
-		head = 1
 	}
 	h := max(a.t.h-len(banner)-head-1, 1)
 	var rows []row
@@ -391,7 +418,11 @@ func (a *app) drawEditing() {
 		a.in.showLabel = a.in.id == "" || a.in.edit != 0
 		limit := max(h*2/3, 1)
 		place := func() {
-			block = a.editorLines()
+			block = a.editorLines(true)
+			if len(block) > limit {
+				// Too low a screen: the blank lines go first.
+				block = a.editorLines(false)
+			}
 			end := at + len(block)
 			if end > top+limit {
 				top = end - limit

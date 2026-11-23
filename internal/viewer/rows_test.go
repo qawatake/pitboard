@@ -339,12 +339,12 @@ func TestNoticeOpens(t *testing.T) {
 		t.Fatalf("cursor %q", pv.cur)
 	}
 	lines, _ := screen(t, a)
-	if !strings.Contains(lines[0], "開き直してください ▸") || strings.Contains(strings.Join(lines, "\n"), "手順その一") {
+	if !strings.HasPrefix(lines[0], ">   ▸ 開き直してください") || strings.Contains(lines[0], "!") || strings.Contains(strings.Join(lines, "\n"), "手順その一") {
 		t.Errorf("closed:\n%s", strings.Join(lines, "\n"))
 	}
 	a.handle(key{name: "enter"})
 	lines, _ = screen(t, a)
-	if !strings.Contains(lines[0], "▾") || !strings.Contains(lines[1], "手順その一") || len(a.pin(pv, a.t.h, "").rows) == 0 {
+	if !strings.HasPrefix(lines[0], ">   ▾ 開き直してください") || !strings.Contains(lines[1], "手順その一") || len(a.pin(pv, a.t.h, "").rows) == 0 {
 		t.Errorf("open:\n%s", strings.Join(lines, "\n"))
 	}
 	// Too tall for a third of 15 rows: it heads the page instead.
@@ -355,7 +355,50 @@ func TestNoticeOpens(t *testing.T) {
 	}
 	a.handle(key{name: "enter"})
 	lines, _ = screen(t, a)
-	if a.unpinned["n"] || !strings.Contains(lines[0], "▸") {
+	if a.unpinned["n"] || !strings.HasPrefix(lines[0], ">   ▸ ") {
 		t.Errorf("closed again:\n%s", strings.Join(lines, "\n"))
+	}
+	// One that does not open keeps ! at the head, in the column of an
+	// Item's mark.
+	os.WriteFile(st.ReportPath(), []byte("<Notice id=\"n\">開き直してください</Notice>\n<Item id=\"a\">項目</Item>\n"), 0o644)
+	a.reload(pv)
+	lines, _ = screen(t, a)
+	if !strings.HasPrefix(lines[0], ">   ! 開き直してください") || strings.Contains(lines[0], "▸") || !strings.Contains(strings.Join(lines, "\n"), "    · 項目") {
+		t.Errorf("not opening:\n%s", strings.Join(lines, "\n"))
+	}
+}
+
+// A notice's at: faint at the right end of its title, the time alone when
+// it is today; the state of a comment goes left of it. A change of at alone
+// keeps a hidden notice hidden.
+func TestNoticeAt(t *testing.T) {
+	prev := clock
+	clock = func() time.Time { return time.Date(2026, 11, 23, 23, 0, 0, 0, time.Local) }
+	t.Cleanup(func() { clock = prev })
+	st := testStore(t)
+	os.WriteFile(st.ReportPath(), []byte("<Notice id=\"n\" at=\"2026-11-23 21:46\">開き直してください</Notice>\n<Notice id=\"m\" at=\"2026-11-22 09:05\">"+strings.Repeat("とても長いお知らせ", 8)+"</Notice>\n<Item id=\"a\">項目</Item>\n"), 0o644)
+	a := testApp(t, st)
+	a.t.w = 60
+	ls, _ := screen(t, a)
+	if !strings.HasSuffix(strings.TrimRight(ls[0], " "), "21:46") || strings.Contains(ls[0], "11/23") {
+		t.Errorf("today:\n%s", strings.Join(ls, "\n"))
+	}
+	if i := rowOf(ls, "11/22 09:05"); i < 0 || !strings.Contains(ls[i], "とても長い") || !strings.Contains(ls[i+1], "とても長い") {
+		t.Errorf("another day, the title wrapped beside it:\n%s", strings.Join(ls, "\n"))
+	}
+	st.Append(board.Event{Op: "thought", ID: "n", Title: "開き直してください", Text: "了解"})
+	a.loadEvents()
+	ls, _ = screen(t, a)
+	if l := ls[0]; !strings.Contains(l, "未送信  21:46") {
+		t.Errorf("with a comment: %q", l)
+	}
+	// Hidden, then put up again with only a new time: still hidden.
+	n := report.ByID(a.top().nodes, "n")
+	st.Append(board.Event{Op: "hide", Key: report.HideKey(n), Title: n.Title()})
+	a.loadEvents()
+	os.WriteFile(st.ReportPath(), []byte("<Notice id=\"n\" at=\"2026-11-23 22:30\">開き直してください</Notice>\n<Item id=\"a\">項目</Item>\n"), 0o644)
+	a.reload(a.top())
+	if ls, _ = screen(t, a); rowOf(ls, "開き直して") >= 0 {
+		t.Errorf("shown again by a new time:\n%s", strings.Join(ls, "\n"))
 	}
 }
