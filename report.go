@@ -24,6 +24,9 @@ import (
 type Problem struct {
 	Line int
 	Msg  string
+	// lost: something written could not be shown as written (a line
+	// dropped, a part not read as a part).
+	lost bool
 }
 
 func (p Problem) String() string { return fmt.Sprintf("%d: %s", p.Line, p.Msg) }
@@ -38,11 +41,11 @@ type partSpec struct {
 var parts = map[string]partSpec{
 	"Title":   {attrs: map[string]bool{}, parents: []string{""}, oneLine: true},
 	"Section": {attrs: map[string]bool{"title": true}, parents: []string{""}, holdsAny: true},
-	"Item":    {attrs: map[string]bool{"id": true, "state": false, "status": false, "note": false, "ask": false, "wait": false}, parents: []string{"", "Section", "Fold"}},
-	"Ask":     {attrs: map[string]bool{"id": true}, parents: []string{"", "Section", "Fold"}},
+	"Item":    {attrs: map[string]bool{"id": true, "state": false, "status": false, "note": false, "ask": false, "wait": false, "look": false}, parents: []string{"", "Section", "Fold"}},
+	"Ask":     {attrs: map[string]bool{"id": true, "look": false}, parents: []string{"", "Section", "Fold"}},
 	"Option":  {attrs: map[string]bool{"key": true}, parents: []string{"Ask"}, oneLine: true},
-	"Link":    {attrs: map[string]bool{"id": true, "path": false, "url": false, "ask": false}, parents: []string{"", "Section", "Fold"}, oneLine: true},
-	"Fold":    {attrs: map[string]bool{"title": true, "id": false}, parents: []string{"", "Section", "Fold"}, holdsAny: true},
+	"Link":    {attrs: map[string]bool{"id": true, "path": false, "url": false, "ask": false, "look": false}, parents: []string{"", "Section", "Fold"}, oneLine: true},
+	"Fold":    {attrs: map[string]bool{"title": true, "id": false, "look": false}, parents: []string{"", "Section", "Fold"}, holdsAny: true},
 	"Code":    {attrs: map[string]bool{"lang": false}, parents: []string{"", "Section", "Fold", "Item"}},
 }
 
@@ -81,6 +84,7 @@ type frame struct {
 	// last.
 	base int
 	list []*node
+	cols []int // where each open list line's mark was written (rel)
 	brk  bool
 	gap  bool
 }
@@ -99,7 +103,22 @@ type reportParser struct {
 }
 
 func (p *reportParser) errf(line int, format string, args ...any) {
-	p.probs = append(p.probs, Problem{line, fmt.Sprintf(format, args...)})
+	p.probs = append(p.probs, Problem{Line: line, Msg: fmt.Sprintf(format, args...)})
+}
+
+// errLost is errf for a problem that leaves something out of the screen.
+func (p *reportParser) errLost(line int, format string, args ...any) {
+	p.probs = append(p.probs, Problem{Line: line, Msg: fmt.Sprintf(format, args...), lost: true})
+}
+
+// partial says whether some of the report could not be shown as written.
+func partial(probs []Problem) bool {
+	for _, p := range probs {
+		if p.lost {
+			return true
+		}
+	}
+	return false
 }
 
 // top is the innermost known part (unknown parts are transparent).
@@ -145,7 +164,7 @@ func parseReportUnsafe(src string) ([]*node, []Problem) {
 	}
 	for len(p.stack) > 0 {
 		f := p.stack[len(p.stack)-1]
-		p.errf(f.line, "<%s> is not closed", f.name)
+		p.errLost(f.line, "<%s> is not closed", f.name)
 		p.pop()
 	}
 	assignKeys(p.nodes)
@@ -182,18 +201,18 @@ func (p *reportParser) line(no int, raw string) {
 	switch {
 	case trim == "":
 		f := p.top()
-		f.para, f.list, f.brk = nil, nil, false
+		f.para, f.list, f.cols, f.brk = nil, nil, nil, false
 		f.gap = true
 		return
 	case strings.HasPrefix(trim, "</"):
 		m := reClose.FindStringSubmatch(trim)
 		if m == nil {
-			p.errf(no, "malformed closing tag")
+			p.errLost(no, "malformed closing tag")
 			return
 		}
 		p.close(no, m[1])
 		if strings.TrimSpace(m[2]) != "" {
-			p.errf(no, "text after </%s> on the same line", m[1])
+			p.errLost(no, "text after </%s> on the same line", m[1])
 		}
 		return
 	case reOpenAny.MatchString(trim):
@@ -210,16 +229,16 @@ func (p *reportParser) line(no int, raw string) {
 }
 
 func (p *reportParser) open(no int, raw, trim string) {
-	p.top().para, p.top().list = nil, nil
+	p.top().para, p.top().list, p.top().cols = nil, nil, nil
 	m := reOpen.FindStringSubmatch(trim)
 	if m == nil {
 		name := reOpenAny.FindStringSubmatch(trim)[1]
 		gt := strings.IndexByte(trim, '>')
 		if gt < 0 {
-			p.errf(no, "<%s tag is not closed with >", name)
+			p.errLost(no, "<%s tag is not closed with >", name)
 			return
 		}
-		p.errf(no, "malformed <%s> tag (attributes are name=\"value\")", name)
+		p.errLost(no, "malformed <%s> tag (attributes are name=\"value\")", name)
 		// Keep reading as if it were an unknown part, so its closing tag
 		// does not close something else; what it holds is still shown.
 		p.stack = append(p.stack, &frame{name: name, line: no})
@@ -229,7 +248,7 @@ func (p *reportParser) open(no int, raw, trim string) {
 	name, attrText, rest := m[1], m[2], m[3]
 	spec, known := parts[name]
 	if !known {
-		p.errf(no, "unknown part <%s> (parts: Title Section Item Ask Option Link Fold Code)", name)
+		p.errLost(no, "unknown part <%s> (parts: Title Section Item Ask Option Link Fold Code)", name)
 		p.stack = append(p.stack, &frame{name: name, line: no})
 		p.rest(no, name, rest)
 		return
@@ -308,6 +327,15 @@ func (p *reportParser) open(no int, raw, trim string) {
 			n.ask = v
 		}
 	}
+	if v, ok := attrs["look"]; ok {
+		// On a line that asks (Ask, ask="y"), the yellow mark wins; not an
+		// error.
+		if v != "y" {
+			p.errf(no, "look %q: the only value is \"y\" (asking the person to read the line)", v)
+		} else {
+			n.look = v
+		}
+	}
 	if id := attrs["id"]; id != "" {
 		switch {
 		case !reIDForm.MatchString(id):
@@ -361,7 +389,7 @@ func (p *reportParser) open(no int, raw, trim string) {
 			if r == "</Code>" {
 				p.pop()
 			} else {
-				p.errf(no, "put the code on the lines after <Code>")
+				p.errLost(no, "put the code on the lines after <Code>")
 			}
 		}
 		return
@@ -403,7 +431,7 @@ func (p *reportParser) close(no int, name string) {
 		}
 		for len(p.stack)-1 > i {
 			f := p.stack[len(p.stack)-1]
-			p.errf(f.line, "<%s> is not closed (</%s> on line %d closes the part around it)", f.name, name, no)
+			p.errLost(f.line, "<%s> is not closed (</%s> on line %d closes the part around it)", f.name, name, no)
 			p.pop()
 		}
 		p.pop()
@@ -458,7 +486,7 @@ func (p *reportParser) text(no int, s string) {
 		f.n.text, f.titled = s, true
 		return
 	case f.name == "Ask":
-		p.errf(no, "<Ask> holds its question and <Option> parts only")
+		p.errLost(no, "<Ask> holds its question and <Option> parts only")
 		return
 	}
 	p.block(no, f, s)
@@ -482,7 +510,9 @@ func (p *reportParser) block(no int, f *frame, s string) {
 	gap := f.gap
 	f.gap = false
 	join := func(n *node) {
-		if f.brk {
+		// After a line break, or after a list line that is only a bold
+		// head word ("- **XDG**"), the next line starts a line of its own.
+		if f.brk || (n.kind == kPlain && reSubHead.MatchString(n.text)) {
 			n.text += "\n" + s
 		} else {
 			n.text = joinLines(n.text, s)
@@ -502,10 +532,25 @@ func (p *reportParser) block(no int, f *frame, s string) {
 		}
 	}
 	if isList {
-		if rel%2 != 0 {
-			p.errf(no, "list lines are indented by 2 spaces per level (this one by %d)", rel)
+		// The level: a sibling of an open list line written at the same
+		// place; a child when indented to where the text of the line above
+		// starts (under "1. " that is 3, as Markdown writes it); else 2
+		// spaces per level.
+		level, placed := 0, false
+		for j, c := range f.cols {
+			if c == rel {
+				level, placed = j, true
+			}
 		}
-		level := rel / 2
+		if k := len(f.list); !placed && k > 0 && f.list[k-1].num != "" && rel == f.cols[k-1]+len(f.list[k-1].num)+1 {
+			level, placed = k, true
+		}
+		if !placed {
+			if rel%2 != 0 {
+				p.errf(no, "list lines are indented by 2 spaces per level (this one by %d)", rel)
+			}
+			level = rel / 2
+		}
 		if level > maxListLevel {
 			p.errf(no, "lists nest %d levels at most", maxListLevel+1)
 			level = maxListLevel
@@ -519,15 +564,16 @@ func (p *reportParser) block(no int, f *frame, s string) {
 			parent.subs = append(parent.subs, n)
 		}
 		f.list = append(f.list[:level], n)
+		f.cols = append(f.cols[:level], rel)
 		f.para, f.brk = nil, brk
 		return
 	}
 	// Under a list line, a line indented past its mark continues it.
-	if k := len(f.list); k > 0 && rel > f.list[k-1].level*2 {
+	if k := len(f.list); k > 0 && rel > f.cols[k-1] {
 		join(f.list[k-1])
 		return
 	}
-	f.list = nil
+	f.list, f.cols = nil, nil
 	if reSubHead.MatchString(s) {
 		p.add(f, &node{kind: kPara, text: s, head: true, line: no, gap: gap})
 		f.para, f.brk = nil, false

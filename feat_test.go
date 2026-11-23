@@ -430,7 +430,7 @@ func TestNarrowHintsKeepLineKeys(t *testing.T) {
 中身
 </Item>`), 0o644)
 	a := testApp(t, st)
-	a.t.w, a.t.h = 36, 10
+	a.t.w, a.t.h = 38, 10
 	a.render()
 	if s := strings.Join(a.bottom(), "\n"); !strings.Contains(reEsc.ReplaceAllString(s, ""), "j k") {
 		t.Errorf("placed cursor, narrow: %q", reEsc.ReplaceAllString(s, ""))
@@ -439,13 +439,13 @@ func TestNarrowHintsKeepLineKeys(t *testing.T) {
 	a.render()
 	s := reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), "")
 	// One line: x, enter, n, y go first; c, "m 書く" and "? キー" stay.
-	if s != "    c 行にコメント  m 書く  ? キー" {
+	if s != "      c 行に書く  m 書く  ? キー" {
 		t.Errorf("narrow hints: %q", s)
 	}
 	a.t.w = 100
 	a.render()
 	s = reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), "")
-	if !strings.HasPrefix(s, "    enter 開く  y よし  n だめ  c 行に書く  x 隠す  space 次へ  m 書く  ? キー") || strings.Contains(s, "tab") || strings.Contains(s, "\n") {
+	if !strings.HasPrefix(s, "      enter 開く  y よし  n だめ  c 行に書く  x 隠す  m 書く  ? キー") || strings.Contains(s, "tab") || strings.Contains(s, "\n") {
 		t.Errorf("wide hints: %q", s)
 	}
 	a.t.w = 20

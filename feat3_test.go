@@ -37,11 +37,11 @@ func TestPaneByJK(t *testing.T) {
 	if !a.inPane || a.pcur != 4 {
 		t.Fatalf("j past the end must go into the pane: inPane %v pcur %d", a.inPane, a.pcur)
 	}
-	if s := hintLine(a); s != "    enter 開く  e 直す  x 取り消す  s 送る  m 書く  ? キー" {
+	if s := hintLine(a); s != "      enter 開く  e 直す  x 取り消す  s 送る  m 書く  ? キー" {
 		t.Errorf("pane hints %q", s)
 	}
 	p := plainLines(a.pane(30))
-	for _, w := range []string{"> ▸ 思いつき4", "思いつき3", "思いつき2", "思いつき1"} {
+	for _, w := range []string{">   ▸ 思いつき4", "思いつき3", "思いつき2", "思いつき1"} {
 		if !strings.Contains(p, w) {
 			t.Errorf("open pane lacks %q:\n%s", w, p)
 		}
@@ -56,7 +56,7 @@ func TestPaneByJK(t *testing.T) {
 	if a.pcur != 3 || !strings.Contains(p, "▾ 思いつき3 二行目") || !strings.Contains(p, "まだ送っていません (s で送る)") {
 		t.Errorf("enter opens the thought:\n%s", p)
 	}
-	if s := hintLine(a); s != "    enter 閉じる  e 直す  x 取り消す  s 送る  m 書く  ? キー" {
+	if s := hintLine(a); s != "      enter 閉じる  e 直す  x 取り消す  s 送る  m 書く  ? キー" {
 		t.Errorf("open thought hints %q", s)
 	}
 	// Nothing is recorded on a thought (x takes it back: tested apart).
@@ -102,7 +102,7 @@ func TestPaneScrollsAndLowScreen(t *testing.T) {
 		t.Fatal("j must enter the pane on a low screen too")
 	}
 	p := a.pane(14)
-	if len(p) > a.t.h/2 || !strings.Contains(plainLines(p), "> ▸ t20") {
+	if len(p) > a.t.h/2 || !strings.Contains(plainLines(p), ">   ▸ t20") {
 		t.Errorf("open pane on a low screen (%d lines):\n%s", len(p), plainLines(p))
 	}
 	for range 15 {
@@ -110,11 +110,11 @@ func TestPaneScrollsAndLowScreen(t *testing.T) {
 	}
 	a.render()
 	p = a.pane(14)
-	if !strings.Contains(plainLines(p), "> ▸ t05") || strings.Contains(plainLines(p), "t20") || len(p) > a.t.h/2 {
+	if !strings.Contains(plainLines(p), ">   ▸ t05") || strings.Contains(plainLines(p), "t20") || len(p) > a.t.h/2 {
 		t.Errorf("scrolled pane:\n%s", plainLines(p))
 	}
 	ls, _ := screen(t, a)
-	if !strings.Contains(strings.Join(ls, "\n"), "> ▸ t05") {
+	if !strings.Contains(strings.Join(ls, "\n"), ">   ▸ t05") {
 		t.Errorf("the cursor's thought must be on screen:\n%s", strings.Join(ls, "\n"))
 	}
 }
@@ -145,14 +145,23 @@ func TestPaneAfterTextWithoutStops(t *testing.T) {
 
 // ---- one-line messages and hints ----
 
-func TestMessagesAreOneLine(t *testing.T) {
+func TestMessagesWrap(t *testing.T) {
 	st := testStore(t)
 	a := testApp(t, st)
 	a.t.w = 50
 	a.msg = "送れませんでした: PITBOARD_SEND: exit status 2: " + strings.Repeat("とても長いエラー ", 10)
 	b := a.bottom()
-	if len(b) != 1 || !strings.Contains(plainLines(b), "…") || visibleWidth(b[0]) > margin+a.textWidth() {
+	if len(b) < 2 || strings.Contains(plainLines(b), "…") || !strings.HasSuffix(plainLines(b), "エラー") {
 		t.Errorf("message: %q", plainLines(b))
+	}
+	for _, l := range b {
+		if visibleWidth(l) > lgutter+a.textWidth() {
+			t.Errorf("too wide: %q", l)
+		}
+	}
+	a.msg = "短い"
+	if b := a.bottom(); len(b) != 1 {
+		t.Errorf("short message: %q", plainLines(b))
 	}
 }
 
@@ -164,9 +173,9 @@ func TestEditorHintsKeepEsc(t *testing.T) {
 		w    int
 		want string
 	}{
-		{80, "    enter 置く  esc やめる  ctrl+j 改行  ctrl+g エディタ"},
-		{44, "    enter 置く  esc やめる  ctrl+j 改行"},
-		{30, "    enter 置く  esc やめる"},
+		{82, "      enter 置く  esc やめる  ctrl+j 改行  ctrl+g エディタ"},
+		{46, "      enter 置く  esc やめる  ctrl+j 改行"},
+		{32, "      enter 置く  esc やめる"},
 	} {
 		a.t.w = c.w
 		if s := plainLines(a.editorHints()); s != c.want {

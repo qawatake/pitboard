@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -29,18 +31,59 @@ func (s *Store) waitingPath() string { return filepath.Join(s.dir, "waiting") }
 var waitPoll = 300 * time.Millisecond
 
 // Waiter is the pid of the 'wait' waiting on this board, or 0 if none (a
-// pid whose process is gone counts as none).
+// pid whose process is gone counts as none). The file holds the pid and,
+// when it could be found, when that process started: a pid reused by
+// another process (the 'wait' was killed with -9) does not count.
 func (s *Store) Waiter() int {
 	b, err := os.ReadFile(s.waitingPath())
 	if err != nil {
 		return 0
 	}
-	pid, err := strconv.Atoi(strings.TrimSpace(string(b)))
+	f := strings.Fields(string(b))
+	if len(f) == 0 {
+		return 0
+	}
+	pid, err := strconv.Atoi(f[0])
 	if err != nil || pid <= 0 || !alive(pid) {
 		return 0
 	}
+	if len(f) > 1 {
+		if now := startOf(pid); now != "" && now != strings.Join(f[1:], " ") {
+			return 0
+		}
+	}
 	return pid
 }
+
+// startOf is when process pid started, as ps(1) says it, or "" when that
+// cannot be found. Answers are kept for a few seconds (the viewer asks on
+// every tick).
+func startOf(pid int) string {
+	startMu.Lock()
+	defer startMu.Unlock()
+	if c, ok := startCache[pid]; ok && time.Since(c.at) < 5*time.Second {
+		return c.start
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "ps", "-o", "lstart=", "-p", strconv.Itoa(pid)).Output()
+	start := ""
+	if err == nil {
+		start = strings.Join(strings.Fields(string(out)), " ")
+	}
+	startCache[pid] = startEntry{start, time.Now()}
+	return start
+}
+
+type startEntry struct {
+	start string
+	at    time.Time
+}
+
+var (
+	startMu    sync.Mutex
+	startCache = map[int]startEntry{}
+)
 
 // alive says whether a process with pid exists.
 func alive(pid int) bool {
@@ -55,7 +98,11 @@ func (s *Store) claimWaiting() (other int, err error) {
 	for range 3 {
 		f, err := os.OpenFile(s.waitingPath(), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 		if err == nil {
-			_, err = fmt.Fprintf(f, "%d\n", me)
+			line := strconv.Itoa(me)
+			if st := startOf(me); st != "" {
+				line += " " + st
+			}
+			_, err = fmt.Fprintln(f, line)
 			if cerr := f.Close(); err == nil {
 				err = cerr
 			}
@@ -83,7 +130,7 @@ func (s *Store) claimWaiting() (other int, err error) {
 // releaseWaiting removes the waiting file if it is still ours.
 func (s *Store) releaseWaiting() {
 	b, err := os.ReadFile(s.waitingPath())
-	if err == nil && strings.TrimSpace(string(b)) == strconv.Itoa(os.Getpid()) {
+	if f := strings.Fields(string(b)); err == nil && len(f) > 0 && f[0] == strconv.Itoa(os.Getpid()) {
 		os.Remove(s.waitingPath())
 	}
 }
@@ -105,6 +152,8 @@ func (s *Store) Wait(ctx context.Context, timeout time.Duration, out io.Writer) 
 		return nil
 	}
 	defer s.releaseWaiting()
+	// Waiting goes on, but the AI hears now that the report needs fixing.
+	s.noteProblems(errOut)
 	var deadline <-chan time.Time
 	if timeout > 0 {
 		t := time.NewTimer(timeout)
@@ -127,6 +176,7 @@ func (s *Store) Wait(ctx context.Context, timeout time.Duration, out io.Writer) 
 				for _, l := range lines {
 					fmt.Fprintln(out, l)
 				}
+				s.noteProblems(out)
 				return nil
 			}
 		}
@@ -134,6 +184,7 @@ func (s *Store) Wait(ctx context.Context, timeout time.Duration, out io.Writer) 
 		case <-ctx.Done():
 			return nil
 		case <-deadline:
+			s.noteProblems(out)
 			return nil
 		case <-tick.C:
 		}

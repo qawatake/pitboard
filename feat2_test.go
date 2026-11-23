@@ -59,7 +59,7 @@ func TestSendThroughHerdr(t *testing.T) {
 	st.Append(Event{Op: "thought", Text: "a"})
 	st.Append(Event{Op: "hide", Key: "-|x", Title: "x"})
 	a.handle(key{r: 's'})
-	if a.msg != "AI に送りました" {
+	if a.msg != "送りました" {
 		t.Fatalf("msg %q", a.msg)
 	}
 	b, _ := os.ReadFile(prompted)
@@ -105,10 +105,10 @@ func TestSendNowhere(t *testing.T) {
 	if lines, _ := st.Changes(); strings.Join(lines, "\n") != "thought 1: a" {
 		t.Errorf("changes after a failed wake: %q", lines)
 	}
-	// Two lines for this message, at most.
+	// Wrapped, never cut: how to fix it can be read at any width.
 	a.t.w = 50
-	if b := a.bottom(); len(b) != 2 {
-		t.Errorf("failure message lines: %q", plainLines(b))
+	if b := plainLines(a.bottom()); strings.Contains(b, "…") || !strings.Contains(b, `"Send")`) {
+		t.Errorf("failure message lines: %q", b)
 	}
 }
 
@@ -137,7 +137,7 @@ func TestSendCommand(t *testing.T) {
 	if string(b) != "s1|"+wakeMessage(st, 1) {
 		t.Errorf("PITBOARD_SEND got %q", b)
 	}
-	if a.msg != "AI に送りました" {
+	if a.msg != "送りました" {
 		t.Errorf("msg %q", a.msg)
 	}
 	// enter only writes.
@@ -178,6 +178,7 @@ func screen(t *testing.T, a *app) ([]string, string) {
 	t.Helper()
 	var buf bytes.Buffer
 	a.t.out = &buf
+	a.t.prev = nil // the whole frame
 	a.draw()
 	raw := buf.String()
 	body := strings.TrimPrefix(raw, "\x1b[H")
@@ -208,13 +209,13 @@ func TestUnsentMark(t *testing.T) {
 	a.loadEvents()
 	// The top line is the blank padding: the mark goes on its right.
 	ls, _ := screen(t, a)
-	if !strings.HasSuffix(ls[0], "● 未送信 3") || visibleWidth(ls[0]) != margin+a.textWidth() {
+	if !strings.HasSuffix(ls[0], "● 未送信 3") || visibleWidth(ls[0]) != lgutter+a.textWidth() {
 		t.Errorf("top line %q", ls[0])
 	}
 	// Scrolled so the title is on top: the title is cut to make room.
 	a.top().top = 1
 	ls, _ = screen(t, a)
-	if !strings.HasSuffix(ls[0], "● 未送信 3") || !strings.Contains(ls[0], "とても長い題") || !strings.Contains(ls[0], "…") || visibleWidth(ls[0]) > margin+a.textWidth() {
+	if !strings.HasSuffix(ls[0], "● 未送信 3") || !strings.Contains(ls[0], "とても長い題") || !strings.Contains(ls[0], "…") || visibleWidth(ls[0]) > lgutter+a.textWidth() {
 		t.Errorf("title line %q", ls[0])
 	}
 	// Scrolled further: still on the top line.
@@ -260,7 +261,7 @@ func TestHintsShowM(t *testing.T) {
 	a.handle(key{r: 'j'}) // the Item
 	a.render()
 	s := reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), "")
-	if s != "    y よし  n だめ  c 行にコメント  x 隠す  space 次へ  m 書く  ? キー" {
+	if s != "      y よし  n だめ  c 行に書く  x 隠す  space 次へ  m 書く  ? キー" {
 		t.Errorf("hints: %q", s)
 	}
 	// Dropped in order x, enter, n, y, c; m and ? stay.
@@ -268,10 +269,10 @@ func TestHintsShowM(t *testing.T) {
 		w    int
 		want string
 	}{
-		{52, "    y よし  n だめ  c 行にコメント  m 書く  ? キー"},
-		{46, "    y よし  c 行にコメント  m 書く  ? キー"},
-		{38, "    c 行にコメント  m 書く  ? キー"},
-		{24, "    m 書く  ? キー"},
+		{54, "      y よし  n だめ  c 行に書く  m 書く  ? キー"},
+		{48, "      y よし  c 行に書く  m 書く  ? キー"},
+		{40, "      c 行に書く  m 書く  ? キー"},
+		{26, "      m 書く  ? キー"},
 	} {
 		a.t.w = c.w
 		if s := reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), ""); s != c.want {
@@ -295,7 +296,7 @@ func TestEditorCursor(t *testing.T) {
 	}{
 		{"abc", "abc"},
 		{"日本語", "日本語"},
-		{strings.Repeat("あ", 40), strings.Repeat("あ", 3)}, // 74 cells a line
+		{strings.Repeat("あ", 40), strings.Repeat("あ", 4)}, // 72 cells a line
 		{"ab\nいう", "いう"},
 		{"abc\n", ""},
 	} {
@@ -304,14 +305,14 @@ func TestEditorCursor(t *testing.T) {
 		ls, raw := screen(t, a)
 		row := -1
 		for i, l := range ls {
-			if strings.TrimRight(l, " ") == strings.TrimRight("    "+c.last, " ") {
+			if strings.TrimRight(l, " ") == strings.TrimRight("      "+c.last, " ") {
 				row = i
 			}
 		}
 		if row < 0 {
 			t.Fatalf("%q: last line %q not on screen:\n%s", c.text, c.last, strings.Join(ls, "\n"))
 		}
-		want := fmt.Sprintf("\x1b[%d;%dH\x1b[?25h", row+1, margin+markW+width(c.last)+1)
+		want := fmt.Sprintf("\x1b[%d;%dH\x1b[?25h", row+1, lgutter+markW+width(c.last)+1)
 		if !strings.HasSuffix(raw, want) {
 			t.Errorf("%q: frame ends %q, want %q", c.text, raw[max(len(raw)-20, 0):], want)
 		}
@@ -339,7 +340,7 @@ func TestAskOpensToItsOptions(t *testing.T) {
 	a.handle(key{r: 'j'})
 	a.handle(key{r: 'k'}) // on the Ask, pointed at
 	a.render()
-	if s := reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), ""); s != "    enter 開く  c 行にコメント  x 隠す  space 次へ  m 書く  ? キー" {
+	if s := reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), ""); s != "      enter 開く  c 行に書く  x 隠す  space 次へ  m 書く  ? キー" {
 		t.Errorf("closed hints: %q", s)
 	}
 	a.handle(key{r: 'a'})
@@ -350,7 +351,7 @@ func TestAskOpensToItsOptions(t *testing.T) {
 	if s := shown(a); !strings.Contains(s, "セッションごと") {
 		t.Errorf("an open Ask shows its options:\n%s", s)
 	}
-	if s := reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), ""); s != "    a b 答える  enter 閉じる  c 行に書く  x 隠す  space 次へ  m 書く  ? キー" {
+	if s := reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), ""); s != "      a b 答える  enter 閉じる  c 行に書く  x 隠す  space 次へ  m 書く  ? キー" {
 		t.Errorf("open hints: %q", s)
 	}
 	a.handle(key{r: 'a'})

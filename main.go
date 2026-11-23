@@ -29,7 +29,7 @@ Usage:
   pitboard -s SESSION changes      print what the person has sent since the last call, one per line
   pitboard -s SESSION settle N [--doing|--hold|--done] TEXT
                                    say how far thought N is and where it went
-                                   (several: [--STATE] N TEXT [--STATE] N TEXT ...)
+                                   (several: --STATE N TEXT --STATE N TEXT ...)
   pitboard -s SESSION check        check report.md; prints problems with line numbers, exit 1 if any
   pitboard -s SESSION wait [--timeout DURATION]
                                    wait until the person sends, then print what
@@ -104,6 +104,12 @@ Writing report.md:
       </Item>
     </Section>
 
+    <Section title="Answers">
+      <Item id="why-cwd" look="y">Why keep the data in the working directory?
+        So that each project has its own board.
+      </Item>
+    </Section>
+
     <Section title="In progress">
       <Item id="impl" state="doing" status="working">Implement the viewer</Item>
       <Item id="parts" status="waiting on you" wait="you" note="needs the answer above">Fix the part list</Item>
@@ -131,7 +137,8 @@ Writing report.md:
               note (why the status; shown when opened),
               ask="y" (you want a y / n on it; not on a done Item),
               wait="you" (it cannot move on until the person does
-              something; not on a done Item).
+              something; not on a done Item),
+              look="y" (you want the person to read it: see Marks).
               The status is colored by attributes, not by its words:
               yellow with wait="you" (needs the person), green when
               state="doing" (moving), faint otherwise (queued, on hold).
@@ -140,17 +147,19 @@ Writing report.md:
     Ask       id (required). First line: the question. Then 2 or more Option.
               The board shows an Ask closed, as its first line only, until
               the person opens it: write the question so that it makes
-              sense on its own, without the options.
+              sense on its own, without the options. (look="y" is allowed
+              but adds nothing: an Ask is marked anyway.)
     Option    key (required, one letter a-z, unique in its Ask; not one of
               the viewer's own keys c j k m n q s x y). One line.
     Link      id (required), and exactly one of path (a file, shown as
               written) or url (http:// or https://). One line: its title.
               The board shows the path or URL under the title; it does not
               open files. Put what must be read in the board in Code.
-              ask="y" as on Item.
+              ask="y" and look="y" as on Item.
     Fold      title (required), id (optional; keeps it open across retitling
-              when folds are added or removed above it). Holds what a
-              Section holds. Starts closed.
+              when folds are added or removed above it), look="y" (as on
+              Item; read means everything it holds). Holds what a Section
+              holds. Starts closed.
     Code      lang (optional; "diff" is colored). Raw until </Code>; the
               indentation of the <Code> tag is removed from its lines.
   id: 1-16 of a-z 0-9 -, unique in the page. The person reacts to Item, Ask
@@ -159,10 +168,16 @@ Writing report.md:
 
   Marks: the board puts a yellow ● beside each line waiting for the person
   (an Ask not answered yet, an Item or Link with ask="y" without a y / n on
-  what it says now) and a green ● beside each line they have not looked at
-  since it last changed; space takes them to the next one. So: mark with
-  ask="y" (or make an Ask) exactly what you need them to answer, and expect
-  any line you rewrite (title, state, status, note, contents) to show as new.
+  what it says now) and a green ● (unread) beside each line with look="y"
+  that they have not read since it last changed (the cursor has been on it
+  and left, or they opened it, reacted or wrote on it). space takes them to
+  the nearest marked line below the cursor (yellow, green, or an Item with
+  wait="you"; all alike), from the top when there is none below. Lines
+  without look="y" get no green mark, whatever changes.
+  So: mark with ask="y" (or make an Ask) exactly what you need them to
+  answer, and with look="y" exactly what you need them to read. Rewriting a
+  look="y" line (title, state, status, note, contents) marks it unread
+  again.
 
 A layout to start from:
   The layout is yours; this is a starting point, not a rule. From the top:
@@ -170,8 +185,9 @@ A layout to start from:
        (What the person reads first when they come back.)
     2. "For you": what needs the person's decision, check or work: Ask, or
        Item with ask="y". (When it is empty, they know they need do nothing.)
-    3. "Answers": answers to what they asked. The title is the question, the
-       contents the answer; they hide it with x once read.
+    3. "Answers": answers to what they asked, each with look="y". The title
+       is the question, the contents the answer; they hide it with x once
+       read.
        (Answers do not scroll away with the chat.)
     4. "In progress": what you are doing now and next, with status working /
        queued / waiting on you / on hold. (They see what moves without asking.)
@@ -200,18 +216,33 @@ Manners:
     'changes' shows it next to what the line says now.)
   - Tags start at the beginning of a line and part names start with a
     capital letter (<Item>, not <item>).
-  - Run 'pitboard check' after every rewrite and fix what it reports.
-  - Questions and answers: when the person asks you something (in the chat
-    or in a thought on the board), answer in the chat and also in the
-    report, so that the board alone tells them where things stand when they
-    come back. Keep a section like "Answers" with one Item per question:
-    its title is the question (short, close to their words), its contents
-    the answer. The person hides it with x once read; when "hide:" for it
-    arrives, drop that Item the next time you rewrite the report. You may
+  - Run 'pitboard check' after every rewrite of report.md and fix what it
+    reports. The other commands ('changes', 'settle', 'wait') and the hooks
+    also end with "report.md has N problem(s). Run: pitboard -s SESS check"
+    while the report has problems: when you see it, run that and fix them.
+  - Where to reply: what arrives from the board (through 'wait', 'changes'
+    or the hooks) is answered in the report: the answer to a question, what
+    you changed and how, what happens next. In the chat, say only a line or
+    two (e.g. "Answered in the report; now doing X"), and do not repeat what
+    the report says. When the person writes to you in the chat directly,
+    answer in the chat (and put the answer in the report too if it should
+    be kept).
+  - Whatever needs the person's decision or check goes near the top of the
+    report, with ask="y" (or an Ask) or wait="you". Never only in the chat.
+  - Questions and answers: when the person asks you something on the board
+    (a thought), answer in the report, so that the board alone tells them
+    where things stand when they come back. Keep a section like "Answers"
+    with one Item per question: its title is the question (short, close to
+    their words), its contents the answer, with look="y". The person hides
+    it with x once read; when "hide:" for it arrives, drop that Item the
+    next time you rewrite the report. You may
     also drop an answer the person replied to, once you judge it settled.
     When a thought was a question, settle it with "answered (in Answers)".
   - Mark with wait="you" every Item that needs the person's hand (its
     status words alone get no color).
+  - Put look="y" only on lines you want the person to read: an answer you
+    wrote, a result they should check. Not on lines that only tell how
+    things move (progress, queued work): they need not read those.
   - Nothing that matters lives only in the chat: decisions, answers and
     requests to the person go in the report too.
   - The person answers on the board at their own pace (y / n, answers,
@@ -240,6 +271,8 @@ Manners:
     unhide (1): Drop the log
     retract thought 7: only post-tool
     edit thought 8: maybe drop the log, and the history too
+    retract y hook (Decide whether to install the hook)
+    retract hide: Drop the log
   y means "good / done", n "not needed / no". answer is the option chosen.
   The text in parentheses is the line's title when the person pressed the
   key (or began writing). "→ now: ..." means you have rewritten the line
@@ -264,6 +297,12 @@ Manners:
   acting on it, stop. It needs no settle. (A thought taken back before it
   reached you is never told; "unretract thought N" means a retract you were
   told was undone, and the thought stands again.)
+  retract followed by a reaction, answer, hide or unhide line means the
+  person took back that one, which you were told before (u on the board):
+  act as if it had not been given (a reaction given before it, if any,
+  stands again). Taking back a thought is "retract thought N", taking back
+  a rewrite an "edit thought N" with the text before it. What the person
+  takes back before you were told it is never told.
   (The viewer hides a line by what it says: when you change its title, state
   or status, it shows again as new. Changing only its contents, note, path
   or options does not bring it back; neither does adding to a hidden Fold.
@@ -280,8 +319,11 @@ Thoughts:
   or --hold (put off); the latest settle counts. When a thought takes a
   while, tell it at once with 'settle N --doing' (or --hold, with why),
   and settle it --done with the result when finished.
-  Settle several in one call, each with its own state:
+  Settle several in one call only with a state before each number:
     pitboard -s ID settle --doing 50 "looking into it" --done 51 "answered"
+  Without a state first, it is one thought and every word after N is its
+  text ('settle 9 fixed 5 bugs' settles 9 with "fixed 5 bugs"). Two states
+  for one thought are an error.
   The board shows, at the right end of a line, the state of the person's
   latest input on it: 未送信 (not sent), 送信済 (sent), 既読 (you read it),
   then for a thought 対応中 / 保留 / 対応済 (doing / hold / done).
@@ -332,9 +374,8 @@ Send:
   what it prints.
   'wait' is the cheapest: what was sent arrives as its output, with no line
   typed into the chat and no extra command to run. Its output is the same
-  as 'changes'. If waking you
-  fails, the send is still recorded, and the person is asked to tell you in
-  the chat.
+  as 'changes'. If waking you fails, the send is still recorded, and the
+  person is asked to tell you in the chat.
   To type it, the viewer runs $PITBOARD_SEND if set (with sh -c, given
   $PITBOARD_SESSION and $PITBOARD_MESSAGE), or else, when herdr is on PATH,
   'herdr agent prompt' to the agent whose session is SESSION (found with
@@ -356,10 +397,11 @@ func main() {
 	}
 }
 
-// settleArgs reads 'settle N [--doing|--hold|--done] TEXT', or several:
-// 'settle [--state] N TEXT [--state] N TEXT ...' (each TEXT one argument; a
-// state before a number is that thought's). With one thought, the words
-// after N (and its state) are joined into TEXT.
+// settleArgs reads 'settle N [--doing|--hold|--done] TEXT...' (one
+// thought: everything after N and its state is the text), or several, each
+// with its state first: 'settle --STATE N TEXT... --STATE N TEXT...' (a
+// group starts at a state followed by a number). Nothing is guessed: a
+// group with two states is an error.
 func settleArgs(args []string) ([]settlement, error) {
 	flag := func(a string) (string, bool) {
 		switch a {
@@ -372,59 +414,56 @@ func settleArgs(args []string) ([]settlement, error) {
 		}
 		return "", false
 	}
-	// Several: [state] N [state] TEXT, repeated, each TEXT one argument.
-	var many []settlement
-	ok := true
-	for i := 0; i < len(args) && ok; {
-		state := ""
-		if f, is := flag(args[i]); is {
-			state, i = f, i+1
-		}
-		if i >= len(args) {
-			ok = false
-			break
-		}
-		n, err := strconv.Atoi(args[i])
-		if err != nil {
-			ok = false
-			break
-		}
-		i++
-		if i < len(args) {
-			if f, is := flag(args[i]); is {
-				state, i = f, i+1
-			}
-		}
-		text := ""
-		if i < len(args) {
-			if _, is := flag(args[i]); !is {
-				text, i = args[i], i+1
-			}
-		}
-		many = append(many, settlement{n, state, text})
+	isNum := func(a string) bool { _, err := strconv.Atoi(a); return err == nil }
+	usage := errors.New("usage: pitboard settle N [--doing|--hold|--done] TEXT, or settle --STATE N TEXT --STATE N TEXT ...")
+	if len(args) == 0 {
+		return nil, usage
 	}
-	if ok && len(many) >= 2 {
-		return many, nil
+	// Split into groups: a group starts at a state followed by a number
+	// (or, for the first, at a number).
+	// Several only when the first group starts with its state.
+	_, several := flag(args[0])
+	var groups [][]string
+	for i := 0; i < len(args); i++ {
+		_, isFlag := flag(args[i])
+		if i == 0 || (several && isFlag && i+1 < len(args) && isNum(args[i+1])) {
+			groups = append(groups, nil)
+		}
+		groups[len(groups)-1] = append(groups[len(groups)-1], args[i])
 	}
-	// One: [state] N [state] TEXT...
-	rest, state := args, ""
-	if f, is := flag(rest[0]); is {
-		state, rest = f, rest[1:]
-	}
-	if len(rest) == 0 {
-		return nil, errors.New("usage: pitboard settle N [--doing|--hold|--done] TEXT")
-	}
-	n, err := strconv.Atoi(rest[0])
-	if err != nil {
-		return nil, fmt.Errorf("settle: %q is not a thought number", rest[0])
-	}
-	rest = rest[1:]
-	if len(rest) > 0 {
+	var out []settlement
+	for _, g := range groups {
+		state, rest := "", g
 		if f, is := flag(rest[0]); is {
 			state, rest = f, rest[1:]
 		}
+		if len(rest) == 0 {
+			return nil, usage
+		}
+		n, err := strconv.Atoi(rest[0])
+		if err != nil {
+			return nil, fmt.Errorf("settle: %q is not a thought number", rest[0])
+		}
+		rest = rest[1:]
+		if len(rest) > 0 {
+			if f, is := flag(rest[0]); is {
+				if state != "" {
+					return nil, fmt.Errorf("settle %d: two states (--%s and --%s); give one", n, state, f)
+				}
+				state, rest = f, rest[1:]
+			}
+		}
+		for _, w := range rest {
+			if f, is := flag(w); is {
+				if state != "" {
+					return nil, fmt.Errorf("settle %d: two states (--%s and --%s); give one. To settle several, put a state before each number: settle --done 9 TEXT --done 5 TEXT", n, state, f)
+				}
+				return nil, fmt.Errorf("settle %d: %s inside the text. To settle several, put a state before each number: settle --done 9 TEXT --done 5 TEXT", n, w)
+			}
+		}
+		out = append(out, settlement{n, state, strings.Join(rest, " ")})
 	}
-	return []settlement{{n, state, strings.Join(rest, " ")}}, nil
+	return out, nil
 }
 
 // exitError ends the program with a code, its message already printed.
@@ -536,15 +575,18 @@ func run(args []string, out io.Writer) error {
 		for _, l := range lines {
 			fmt.Fprintln(out, l)
 		}
+		st.noteProblems(out)
 	case "settle":
 		if len(args) < 1 {
-			return errors.New("usage: pitboard settle N [--doing|--hold|--done] TEXT [N TEXT ...]")
+			return errors.New("usage: pitboard settle N [--doing|--hold|--done] TEXT, or settle --STATE N TEXT --STATE N TEXT ...")
 		}
 		ss, err := settleArgs(args)
 		if err != nil {
 			return err
 		}
-		return st.SettleAll(ss)
+		err = st.SettleAll(ss)
+		st.noteProblems(out)
+		return err
 	case "wait":
 		return runWait(st, args, out)
 	case "check":

@@ -34,6 +34,7 @@ type node struct {
 	reason string // note: why, shown when opened
 	ask    string // Item / Link: "y" when the AI asks for y / n on it
 	wait   string // Item: "you" when it cannot move on without the person
+	look   string // Item / Link / Fold (/ Ask): "y" when the AI wants it read
 	path   string // Link: a file path, as written
 	url    string // Link: an http(s) URL
 	lang   string // Code language ("diff" is colored)

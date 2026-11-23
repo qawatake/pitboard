@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,17 +13,19 @@ import (
 )
 
 // Two marks keep the person from losing track of what wants them on a long
-// report, in the gutter left of a line's mark (where the cursor's > goes;
-// the > wins):
+// report, in a column of their own between the cursor's > and the line's
+// mark (so moving the cursor never moves or hides them):
 //
 //	● yellow  waiting: an Ask not answered yet, or an Item / Link with
 //	          ask="y" without a y / n on what it says now
-//	● green   new: the person has not looked at what the line says now
+//	● green   unread: the AI marked the line look="y", and the person has
+//	          not looked at what it says now
 //
-// "Looked at" is the cursor resting on the line for settleDelay, or reacting
-// to it, opening it, hiding it. Being on screen is not enough. What a line
-// says is its viewKey; the keys looked at are kept, hashed, in
-// .pitboard/<session>/viewed (one per line, never sent to the AI).
+// "Looked at" is the cursor leaving the line after being on it (on screen),
+// or reacting to it, opening it, writing on it, hiding it, or A. Being on
+// screen is not enough. What a line says is its viewKey; the keys looked at
+// are kept, hashed, in .pitboard/<session>/viewed (one per line, never sent
+// to the AI; a line "-<hash>" takes one back, for u after A).
 
 func (s *Store) viewedPath() string { return filepath.Join(s.dir, "viewed") }
 
@@ -36,11 +39,24 @@ func (s *Store) Viewed() map[string]bool {
 	}
 	sc := bufio.NewScanner(bytes.NewReader(b))
 	for sc.Scan() {
-		if l := strings.TrimSpace(sc.Text()); isHash(l) {
+		l := strings.TrimSpace(sc.Text())
+		switch {
+		case isHash(l):
 			out[l] = true
+		case strings.HasPrefix(l, "-") && isHash(l[1:]):
+			delete(out, l[1:])
 		}
 	}
 	return out
+}
+
+// RemoveViewed takes hashes back (appends "-<hash>" lines).
+func (s *Store) RemoveViewed(hs []string) error {
+	minus := make([]string, len(hs))
+	for i, h := range hs {
+		minus[i] = "-" + h
+	}
+	return s.AddViewed(minus)
 }
 
 // AddViewed appends hashes to the viewed file.
@@ -70,12 +86,25 @@ func hashKey(k string) string {
 	return hex.EncodeToString(h[:16])
 }
 
-// viewKey is what a line says, for "new": what hiding goes by (hideKey),
+// viewKey is what a line says, for "unread": what hiding goes by (hideKey),
 // plus what opening it shows (its note and contents, an Ask's options) and a
-// Link's target. "" for lines that are never new (Fold, text, headings).
+// Link's target; for a Fold, everything it holds. "" for lines that are
+// never unread (text, headings).
 func viewKey(n *node) string {
 	if n.kind == kDetails {
-		return ""
+		var b strings.Builder
+		b.WriteString(hideKey(n) + "|title=" + n.text)
+		var rec func(ns []*node)
+		rec = func(ns []*node) {
+			for _, c := range ns {
+				b.WriteString(fmt.Sprintf("|%d:%s:%s:%s:%s:%s:%s", c.kind, c.id, c.label, c.text, c.status, c.reason, strings.Join(c.code, "\n")))
+				rec(c.body)
+				rec(c.kids)
+				rec(c.subs)
+			}
+		}
+		rec(n.kids)
+		return b.String()
 	}
 	k := hideKey(n)
 	if k == "" {
@@ -118,16 +147,21 @@ func (a *app) waiting(n *node) bool {
 	return false
 }
 
-// isNew says whether the person has not looked at what n says now.
+// isNew says whether n is unread: the AI asked for it to be read
+// (look="y") and the person has not looked at what it says now.
 func (a *app) isNew(n *node) bool {
+	if n.look != "y" || a.st == nil {
+		return false
+	}
 	k := viewKey(n)
-	return k != "" && a.st != nil && !a.viewed[hashKey(k)]
+	return k != "" && !a.viewed[hashKey(k)]
 }
 
-// markViewed records that the person looked at n.
-func (a *app) markViewed(ns ...*node) {
+// markViewed records that the person looked at n, and returns the hashes
+// that were not recorded before.
+func (a *app) markViewed(ns ...*node) []string {
 	if !a.canWrite() {
-		return
+		return nil
 	}
 	var hs []string
 	for _, n := range ns {
@@ -147,6 +181,7 @@ func (a *app) markViewed(ns ...*node) {
 	if err := a.st.AddViewed(hs); err == nil {
 		a.viewedMod = modTime(a.st.viewedPath())
 	}
+	return hs
 }
 
 const (
@@ -163,6 +198,9 @@ func (a *app) markOfLine(pv *view, n *node) int {
 	}
 	if n.kind == kDetails {
 		m := markNone
+		if a.isNew(n) {
+			m = markNew
+		}
 		var rec func(ns []*node)
 		rec = func(ns []*node) {
 			for _, c := range ns {
@@ -187,17 +225,17 @@ func (a *app) markOfLine(pv *view, n *node) int {
 	return markNone
 }
 
-// gutterMark puts the mark in the gutter of a drawn line that is not the
-// cursor's.
+// gutterMark puts the mark in its column of a drawn line (the cursor's
+// too: the cursor has a column of its own).
 func gutterMark(line string, m int) string {
-	if m == markNone || strings.HasPrefix(line, ">") || !strings.HasPrefix(line, strings.Repeat(" ", margin)) {
+	if m == markNone || len(line) < lgutter || line[markCol:lgutter] != strings.Repeat(" ", lgutter-markCol) {
 		return line
 	}
 	color := green
 	if m == markWaiting {
 		color = yellow
 	}
-	return plainText("●", color).String() + line[1:]
+	return line[:markCol] + plainText("●", color).String() + line[markCol+1:]
 }
 
 // target is a line marked in the report, in the order of the page, with
@@ -222,8 +260,11 @@ func (a *app) allLines(pv *view) []marked {
 			}
 			if pv.navigable(n) && n.key != "" {
 				m := markNone
-				if n.kind != kDetails {
+				switch {
+				case n.kind != kDetails:
 					m = a.markOfLine(pv, n)
+				case !pv.isHidden(n) && a.isNew(n):
+					m = markNew // the Fold itself; what it holds counts on its own
 				}
 				you := n.wait == "you" && !pv.isHidden(n)
 				out = append(out, marked{n: n, m: m, you: you, folds: folds})
@@ -240,7 +281,7 @@ func (a *app) allLines(pv *view) []marked {
 	return out
 }
 
-// counts is how many lines are waiting, and how many are new (and not
+// counts is how many lines are waiting, and how many are unread (and not
 // waiting), in the whole report.
 func (a *app) counts(pv *view) (waiting, fresh int) {
 	if pv == nil || a.st == nil {
@@ -257,11 +298,23 @@ func (a *app) counts(pv *view) (waiting, fresh int) {
 	return
 }
 
-// jump moves the cursor to the next waiting line, or if none, the next
-// Item waiting for the person (wait="you"), or the next new line:
-// downwards from the cursor, then from the top. Folds on the way are
-// opened. The person moved the cursor, but the line still waits settleDelay
-// before x y n and options work on it.
+// anyMarked says whether space has somewhere to go.
+func (a *app) anyMarked(pv *view) bool {
+	if pv == nil || a.st == nil {
+		return false
+	}
+	for _, l := range a.allLines(pv) {
+		if l.m != markNone || l.you {
+			return true
+		}
+	}
+	return false
+}
+
+// jump moves the cursor to the nearest marked line below it (waiting,
+// wait="you" or unread, all alike), or if none, from the top. Folds on the
+// way are opened. The person moved the cursor, but the line still waits
+// settleDelay before x y n and options work on it.
 func (a *app) jump(pv *view) {
 	ls := a.allLines(pv)
 	at := -1
@@ -270,51 +323,51 @@ func (a *app) jump(pv *view) {
 			at = i
 		}
 	}
-	for _, want := range []func(l marked) bool{
-		func(l marked) bool { return l.m == markWaiting },
-		func(l marked) bool { return l.you },
-		func(l marked) bool { return l.m == markNew },
-	} {
-		for d := 1; d <= len(ls); d++ {
-			l := ls[(at+d+len(ls))%len(ls)]
-			if !want(l) {
-				continue
-			}
-			for _, f := range l.folds {
-				pv.open[f.key] = true
-			}
-			pv.cur, pv.follow, pv.lock, pv.placed = l.n.key, true, false, false
-			pv.auto, pv.autoAt = l.n.key, time.Time{}
-			return
+	for d := 1; d <= len(ls); d++ {
+		l := ls[(at+d+len(ls))%len(ls)]
+		if l.m == markNone && !l.you {
+			continue
 		}
+		for _, f := range l.folds {
+			pv.open[f.key] = true
+		}
+		pv.cur, pv.follow, pv.lock, pv.placed = l.n.key, true, false, false
+		pv.auto, pv.autoAt = l.n.key, time.Time{}
+		return
 	}
-	a.msg = "反応待ちも新着もありません"
+	a.msg = "印のある行はありません"
 }
 
-// viewAll marks every line now in the report as looked at (A).
+// viewAll marks every line now in the report as looked at (A). u takes it
+// back.
 func (a *app) viewAll(pv *view) {
 	if !a.canWrite() {
 		return
 	}
 	var ns []*node
 	walkAll(pv.nodes, func(n *node) { ns = append(ns, n) })
-	a.markViewed(ns...)
-	a.msg = "いまある行をすべて見たことにしました"
+	if hs := a.markViewed(ns...); len(hs) > 0 {
+		a.hist = append(a.hist, done{viewed: hs, desc: "A (すべて読んだことにする) を取り消しました"})
+	}
+	a.msg = "いまある行をすべて読んだことにしました"
 }
 
-// dwell marks the cursor's line as looked at once it has rested there for
-// settleDelay (in the frames before; a line merely on screen is not).
-func (a *app) dwell(pv *view) {
-	n := pv.nodeAt(pv.cur)
-	if n == nil || !pv.curShown || pv.placed || pv.lock || a.inPane || a.list || a.help {
-		pv.dwellKey = ""
+// leave marks the line the cursor was on (on screen, in the report) as
+// looked at once the cursor is no longer on it. Called before each frame
+// is laid out; stay is called after, when it is known whether the cursor's
+// line is on screen.
+func (a *app) leave(pv *view) {
+	if pv.onKey == "" || (pv.cur == pv.onKey && !a.inPane && !a.list) {
 		return
 	}
-	k := pv.cur + "\x00" + viewKey(n)
-	switch {
-	case pv.dwellKey != k:
-		pv.dwellKey, pv.dwellAt = k, clock()
-	case clock().Sub(pv.dwellAt) >= settleDelay && a.isNew(n):
+	if n := pv.nodeAt(pv.onKey); n != nil {
 		a.markViewed(n)
+	}
+	pv.onKey = ""
+}
+
+func (a *app) stay(pv *view) {
+	if pv.curShown && !a.inPane && !a.list && !a.help && pv.nodeAt(pv.cur) != nil {
+		pv.onKey = pv.cur
 	}
 }

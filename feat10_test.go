@@ -64,26 +64,50 @@ func TestChangesAreCompact(t *testing.T) {
 
 func TestSettleMany(t *testing.T) {
 	st := testStore(t)
-	for range 3 {
+	for range 9 {
 		st.Append(Event{Op: "thought", Text: "t"})
 	}
 	t.Chdir(st.base)
 	var out bytes.Buffer
-	if err := run([]string{"-s", "s1", "settle", "1", "todo にした", "3", "答えた"}, &out); err != nil {
+	if err := run([]string{"-s", "s1", "settle", "--done", "1", "todo にした", "--hold", "3", "答えた", "あとで"}, &out); err != nil {
 		t.Fatal(err)
 	}
-	if err := run([]string{"-s", "s1", "settle", "2", "made", "it", "a", "todo"}, &out); err != nil {
+	// Without a state first: one thought, and every word is its text.
+	if err := run([]string{"-s", "s1", "settle", "9", "fixed", "5", "bugs"}, &out); err != nil {
+		t.Fatal(err)
+	}
+	if err := run([]string{"-s", "s1", "settle", "2", "--doing", "made", "it", "a", "todo"}, &out); err != nil {
 		t.Fatal(err)
 	}
 	s := replayEvents(st.Events(), 0)
-	got := []string{s.thoughts[0].settled, s.thoughts[1].settled, s.thoughts[2].settled}
-	if strings.Join(got, "|") != "todo にした|made it a todo|答えた" {
+	got := []string{}
+	for _, n := range []int{1, 2, 3, 5, 9} {
+		for _, th := range s.thoughts {
+			if th.N == n {
+				got = append(got, th.sstate+":"+th.settled)
+			}
+		}
+	}
+	if strings.Join(got, "|") != "done:todo にした|doing:made it a todo|hold:答えた あとで|:|done:fixed 5 bugs" {
 		t.Errorf("settled %q", got)
 	}
-	// One bad pair: none recorded.
+	// Errors, and nothing recorded.
 	n := len(st.Events())
-	if err := run([]string{"-s", "s1", "settle", "1", "x", "99", "y"}, &out); err == nil || len(st.Events()) != n {
-		t.Errorf("bad pair: %v, %d events", err, len(st.Events())-n)
+	for _, args := range [][]string{
+		{"--done", "1", "x", "--done", "99", "y"}, // no thought 99
+		{"5", "--doing", "--hold", "x"},           // two states
+		{"--doing", "5", "--hold", "x"},           // two states
+		{"1", "x", "--done", "2", "y"},            // several without a state first
+		{"x"},
+	} {
+		err := run(append([]string{"-s", "s1", "settle"}, args...), &out)
+		if err == nil || len(st.Events()) != n {
+			t.Errorf("%q: %v, %d events", args, err, len(st.Events())-n)
+		}
+	}
+	err := run([]string{"-s", "s1", "settle", "5", "--doing", "--hold", "x"}, &out)
+	if err == nil || !strings.Contains(err.Error(), "two states") {
+		t.Errorf("two states: %v", err)
 	}
 }
 

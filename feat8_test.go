@@ -80,9 +80,9 @@ func TestRichTextDrawn(t *testing.T) {
 	a.handle(key{name: "enter"})
 	s := shown(a)
 	for _, want := range []string{
-		"\n      おすすめは折衷。\n\n      · cwd に置く\n        - 良い点: 書ける続きの行\n",
-		"\n      · 折衷: データは cwd\n\n      手順\n      1. まず cwd\n      2. 次に XDG\n         - 入れ子\n",
-		"\n      行末で改行する\n      次の行\n      その次の行\n",
+		"\n        おすすめは折衷。\n\n        · cwd に置く\n          - 良い点: 書ける続きの行\n",
+		"\n        · 折衷: データは cwd\n\n        手順\n        1. まず cwd\n        2. 次に XDG\n           - 入れ子\n",
+		"\n        行末で改行する\n        次の行\n        その次の行\n",
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("want %q in\n%s", want, s)
@@ -90,11 +90,11 @@ func TestRichTextDrawn(t *testing.T) {
 	}
 	_ = pv
 	// Wrapping keeps to where the text starts, past the number.
-	os.WriteFile(st.reportPath(), []byte("<Item id=\"a\">t\n  1. "+strings.Repeat("あ", 40)+"\n    - "+strings.Repeat("い", 40)+"\n</Item>"), 0o644)
+	os.WriteFile(st.reportPath(), []byte("<Item id=\"a\">t\n    1. "+strings.Repeat("あ", 40)+"\n      - "+strings.Repeat("い", 40)+"\n</Item>"), 0o644)
 	a.reload(pv)
 	pv.open["a"] = true
 	s = shown(a)
-	if !strings.Contains(s, "\n      1. あああ") || !strings.Contains(s, "\n         ああ") || !strings.Contains(s, "\n         - いい") || !strings.Contains(s, "\n           いい") {
+	if !strings.Contains(s, "\n        1. あああ") || !strings.Contains(s, "\n           ああ") || !strings.Contains(s, "\n           - いい") || !strings.Contains(s, "\n             いい") {
 		t.Errorf("wrapping:\n%s", s)
 	}
 }

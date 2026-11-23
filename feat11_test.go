@@ -2,7 +2,9 @@ package main
 
 import (
 	"bytes"
+	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -172,8 +174,22 @@ func TestNoOldWords(t *testing.T) {
 	for _, r := range a.listRows() {
 		all = append(all, r.line)
 	}
+	// The screens without a report, and the editor's file.
+	all = append(all, msgChanged, msgMoved, msgNoReport, msgNoBoard, msgNoSession, msgNewBuild)
+	for _, setup := range []func(b *app){
+		func(b *app) { b.setStore(nil) },
+		func(b *app) { os.Mkdir(filepath.Join(b.base, ".pitboard"), 0o755); b.setStore(nil) },
+		func(b *app) { b.setStore(newStore(b.base, "nosuch")) },
+	} {
+		b := &app{t: &term{w: 120, h: 30, out: io.Discard}, base: t.TempDir(), lopen: map[int]bool{}}
+		setup(b)
+		all = append(all, shown(b))
+	}
 	s := reEsc.ReplaceAllString(strings.Join(all, "\n"), "")
-	for _, old := range []string{"思いつき", "送信済み", "未読", "受け取った", "行き先", "ページ", "j k ↑↓  送る", "半画面ずつ送る", "ターミナル"} {
+	if !strings.Contains(s, "セッション nosuch") {
+		t.Errorf("the missing session's screen was not drawn:\n%s", s)
+	}
+	for _, old := range []string{"板", "思いつき", "送信済み", "新着", "受け取った", "行き先", "ページ", "j k ↑↓  送る", "半画面ずつ送る", "ターミナル"} {
 		if strings.Contains(s, old) {
 			t.Errorf("old word %q on screen:\n%s", old, s)
 		}

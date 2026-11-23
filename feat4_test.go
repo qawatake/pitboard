@@ -94,11 +94,11 @@ func TestRetractInPaneAndUndo(t *testing.T) {
 	if !a.inPane || a.pcur != 3 {
 		t.Fatalf("pane %v pcur %d", a.inPane, a.pcur)
 	}
-	if s := hintLine(a); s != "    enter 開く  e 直す  x 取り消す  s 送る  m 書く  ? キー" {
+	if s := hintLine(a); s != "      enter 開く  e 直す  x 取り消す  s 送る  m 書く  ? キー" {
 		t.Errorf("hints %q", s)
 	}
 	a.handle(key{r: 'x'})
-	if a.msg != "取り消しました (u で元に戻す)" || a.pcur != 2 {
+	if a.msg != "取り消しました (u で戻す)" || a.pcur != 2 {
 		t.Fatalf("msg %q pcur %d", a.msg, a.pcur)
 	}
 	a.render()
@@ -110,22 +110,19 @@ func TestRetractInPaneAndUndo(t *testing.T) {
 	if len(a.state.thoughts) != 2 {
 		t.Fatal("x pressed twice took back the next thought")
 	}
-	// Back: u right after.
-	a.handle(key{r: 'x'}) // dropped again, and it ends the chance to undo
+	// u takes it back, even after other keys; the cursor stays.
+	a.handle(key{r: 'k'})
 	a.handle(key{r: 'u'})
-	if len(a.state.thoughts) != 2 {
-		t.Error("u after another key must not undo")
-	}
-	wait(t, settleDelay)
-	a.render()
-	a.handle(key{r: 'x'}) // "two" now
-	a.handle(key{r: 'u'})
-	if len(a.state.thoughts) != 2 || a.pcur != 2 || a.msg != "元に戻しました" {
+	if len(a.state.thoughts) != 3 || a.pcur != 2 || a.msg != "取り消したコメントを戻しました: three" {
 		t.Errorf("u must undo: thoughts %d pcur %d msg %q", len(a.state.thoughts), a.pcur, a.msg)
 	}
 	evs := st.Events()
-	if e := evs[len(evs)-1]; e.Op != "unretract" || e.Thought != 2 {
+	if e := evs[len(evs)-1]; e.Op != "undo" || e.Undo != evs[len(evs)-2].N {
 		t.Errorf("last event %+v", e)
+	}
+	a.handle(key{r: 'u'})
+	if a.msg != "取り消せる操作がありません" {
+		t.Errorf("nothing left: %q", a.msg)
 	}
 	// ✎ on the line goes too.
 	th, _ := st.Append(Event{Op: "thought", ID: "hook", Text: "on hook"})
@@ -146,7 +143,7 @@ func TestRetractInList(t *testing.T) {
 	a := testApp(t, st)
 	a.handle(key{name: "tab"})
 	a.render()
-	if s := hintLine(a); s != "    enter 開く  e 直す  x 取り消す  s 送る  m 書く  ? キー" {
+	if s := hintLine(a); s != "      enter 開く  e 直す  x 取り消す  s 送る  m 書く  ? キー" {
 		t.Errorf("list hints %q", s)
 	}
 	a.handle(key{r: 'x'})
@@ -172,14 +169,14 @@ func TestNoBoardMessages(t *testing.T) {
 	dir := t.TempDir()
 	a := &app{t: &term{w: 120, h: 30}, base: dir, lopen: map[int]bool{}}
 	a.setStore(nil)
-	if s := shown(a); !strings.Contains(s, "このディレクトリと親に板 (.pitboard/) がありません") {
+	if s := shown(a); !strings.Contains(s, "このディレクトリと親に pitboard の置き場 (.pitboard/) がありません") {
 		t.Errorf("no .pitboard:\n%s", s)
 	}
 	if s := hintLine(a); !strings.Contains(s, filepath.Base(dir)) {
 		t.Errorf("the place is not shown: %q", s)
 	}
 	os.Mkdir(filepath.Join(dir, ".pitboard"), 0o755)
-	if s := shown(a); !strings.Contains(s, "板はまだありません。AI が報告を書くと、ここに出ます") {
+	if s := shown(a); !strings.Contains(s, "pitboard にはまだ報告がありません。AI が報告を書くと、ここに出ます") {
 		t.Errorf("empty .pitboard:\n%s", s)
 	}
 	if home, err := os.UserHomeDir(); err == nil {

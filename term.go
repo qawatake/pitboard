@@ -57,6 +57,9 @@ type term struct {
 	// owns the terminal.
 	paused atomic.Bool
 	out    io.Writer // where frames go; nil is stdout
+	// prev is the frame on screen, so the next one writes only the rows
+	// that differ (nil: the screen is not known; write every row).
+	prev []string
 }
 
 func stty(args ...string) (string, error) {
@@ -151,35 +154,53 @@ func (t *term) close() {
 }
 
 func (t *term) resize() {
+	t.prev = nil
 	t.w, t.h = 80, 24
 	if out, err := stty("size"); err == nil {
 		fmt.Sscanf(out, "%d %d", &t.h, &t.w)
 	}
 }
 
-// draw paints a full frame without clearing first, so there is no flicker.
-// With at (row, column; 1-based), the terminal's cursor is left there and
-// shown, so an input method draws what is being composed where the person
-// writes; without, it is hidden. The frame and the cursor go out in one
-// write, so the cursor is never seen jumping.
+// draw paints a frame without clearing the screen, so there is no
+// flicker: the first frame (and the first after a resize) writes every
+// row, later ones only the rows that changed. With at (row, column;
+// 1-based), the terminal's cursor is left there and shown, so an input
+// method draws what is being composed where the person writes; without, it
+// is hidden. The frame and the cursor go out in one write, so the cursor is
+// never seen jumping.
 func (t *term) draw(lines []string, at *[2]int) {
 	if len(lines) > t.h {
 		lines = lines[:t.h]
+	}
+	frame := make([]string, t.h)
+	copy(frame, lines)
+	// However a line was made, it never runs past the width: the terminal
+	// would wrap it and shift everything below.
+	for i, l := range frame {
+		if t.w > 0 && visibleWidth(l) > t.w {
+			frame[i] = cutVisible(l, t.w)
+		}
 	}
 	// Each row is cleared before it is written, never after: once a row is
 	// written up to the last column the cursor rests on that column, and
 	// erasing from there would take the last character with it.
 	var b strings.Builder
-	b.WriteString("\x1b[H")
-	for i := 0; i < t.h; i++ {
-		if i > 0 {
-			b.WriteString("\r\n")
+	if len(t.prev) != t.h {
+		b.WriteString("\x1b[H")
+		for i, l := range frame {
+			if i > 0 {
+				b.WriteString("\r\n")
+			}
+			b.WriteString("\x1b[2K" + l)
 		}
-		b.WriteString("\x1b[2K")
-		if i < len(lines) {
-			b.WriteString(lines[i])
+	} else {
+		for i, l := range frame {
+			if l != t.prev[i] {
+				fmt.Fprintf(&b, "\x1b[%d;1H\x1b[2K%s", i+1, l)
+			}
 		}
 	}
+	t.prev = frame
 	if at != nil {
 		fmt.Fprintf(&b, "\x1b[%d;%dH\x1b[?25h", at[0], at[1])
 	} else {

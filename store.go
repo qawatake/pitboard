@@ -171,7 +171,11 @@ func (s *Store) seenPath() string   { return filepath.Join(s.dir, "seen") }
 //	retract  thought: the person took the thought back
 //	edit     thought, text: the person rewrote the thought (the latest
 //	         edit's text is the thought's)
-//	unretract  thought: they undid that (u right after x)
+//	unretract  thought: they undid that (older viewers: u right after x)
+//	undo     undo: the number of an event of the person's (react, thought,
+//	         edit, retract, unretract, hide, unhide) to take back (u). Not
+//	         sent yet, the two are as if neither happened; sent, the undo is
+//	         new input for the AI (see resolveUndos).
 type Event struct {
 	N       int    `json:"n"`
 	T       string `json:"t"`
@@ -194,6 +198,99 @@ type Event struct {
 	// State is how far the AI is with a thought (settle): doing, hold or
 	// done ("" is done).
 	State string `json:"state,omitempty"`
+	// Undo is the event an undo takes back.
+	Undo int `json:"undo,omitempty"`
+
+	// of is, on an undo told to the AI, the op of the event it takes back
+	// (never written).
+	of string
+}
+
+// undoable says whether u can take back an event with op.
+func undoable(op string) bool {
+	switch op {
+	case "react", "thought", "edit", "retract", "unretract", "hide", "unhide":
+		return true
+	}
+	return false
+}
+
+// undoneBy maps each event taken back to the undo that took it back.
+func undoneBy(evs []Event) map[int]Event {
+	out := map[int]Event{}
+	for _, e := range evs {
+		if e.Op == "undo" && e.Undo > 0 && e.Undo < e.N {
+			if _, ok := out[e.Undo]; !ok {
+				out[e.Undo] = e
+			}
+		}
+	}
+	return out
+}
+
+// resolveUndos is evs (all before the cut) with the undos worked out for
+// telling the AI, who was told what is up to seen. An event taken back that
+// the AI was not told is dropped with its undo: the AI never knew it. One
+// the AI was told turns its undo into what now stands: a thought taken
+// back is a retract, a retract taken back an unretract (and the other way
+// round), an edit taken back an edit back to the text before; a reaction,
+// hide or unhide stays an undo (told as "retract ...").
+func resolveUndos(evs []Event, seen int) []Event {
+	undone := undoneBy(evs)
+	if len(undone) == 0 {
+		return evs
+	}
+	byN := map[int]Event{}
+	for _, e := range evs {
+		byN[e.N] = e
+	}
+	var out []Event
+	for _, e := range evs {
+		if _, ok := undone[e.N]; ok && e.N > seen {
+			continue
+		}
+		if e.Op != "undo" {
+			out = append(out, e)
+			continue
+		}
+		t, ok := byN[e.Undo]
+		if !ok || t.N > seen || undone[t.N].N != e.N || !undoable(t.Op) {
+			continue
+		}
+		switch t.Op {
+		case "thought":
+			out = append(out, Event{N: e.N, T: e.T, Op: "retract", Thought: t.N})
+		case "retract":
+			out = append(out, Event{N: e.N, T: e.T, Op: "unretract", Thought: t.Thought})
+		case "unretract":
+			out = append(out, Event{N: e.N, T: e.T, Op: "retract", Thought: t.Thought})
+		case "edit":
+			out = append(out, Event{N: e.N, T: e.T, Op: "edit", Thought: t.Thought, Text: textBefore(evs, undone, t)})
+		default:
+			u := t
+			u.N, u.T, u.Op, u.Undo, u.of = e.N, e.T, "undo", t.N, t.Op
+			out = append(out, u)
+		}
+	}
+	return out
+}
+
+// textBefore is the text thought edit.Thought had before edit (edits taken
+// back left out).
+func textBefore(evs []Event, undone map[int]Event, edit Event) string {
+	text := ""
+	for _, e := range evs {
+		if e.N >= edit.N {
+			break
+		}
+		switch _, gone := undone[e.N]; {
+		case e.Op == "thought" && e.N == edit.Thought:
+			text = e.Text
+		case e.Op == "edit" && e.Thought == edit.Thought && !gone:
+			text = e.Text
+		}
+	}
+	return text
 }
 
 func parseEvents(data []byte) []Event {
@@ -344,21 +441,29 @@ func deliverable(all []Event, seen, cut int) []Event {
 			evs = append(evs, e)
 		}
 	}
+	evs = resolveUndos(evs, seen)
 	thoughts := map[int]Event{}
 	final := map[int]bool{}  // taken back, in the end
 	told := map[int]bool{}   // taken back, as the AI was last told
 	lastOp := map[int]int{}  // the number of the last retract / unretract
 	text := map[int]string{} // the thought's text, as last edited
 	lastEdit := map[int]int{}
+	known := map[int]string{} // the thought's text as the AI last got it
 	for _, e := range evs {
 		switch e.Op {
 		case "edit":
 			text[e.Thought] = e.Text
+			if e.N <= seen {
+				known[e.Thought] = e.Text
+			}
 			if e.N > seen {
 				lastEdit[e.Thought] = e.N
 			}
 		case "thought":
 			thoughts[e.N] = e
+			if _, ok := known[e.N]; !ok {
+				known[e.N] = e.Text
+			}
 		case "retract", "unretract":
 			final[e.Thought] = e.Op == "retract"
 			if e.N <= seen {
@@ -396,7 +501,7 @@ func deliverable(all []Event, seen, cut int) []Event {
 			if !ok || t.N > seen || lastOp[e.Thought] != e.N || final[e.Thought] == told[e.Thought] {
 				continue
 			}
-			e.Op, e.Text = "unretract", t.Text
+			e.Op, e.Text = "unretract", known[e.Thought]
 			if final[e.Thought] {
 				e.Op = "retract"
 			}
@@ -523,6 +628,13 @@ func describe(e Event, nodes []*node) string {
 	case "edit":
 		text := strings.ReplaceAll(strings.TrimSpace(e.Text), "\n", "\n  ")
 		return fmt.Sprintf("edit thought %d: %s", e.Thought, text)
+	case "undo":
+		t := e
+		t.Op = e.of
+		if s := describe(t, nodes); s != "" {
+			return "retract " + s
+		}
+		return ""
 	case "retract", "unretract":
 		head := []rune(strings.Join(strings.Fields(e.Text), " "))
 		if len(head) > 40 {
@@ -612,13 +724,45 @@ type state struct {
 	seen     int             // what the AI has read ('changes')
 	sent     int             // the latest send: what the person has sent
 	hidden   map[string]bool // hideKey of each hidden line
+	// undoing is the lines (by id, and by hideKey) with a reaction, hide or
+	// unhide that was sent and is now taken back, the taking back not sent
+	// yet.
+	undoing, undoingKey map[string]bool
 }
 
+// replayEvents adds up the events. What was taken back (undo) is as if it
+// never happened.
 func replayEvents(evs []Event, seen int) *state {
-	st := &state{react: map[string]Event{}, seen: seen, sent: lastSend(evs), hidden: map[string]bool{}}
+	st := &state{react: map[string]Event{}, seen: seen, sent: lastSend(evs), hidden: map[string]bool{},
+		undoing: map[string]bool{}, undoingKey: map[string]bool{}}
 	byN := map[int]*thought{}
+	undone := undoneBy(evs)
 	for _, e := range evs {
+		if _, ok := undone[e.N]; ok {
+			// Sent, its taking back not yet: the line says so.
+			if u := undone[e.N]; e.N <= st.sent && u.N > st.sent {
+				switch e.Op {
+				case "react":
+					st.undoing[e.ID] = true
+				case "hide", "unhide":
+					st.undoingKey[e.Key] = true
+				}
+			}
+			continue
+		}
 		switch e.Op {
+		case "undo":
+			// Taking back a sent change to a thought is new input on it.
+			if t := byN[e.Undo]; t != nil && e.Undo <= st.sent {
+				t.lastN = max(t.lastN, e.N)
+			}
+			for _, x := range evs {
+				if x.N == e.Undo && x.Thought != 0 && x.N <= st.sent {
+					if t := byN[x.Thought]; t != nil {
+						t.lastN = max(t.lastN, e.N)
+					}
+				}
+			}
 		case "react":
 			st.react[e.ID] = e
 		case "thought":
