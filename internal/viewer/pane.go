@@ -90,11 +90,13 @@ func (a *app) openPane(order []*board.Thought) []string {
 		}
 	}
 	end = min(end, ci+room-1)
-	if ci < a.ptop {
-		a.ptop = ci
-	}
-	if end >= a.ptop+room {
-		a.ptop = min(end-room+1, ci)
+	if !a.pfree {
+		if ci < a.ptop {
+			a.ptop = ci
+		}
+		if end >= a.ptop+room {
+			a.ptop = min(end-room+1, ci)
+		}
 	}
 	a.ptop = max(min(a.ptop, len(rows)-room), 0)
 	out := []string{"", head}

@@ -233,6 +233,36 @@ export function renderPart(app, page, ui, memo, env, ts) {
   cursor(cx);
 }
 
+// lines is how many lines box e takes (its line height from CSS).
+function lines(e) {
+  const lh = parseFloat(getComputedStyle(e).lineHeight) || 20;
+  return Math.round(e.getBoundingClientRect().height / lh);
+}
+
+// lists lays out lists and head words as page says (lists.go): a head
+// word run-in when "head: body" fits on one line, else a definition; a
+// list (the list lines of one parent, up to a blank line) loose, a gap
+// between all of its lines, when any of them takes more than one line.
+function lists(app) {
+  for (const e of app.querySelectorAll('.hasHead')) {
+    e.classList.remove('def');
+    if (e.getClientRects().length && lines(e) > 1) e.classList.add('def');
+  }
+  for (const parent of new Set([...app.querySelectorAll('.li')].map((x) => x.parentElement))) {
+    let group = [];
+    const done = () => {
+      const loose = group.some((li) => { const t = li.querySelector(':scope > .list > .lt'); return t && lines(t) > 1; });
+      group.forEach((li, i) => li.classList.toggle('loose', loose && i > 0));
+      group = [];
+    };
+    for (const c of parent.children) {
+      if (!c.classList.contains('li') || c.querySelector(':scope > .list.gap')) done();
+      if (c.classList.contains('li')) group.push(c);
+    }
+    done();
+  }
+}
+
 // fit adjusts what needs the page laid out, and says which open notices
 // are too tall to pin (taller than 30% of the screen): a new unpinned set
 // when it changed, else null.
@@ -252,6 +282,7 @@ export function fit(app, page, ui) {
     }
     list.classList.toggle('rights-below', below);
   }
+  lists(app);
   const h = app.clientHeight;
   let changed = false;
   const unpinned = { ...ui.unpinned };

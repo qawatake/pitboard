@@ -138,10 +138,14 @@ type Thing struct {
 	Num       string   `json:",omitempty"` // a numbered list line's number as written ("1.")
 	Level     int      `json:",omitempty"` // a list line's nesting (0-2)
 	Head      bool     `json:",omitempty"` // a paragraph that is a small heading
-	Gap       bool     `json:",omitempty"` // a blank line came before it
-	Lang      string   `json:",omitempty"` // Code: its language ("diff" is colored)
-	Code      []string `json:",omitempty"` // Code: its lines
-	Depth     int      `json:",omitempty"` // how deep in Folds (and Asks, for options)
+	// HeadWord is, on a list line or paragraph written "**head**: body"
+	// (HeadWord), its head; Title is then the body. A screen draws it
+	// run-in or as a definition (see lists.go).
+	HeadWord string   `json:",omitempty"`
+	Gap      bool     `json:",omitempty"` // a blank line came before it
+	Lang     string   `json:",omitempty"` // Code: its language ("diff" is colored)
+	Code     []string `json:",omitempty"` // Code: its lines
+	Depth    int      `json:",omitempty"` // how deep in Folds (and Asks, for options)
 	// None is what a Section that holds nothing shows, faint, under its
 	// heading (MsgNone; "" otherwise). See EmptySection.
 	None string `json:",omitempty"`
@@ -309,6 +313,11 @@ func (b *Board) thing(n *report.Node, comments map[int]*Comment) *Thing {
 		Title: Spans(n.Text), Note: n.Reason, Path: n.Path, URL: n.URL, At: n.At,
 		OptionKey: n.Label, Num: n.Num, Level: n.Level, Head: n.Head, Gap: n.Gap,
 		Lang: n.Lang, Code: n.Code, Depth: n.Depth, Hidden: b.IsHidden(n),
+	}
+	if (n.Kind == report.KindPara && !n.Head) || n.Kind == report.KindPlain {
+		if head, body, ok := HeadWord(n.Text); ok {
+			t.HeadWord, t.Title = head, Spans(body)
+		}
 	}
 	switch n.Kind {
 	case report.KindTodo:

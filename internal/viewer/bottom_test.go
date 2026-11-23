@@ -127,16 +127,17 @@ func TestHintsShowM(t *testing.T) {
 	if s != "      y よし  n だめ  c 行に書く  x 隠す  space 次へ  g 飛ぶ  m 書く  ? キー" {
 		t.Errorf("hints: %q", s)
 	}
-	// Dropped in order x and space, g, enter, n, y, c; m and ? stay.
+	// Dropped in order x and space, m (page.DropRank: before g and enter),
+	// g, enter, n, y, c; ? stays (it shows them all).
 	for _, c := range []struct {
 		w    int
 		want string
 	}{
 		{70, "      y よし  n だめ  c 行に書く  g 飛ぶ  m 書く  ? キー"},
-		{54, "      y よし  n だめ  c 行に書く  m 書く  ? キー"},
-		{48, "      y よし  c 行に書く  m 書く  ? キー"},
-		{40, "      c 行に書く  m 書く  ? キー"},
-		{26, "      m 書く  ? キー"},
+		{54, "      y よし  n だめ  c 行に書く  g 飛ぶ  ? キー"},
+		{48, "      y よし  n だめ  c 行に書く  ? キー"},
+		{40, "      y よし  c 行に書く  ? キー"},
+		{26, "      c 行に書く  ? キー"},
 	} {
 		a.t.w = c.w
 		if s := reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), ""); s != c.want {
@@ -257,8 +258,8 @@ func TestNarrowHintsKeepLineKeys(t *testing.T) {
 	a.handle(key{r: 'j'})
 	a.render()
 	s := reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), "")
-	// One line: x, enter, n, y go first; c, "m 書く" and "? キー" stay.
-	if s != "      c 行に書く  m 書く  ? キー" {
+	// One line: x, m, enter, n go first; y, c and "? キー" stay.
+	if s != "      y よし  c 行に書く  ? キー" {
 		t.Errorf("narrow hints: %q", s)
 	}
 	a.t.w = 100

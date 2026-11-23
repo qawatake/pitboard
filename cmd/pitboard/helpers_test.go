@@ -20,7 +20,7 @@ func badStore(t *testing.T) *board.Store {
 	return st
 }
 
-const wantNote = "report.md has 2 problem(s), 0 warning(s). Run: pitboard -s s1 check\n"
+const wantNote = "report.md has 2 problem(s). Run: pitboard -s s1 check\n"
 
 // sendAll marks everything so far as sent (what s does on the board).
 func sendAll(st *board.Store) {

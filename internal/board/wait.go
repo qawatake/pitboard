@@ -152,7 +152,7 @@ func (s *Store) Wait(ctx context.Context, timeout time.Duration, out io.Writer) 
 	}
 	defer s.releaseWaiting()
 	// Waiting goes on, but the AI hears now that the report needs fixing.
-	s.NoteProblems(errOut)
+	s.NoteReportProblems(errOut)
 	var deadline <-chan time.Time
 	if timeout > 0 {
 		t := time.NewTimer(timeout)

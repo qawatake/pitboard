@@ -159,6 +159,14 @@ h2.section { position: relative; font-size: 1.1em; line-height: 1.4; color: var(
 .list { display: flex; gap: .4em; }
 .list > .lm { color: var(--quiet); flex: none; min-width: 1em; }
 .list > .lt { min-width: 0; }
+/* A list whose lines wrap is loose: a gap between all of its lines
+   (render.fit, page's rule). */
+.li.loose { margin-top: .5em; }
+/* "head: body": run-in when it fits one line; else a definition, the
+   head alone, the body one step in under it (no colon). */
+.hasHead.def > .hw { display: block; }
+.hasHead.def > .hsep { display: none; }
+.hasHead.def > .hb { display: block; padding-left: var(--step); }
 .subs { padding-left: var(--step); }
 /* Code never scrolls: a long line wraps, as on the terminal, anywhere,
    and goes on under the line's own indent (after a diff's sign): --hang

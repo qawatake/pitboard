@@ -17,8 +17,8 @@ func writeReport(t *testing.T, st *Store, src string) {
 }
 
 // A row the person has not answered (look, ask, an Ask), removed, is
-// warned of until acknowledged or back; one they reacted to, hid or read
-// is not.
+// warned of until said once by another command; one they reacted to, hid
+// or read is not.
 func TestRemovedUnanswered(t *testing.T) {
 	st := testStore(t)
 	writeReport(t, st, `<Item id="a-flat" look="y">> storybook がいいとは言っていない、フラットな一覧はメンテナブルか</Item>
@@ -43,21 +43,18 @@ func TestRemovedUnanswered(t *testing.T) {
 			t.Errorf("warned of an answered or plain row: %q", x)
 		}
 	}
-	// It stays until acknowledged.
+	// 'check' says it until another command has said it once.
 	if w2 := st.Removed(); len(w2) != len(w) {
 		t.Errorf("second time %q", w2)
 	}
-	if note := st.ProblemNote(); !strings.Contains(note, "0 problem(s), ") || !strings.Contains(note, "warning(s)") {
+	if note := st.ProblemNote(); note != strings.Join(w, "\n") {
 		t.Errorf("note %q", note)
 	}
-	if n, err := st.AckRemoved(); err != nil || n == 0 {
-		t.Fatalf("ack %d %v", n, err)
-	}
 	if w := st.Removed(); len(w) != 0 {
-		t.Errorf("after ack: %q", w)
+		t.Errorf("after it was said: %q", w)
 	}
 	if note := st.ProblemNote(); note != "" {
-		t.Errorf("note after ack %q", note)
+		t.Errorf("note again %q", note)
 	}
 }
 
@@ -171,35 +168,60 @@ func TestRemovedIDlessFold(t *testing.T) {
 	if w := st.Removed(); strings.Join(w, "\n") != strings.Join(want, "\n") {
 		t.Errorf("warnings %q", w)
 	}
-	if n, _ := st.AckRemoved(); n != 2 {
-		t.Errorf("ack %d", n)
+	if got := st.TakeRemoved(); len(got) != 2 {
+		t.Errorf("taken %q", got)
+	}
+	if w := st.Removed(); len(w) != 0 {
+		t.Errorf("after taken: %q", w)
 	}
 }
 
-// 'check' (Removed) says every warning each time; the line other commands
-// end with counts a removal once.
-func TestRemovedNotedOnce(t *testing.T) {
+// 'check' (Removed) says every warning until the line other commands end
+// with has said it once; then it is forgotten. A row back, then gone
+// again, is said again.
+func TestRemovedSaidOnce(t *testing.T) {
 	st := testStore(t)
 	writeReport(t, st, "<Item id=\"a\" look=\"y\">読む行</Item>\n")
 	st.ProblemNote()
 	writeReport(t, st, "<Item id=\"b\">別の行</Item>\n")
-	if note := st.ProblemNote(); !strings.Contains(note, "0 problem(s), 1 warning(s)") {
+	want := `warning: row "a" (読む行) was removed but the person has not hidden or answered it`
+	for range 3 {
+		if w := st.Removed(); len(w) != 1 || w[0] != want {
+			t.Errorf("check: %q", w)
+		}
+	}
+	if note := st.ProblemNote(); note != want {
 		t.Errorf("first: %q", note)
 	}
 	if note := st.ProblemNote(); note != "" {
 		t.Errorf("second: %q", note)
 	}
-	for range 3 {
-		if w := st.Removed(); len(w) != 1 {
-			t.Errorf("check: %q", w)
-		}
+	if w := st.Removed(); len(w) != 0 {
+		t.Errorf("check after: %q", w)
 	}
-	// Back, then gone again: counted again.
+	if _, err := os.Stat(st.rowsPath()); err != nil {
+		t.Fatal(err)
+	}
+	if rows := st.readRows(); len(rows) != 1 {
+		t.Errorf("rows %v", rows)
+	}
 	writeReport(t, st, "<Item id=\"a\" look=\"y\">読む行</Item>\n")
 	st.ProblemNote()
 	writeReport(t, st, "<Item id=\"b\">別の行</Item>\n")
-	if note := st.ProblemNote(); !strings.Contains(note, "1 warning(s)") {
+	if note := st.ProblemNote(); note != want {
 		t.Errorf("gone again: %q", note)
+	}
+}
+
+// A report with problems: the removal and the problem line both.
+func TestRemovedWithProblems(t *testing.T) {
+	st := testStore(t)
+	writeReport(t, st, "<Item id=\"a\" look=\"y\">読む行</Item>\n")
+	st.ProblemNote()
+	writeReport(t, st, "<Item id=\"b\" state=\"bogus\">別の行</Item>\n")
+	note := st.ProblemNote()
+	if !strings.HasPrefix(note, `warning: row "a"`) || !strings.HasSuffix(note, "report.md has 1 problem(s). Run: pitboard -s s1 check") {
+		t.Errorf("note %q", note)
 	}
 }
 

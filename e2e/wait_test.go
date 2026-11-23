@@ -227,7 +227,7 @@ func TestWait(t *testing.T) {
 		ss := setup(t)
 		ss.write("<Item id=\"z\">\n")
 		r := ss.run("wait", "--timeout", "100ms")
-		if !strings.Contains(r.stderr, "problem(s), 0 warning(s). Run: pitboard -s abcdef12 check") {
+		if !strings.Contains(r.stderr, "problem(s). Run: pitboard -s abcdef12 check") {
 			t.Errorf("stderr %q", r.stderr)
 		}
 	})

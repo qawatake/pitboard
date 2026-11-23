@@ -318,13 +318,67 @@ func listMark(n *report.Node) text {
 // wraps to where it starts (past a number wider than the mark field), and
 // each level is indented 2 more. mark replaces the list's own mark if set.
 func (a *app) listItem(sel bool, ind int, n *report.Node, base string, mark, right text) []row {
+	rows, _ := a.listItemOwn(sel, ind, n, base, mark, right)
+	return rows
+}
+
+// listItemOwn is listItem, and how many rows its own text takes (its
+// sub-items left out): what makes its list loose (page.Loose).
+func (a *app) listItemOwn(sel bool, ind int, n *report.Node, base string, mark, right text) ([]row, int) {
 	if len(mark) == 0 {
 		mark = listMark(n)
 	}
 	extra := max(mark.width()-markW, 0)
-	out := a.titled(sel, ind, extra, mark, inline(n.Text, base), right, 0)
-	for _, s := range n.Subs {
-		out = append(out, a.listItem(false, ind+markW+extra, s, base, nil, nil)...)
+	var out []row
+	if len(right) > 0 || sel {
+		out = a.titled(sel, ind, extra, mark, inline(n.Text, base), right, 0)
+	} else {
+		out = a.measured(ind, extra, mark, n.Text, base)
+	}
+	own := len(out)
+	return append(out, a.listLines(ind+markW+extra, n.Subs, base)...), own
+}
+
+// listLines draws the lines of one list (one level under one parent): with
+// a blank row between all of them when any takes more than one row
+// (page.Loose). A nested list decides for itself.
+func (a *app) listLines(ind int, ls []*report.Node, base string) []row {
+	var parts [][]row
+	var lines []int
+	for _, s := range ls {
+		r, own := a.listItemOwn(false, ind, s, base, nil, nil)
+		parts, lines = append(parts, r), append(lines, own)
+	}
+	loose := page.Loose(lines)
+	var out []row
+	for i, p := range parts {
+		if loose && i > 0 {
+			out = append(out, row{})
+		}
+		out = append(out, p...)
+	}
+	return out
+}
+
+// measured draws text s (inline Markdown) of a list line or a paragraph
+// after mark, wrapped at the room left but no wider than page.TextMeasure.
+// A line written "**head**: body" that does not fit on one row is drawn
+// as a definition: the head alone on the first row (bold, no colon), the
+// body under it, one step in (page.HeadWord).
+func (a *app) measured(indent, extra int, mark text, s, base string) []row {
+	w := max(min(a.room(indent, nil)-extra, page.TextMeasure), 4)
+	all := inline(s, base)
+	lns := all.wrap(w)
+	if head, body, ok := page.HeadWord(s); ok && len(lns) > 1 {
+		out := []row{{line: a.compose(false, indent, mark, inline("**"+head+"**", base), nil)}}
+		for _, ln := range inline(body, base).wrap(max(w-markW, 4)) {
+			out = append(out, row{line: a.compose(false, indent+extra+markW, nil, ln, nil), cont: true})
+		}
+		return out
+	}
+	out := []row{{line: a.compose(false, indent, mark, lns[0], nil)}}
+	for _, ln := range lns[1:] {
+		out = append(out, row{line: a.compose(false, indent+extra, nil, ln, nil), cont: true})
 	}
 	return out
 }
@@ -403,7 +457,8 @@ func (a *app) contents(pv *view, n *report.Node, ind int) []row {
 	if n.Reason != "" {
 		rows = append(rows, a.para(ind, append(plainText("理由: ", dim), inline(n.Reason, base)...))...)
 	}
-	for _, b := range n.Body {
+	for i := 0; i < len(n.Body); i++ {
+		b := n.Body[i]
 		// A blank line in the text stays one; a small heading always has
 		// one above it, unless it comes first.
 		if len(rows) > 0 && (b.Gap || b.Head) {
@@ -411,11 +466,20 @@ func (a *app) contents(pv *view, n *report.Node, ind int) []row {
 		}
 		switch b.Kind {
 		case report.KindPara:
-			rows = append(rows, a.para(ind, paraText(b, base))...)
+			if b.Head {
+				rows = append(rows, a.para(ind, paraText(b, base))...)
+			} else {
+				rows = append(rows, a.measured(ind, 0, nil, b.Text, base)...)
+			}
 		case report.KindCode:
 			rows = append(rows, a.code(b, ind+markW)...)
-		default: // list lines
-			rows = append(rows, a.listItem(false, ind+markW, b, base, nil, nil)...)
+		default: // list lines: the run of them up to the next blank line is one list
+			j := i + 1
+			for j < len(n.Body) && n.Body[j].Kind == b.Kind && !n.Body[j].Gap && !n.Body[j].Head {
+				j++
+			}
+			rows = append(rows, a.listLines(ind+markW, n.Body[i:j], base)...)
+			i = j - 1
 		}
 	}
 	return append(rows, a.thoughtRows(n, ind+markW)...)

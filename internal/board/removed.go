@@ -15,18 +15,18 @@ import (
 // When the AI rewrites report.md it may drop a row the person still has
 // business with: one that wants them (ask="y" or an Ask they have not
 // answered, wait="you" they have not acted on, look="y" they have not
-// read) or one with a sent comment the AI has not settled done. 'check'
-// warns of each every time; the line the other commands the AI runs end
-// with counts each removal once, so the AI learns it from the tool, not
-// from the person's next comment arriving on a gone row.
+// read) or one with a sent comment the AI has not settled done. Such a
+// removal is said once: 'check' lists it until then, and the next other
+// command the AI runs ends with it; then it is forgotten. The AI learns it
+// from the tool, not from the person's next comment arriving on a gone row.
 //
 // The rows are remembered in the session's rows.json: every row with an
 // id, and every Fold without one (by report.Target: "Fold|title=<title>",
-// which is what its reactions, comments and hiding go by), the report has
-// had since it was last acknowledged (each command the AI runs adds the
-// rows the report has now, when it parses without problems). A gone row
-// is warned of until 'ack-removed', or until it comes back, or until
-// nothing about it is left open; then it is forgotten.
+// which is what its reactions, comments and hiding go by), with what is
+// needed to tell whether the person is done with it. Each command the AI
+// runs adds the rows the report has now, when it parses without problems.
+// A gone row is forgotten once it has been said, or at once when nothing
+// about it is left open.
 
 // rowsPath is the session's remembered rows.
 func (s *Store) rowsPath() string { return filepath.Join(s.Dir, "rows.json") }
@@ -39,7 +39,6 @@ type seenRow struct {
 	Look    bool   `json:",omitempty"` // look="y": reading it is enough
 	HideKey string `json:",omitempty"`
 	View    string `json:",omitempty"` // the hash of its ViewKey (read = the person viewed it)
-	Noted   bool   `json:",omitempty"` // counted once on a command's last line since it went
 }
 
 func (s *Store) readRows() map[string]seenRow {
@@ -83,27 +82,27 @@ func (s *Store) reportRows() (now map[string]*report.Node, ok, valid bool) {
 }
 
 // Removed is the warnings about rows the report no longer has, one line
-// each, in key order ('check' prints them all every time). Nothing when
-// the report cannot be read (it is not the time to warn of rows).
-func (s *Store) Removed() []string {
-	w, _ := s.removed(false)
-	return w
-}
+// each, in key order ('check' prints them; they stay until said once by
+// TakeRemoved). Nothing when the report cannot be read (it is not the time
+// to warn of rows).
+func (s *Store) Removed() []string { return s.removed(false) }
 
-// removed is Removed; with note, it also counts the warnings of rows not
-// counted before (fresh) and remembers that they were.
-func (s *Store) removed(note bool) (warnings []string, fresh int) {
+// TakeRemoved is Removed, and forgets the rows it warns of: each removal
+// is said once.
+func (s *Store) TakeRemoved() []string { return s.removed(true) }
+
+func (s *Store) removed(take bool) (warnings []string) {
 	defer func() {
 		if recover() != nil {
-			warnings, fresh = nil, 0
+			warnings = nil
 		}
 	}()
 	if _, err := os.Stat(s.Dir); err != nil {
-		return nil, 0
+		return nil
 	}
 	now, ok, valid := s.reportRows()
 	if !ok {
-		return nil, 0
+		return nil
 	}
 	rows := s.readRows()
 	before, _ := json.Marshal(rows)
@@ -129,23 +128,17 @@ func (s *Store) removed(note bool) (warnings []string, fresh int) {
 		if _, there := now[k]; there {
 			continue
 		}
-		r := rows[k]
-		w := removedWarnings(k, r, st, viewed)
-		if len(w) == 0 {
-			delete(rows, k) // nothing about it is left open
-			continue
-		}
+		w := removedWarnings(k, rows[k], st, viewed)
 		warnings = append(warnings, w...)
-		if note && !r.Noted {
-			fresh += len(w)
-			r.Noted = true
-			rows[k] = r
+		// Forgotten when nothing about it is left open, or once said.
+		if len(w) == 0 || take {
+			delete(rows, k)
 		}
 	}
 	if after, _ := json.Marshal(rows); string(after) != string(before) {
 		s.writeRows(rows)
 	}
-	return warnings, fresh
+	return warnings
 }
 
 func viewHash(n *report.Node) string {
@@ -203,25 +196,4 @@ func cutTitle(t string) string {
 		return string(r[:23]) + "…"
 	}
 	return t
-}
-
-// AckRemoved forgets the rows the report no longer has: their warnings
-// stop. It says how many.
-func (s *Store) AckRemoved() (int, error) {
-	now, ok, _ := s.reportRows()
-	if !ok {
-		return 0, fmt.Errorf("%s: cannot be read", s.ReportPath())
-	}
-	rows := s.readRows()
-	n := 0
-	for k := range rows {
-		if _, there := now[k]; !there {
-			delete(rows, k)
-			n++
-		}
-	}
-	if n > 0 {
-		s.writeRows(rows)
-	}
-	return n, nil
 }

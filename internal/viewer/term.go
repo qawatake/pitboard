@@ -117,7 +117,7 @@ func (t *term) enter() error {
 	if _, err := stty("raw", "-echo", "min", "0", "time", "1"); err != nil {
 		return err
 	}
-	fmt.Print("\x1b[?1049h\x1b[?25l\x1b[?2004h" + keysOn)
+	fmt.Print("\x1b[?1049h\x1b[?25l\x1b[?2004h" + scrollOn + keysOn)
 	return nil
 }
 
@@ -142,6 +142,19 @@ func (t *term) enter() error {
 const (
 	keysOn  = "\x1b[>1u\x1b[>4;1m\x1b[?u"
 	keysOff = "\x1b[<u\x1b[>4;0m"
+)
+
+// scrollOn asks for alternate scroll (DEC mode 1007): in the alternate
+// screen, the terminal turns the mouse wheel and the trackpad into ↑ / ↓
+// presses, which scroll the page (keys.go). The mouse is not captured, so
+// text can still be selected and copied without a modifier. Ghostty and
+// herdr (which passes it on per pane) honour it; xterm needs it asked for;
+// kitty, WezTerm, iTerm2 and Terminal.app send arrows in the alternate
+// screen by default. The mode as it was is saved (CSI ? 1007 s) and put
+// back (CSI ? 1007 r) by scrollOff.
+const (
+	scrollOn  = "\x1b[?1007s\x1b[?1007h"
+	scrollOff = "\x1b[?1007r"
 )
 
 // run hands the terminal to another program and takes it back afterwards.
@@ -171,7 +184,7 @@ func (t *term) run(c *exec.Cmd) error {
 }
 
 func (t *term) close() {
-	fmt.Print(keysOff + "\x1b[?2004l\x1b[?25h\x1b[?1049l")
+	fmt.Print(keysOff + scrollOff + "\x1b[?2004l\x1b[?25h\x1b[?1049l")
 	_, _ = stty(t.saved)
 }
 
@@ -276,6 +289,13 @@ func parseKey(b []byte, pasting *bool) (key, int) {
 		if len(b) > 1 && b[1] == '\r' {
 			return key{name: "newline"}, 2 // alt+enter, and shift+enter in some terminals
 		}
+		if len(b) > 3 && b[1] == 0x1b && (b[2] == '[' || b[2] == 'O') && (b[3] == 'A' || b[3] == 'B') && !*pasting {
+			// option+↑↓ in a terminal that sends alt as an ESC first
+			if b[3] == 'A' {
+				return key{name: "alt+up"}, 4
+			}
+			return key{name: "alt+down"}, 4
+		}
 		if len(b) > 1 && !*pasting {
 			switch b[1] {
 			case 'b':
@@ -311,6 +331,10 @@ func parseKey(b []byte, pasting *bool) (key, int) {
 				name = "alt+left" // option+← (and ctrl+←)
 			case "1;3C", "1;9C", "1;5C":
 				name = "alt+right"
+			case "1;3A", "1;9A":
+				name = "alt+up"
+			case "1;3B", "1;9B":
+				name = "alt+down"
 			case "200~":
 				*pasting = true
 				name = "paste-start"
@@ -474,7 +498,7 @@ func atoiPart(s string) int {
 // ctrlKeys are the control keys the viewer reads, by their byte.
 var ctrlKeys = map[byte]string{
 	1: "ctrl+a", 2: "ctrl+b", 4: "ctrl+d", 5: "ctrl+e", 6: "ctrl+f", 7: "ctrl+g",
-	11: "ctrl+k", 14: "ctrl+n", 16: "ctrl+p", 19: "ctrl+s", 21: "ctrl+u", 22: "ctrl+v", 23: "ctrl+w",
+	11: "ctrl+k", 14: "ctrl+n", 16: "ctrl+p", 19: "ctrl+s", 21: "ctrl+u", 22: "ctrl+v", 23: "ctrl+w", 25: "ctrl+y",
 }
 
 // runeWidth is the number of terminal cells a rune takes: 2 for CJK, kana,

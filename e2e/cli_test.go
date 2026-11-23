@@ -454,7 +454,7 @@ func TestChangesTrailingLines(t *testing.T) {
 	// A broken report adds the problem line, after open:.
 	ss.write(changesReport + "<Item id=\"z\">\n")
 	n := len(strings.Split(strings.TrimSpace(ss.run("check").stdout), "\n"))
-	problem := fmt.Sprintf("report.md has %d problem(s), 0 warning(s). Run: pitboard -s abcdef12 check", n)
+	problem := fmt.Sprintf("report.md has %d problem(s). Run: pitboard -s abcdef12 check", n)
 	r := ss.run("changes")
 	wantLines(t, r.stdout, "open: 1 2 (oldest 0s). Details: pitboard -s abcdef12 open", problem)
 	if r.code != 0 {
@@ -607,8 +607,8 @@ func TestOpen(t *testing.T) {
 
 // SPEC.md "行を消したときの警告": a row the person has not answered, or one
 // with an open comment, removed from the report is warned of by check (the
-// exit code stays 0) and counted on the line other commands end with,
-// until ack-removed.
+// exit code stays 0) until the next other command ends with the warnings
+// once; then it is forgotten.
 func TestRemovedRowWarnings(t *testing.T) {
 	s := newSandbox(t)
 	ss := s.session("abcdef12345")
@@ -625,30 +625,25 @@ func TestRemovedRowWarnings(t *testing.T) {
 	if r.code != 0 {
 		t.Errorf("warnings changed the exit code: %d", r.code)
 	}
-	if out := ss.mustRun("changes"); !strings.Contains(out, "report.md has 0 problem(s), 2 warning(s). Run: pitboard -s abcdef12 check") {
-		t.Errorf("changes: %q", out)
-	}
-	// Counted once on the other commands; check says them every time.
-	if out := ss.mustRun("changes"); strings.Contains(out, "warning(s)") {
-		t.Errorf("changes again: %q", out)
-	}
+	// check says them again until another command has said them.
 	if r := ss.run("check"); strings.Count(r.stdout, "warning:") != 2 {
 		t.Errorf("check again: %q", r.stdout)
 	}
-	// -h says how to use it and forgets nothing.
-	if out := ss.mustRun("ack-removed", "-h"); !strings.Contains(out, "usage: pitboard -s SESSION ack-removed") {
-		t.Errorf("ack -h: %q", out)
+	out := ss.mustRun("changes")
+	if !strings.Contains(out, `warning: row "a-flat" (> フラットな一覧はメンテナブルか) was removed but the person has not hidden or answered it`) ||
+		!strings.Contains(out, `warning: row "c" (コメントのある行) was removed but it has an open comment (1)`) ||
+		strings.Contains(out, "problem(s)") {
+		t.Errorf("changes: %q", out)
 	}
-	if r := ss.run("check"); strings.Count(r.stdout, "warning:") != 2 {
-		t.Errorf("after -h: %q", r.stdout)
-	}
-	if out := s.mustRun("ack-removed", "--help"); !strings.Contains(out, "usage: pitboard -s SESSION ack-removed") {
-		t.Errorf("ack --help without a session: %q", out)
-	}
-	if out := ss.mustRun("ack-removed"); !strings.Contains(out, "acknowledged 2 removed row(s)") {
-		t.Errorf("ack: %q", out)
+	// Said once: forgotten.
+	if out := ss.mustRun("changes"); strings.Contains(out, "warning:") {
+		t.Errorf("changes again: %q", out)
 	}
 	if out := ss.mustRun("check"); strings.TrimSpace(out) != "" {
-		t.Errorf("after ack: %q", out)
+		t.Errorf("check after: %q", out)
+	}
+	// The command is gone.
+	if r := ss.run("ack-removed"); r.code == 0 {
+		t.Errorf("ack-removed still runs: %q", r.stdout)
 	}
 }

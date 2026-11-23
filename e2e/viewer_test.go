@@ -314,7 +314,7 @@ func (v *viewer) WaitCursorOn(sub string) {
 
 // helpMarker is on screen only while the key list (?) is open (when it is
 // wide and tall enough to show the first description).
-const helpMarker = "上下に動く"
+const helpMarker = "上下の行へ動く"
 
 // helpOpen says whether the key list is open: its title "キー" stands
 // alone on a row (the guide's "? キー" never does).

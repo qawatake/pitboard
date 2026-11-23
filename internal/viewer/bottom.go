@@ -56,13 +56,14 @@ func (a *app) msgRows(msg string, right text) []string {
 func (a *app) helpRows() []row {
 	rows := []row{{}, {line: a.compose(false, 0, nil, plainText("キー", bold+cStructure), nil)}, {}}
 	for _, k := range [][2]string{
-		{"j k ↑↓", "上下に動く (ctrl+n / ctrl+p も)。止まる行がその先になければ半画面スクロール。カーソルの行が画面の外にあれば、まずそこまで戻す"},
-		{"pgup pgdn", "半画面ずつスクロール"},
+		{"j k", "上下の行へ動く (ctrl+n / ctrl+p も)。止まる行がその先になければ半画面スクロール。カーソルの行が画面の外にあれば、まずそこまで戻す"},
+		{"ctrl+d u", "画面だけを半画面ずつ下 / 上へ (カーソルは動かない。pgdn pgup・alt+↓ ↑ も)"},
+		{"ctrl+e y", "画面だけを 1 行ずつ下 / 上へ (↓ ↑ も。マウスのホイールやトラックパッドも、端末が ↓ ↑ に変えて送る)"},
 		{"", "報告の終わりからさらに j で、報告の下のコメントへ (欄が広がる)。コメントの 1 件目で k で報告へ"},
 		{"", "報告のいちばん上からさらに k で、上に固定されたお知らせへ"},
-		{"", "日本語入力のままでも、↑↓ ctrl+n ctrl+p と全角の英字 (ｊ ｙ など) が効く"},
+		{"", "日本語入力のままでも、ctrl+n ctrl+p と全角の英字 (ｊ ｙ など) が効く"},
 		{"g", "節へ飛ぶ: お知らせ・節・いちばん外の折りたたみに a b c … が付く。その字で、そこの最初の行へ (見出しを画面の上に)。esc でやめる"},
-		{"", "開いた中身が画面より高ければ、j k は次 (前) の行へ移る前に、間を半画面ずつスクロールする (カーソルは動かず、画面の外に出ることもある。そのとき y n x r c は、まずカーソルの行を画面に戻す)"},
+		{"", "開いた中身が画面より高ければ、j k は次 (前) の行へ移る前に、間を半画面ずつスクロールする (カーソルは動かず、画面の外に出ることもある。そのとき y n x r c は、まずカーソルの行を画面に戻す)。k は j で読み下った中身を同じように読み上る"},
 		{"space", "カーソルより下で、いちばん近い印のある行 (黄の ●・人待ちの項目・緑の ●) へ。下に無ければ上から。折りたたみは開く"},
 		{"r", "読んだ: カーソルの行の緑の ● (右上の「未読」) を消す (カーソルを当てる・開くだけでは消えない。y n・答え・コメント・x でも消える)"},
 		{"A", "いま報告にある行をすべて読んだことにする (緑の ● を消す)"},
@@ -93,7 +94,7 @@ func (a *app) helpRows() []row {
 		{"ctrl+d", "右の 1 字を消す (delete も)"},
 		{"ctrl+w", "左の 1 語を消す (alt+backspace も)"},
 		{"ctrl+k / u", "カーソルから行末まで / 行頭からカーソルまで消す"},
-		{"pgup pgdn", "上の報告をスクロール"},
+		{"pgup pgdn", "書きながら画面を半画面ずつ上 / 下へ (alt+↑ ↓ も。1 行目の ↑・最後の行の ↓ は 1 行ずつ。入力欄は報告の中で一緒に動き、字を打つと戻る)"},
 		{"ctrl+v", "クリップボードの画像を貼る ([Image #N] が入る。画像ファイルのパスを貼っても同じ)"},
 		{"ctrl+g", "$VISUAL / $EDITOR / vim で続きを書く"},
 		{"esc", "やめる"},
@@ -207,7 +208,7 @@ func (a *app) bottom() []string {
 	n := pv.nodeAt(pv.cur)
 	if n == nil || !pv.curShown {
 		if pv.Err == "" && !pv.Missing {
-			keys = append(keys, hint{k: "j k ↑↓", d: "スクロール", rank: rankEnter})
+			keys = append(keys, hint{k: "j k", d: "スクロール", rank: rankEnter})
 		}
 		// Where the cursor's line went (reacting brings it back first): it
 		// outranks every key.
@@ -300,7 +301,17 @@ func (a *app) oneLineKeep(keys []hint, keep, right text) []string {
 	more, tailHints := a.b.Bar(a.top().showHidden)
 	var tail []hint
 	for _, h := range tailHints {
-		tail = append(tail, hint{k: h.Key, d: h.Word})
+		x := hint{k: h.Key, d: h.Word}
+		if h.Do == "write" {
+			// m goes before g and enter on a narrow line (page.DropRank);
+			// "? キー" stays to the end: it shows them all.
+			x.rank = page.DropRank(h.Do)
+		}
+		tail = append(tail, x)
+	}
+	if !a.list && !a.inPane && a.top().taller() {
+		// The page is taller than the screen: how to move the view alone.
+		keys = append(append([]hint{}, keys...), hint{k: "^d ^u", d: "スクロール", rank: rankU})
 	}
 	q := tail[len(tail)-1] // "? キー" (Bar ends with it)
 	for _, h := range more {
@@ -350,6 +361,12 @@ func (a *app) oneLineKeep(keys []hint, keep, right text) []string {
 				ks = append(ks, k)
 			}
 		}
+		var tl []hint
+		for _, k := range tail {
+			if k.rank == 0 || k.rank > lvl {
+				tl = append(tl, k)
+			}
+		}
 		cands := [][]hint{ks, alt(ks)}
 		if lvl == rankC {
 			// A hint with a short form keeps its words until every key
@@ -357,7 +374,7 @@ func (a *app) oneLineKeep(keys []hint, keep, right text) []string {
 			cands = append(cands, shorten(alt(ks), true), shorten(alt(ks), false))
 		}
 		for _, cand := range cands {
-			cand = append(cand, tail...)
+			cand = append(cand, tl...)
 			for _, r := range []text{join(keep, right), keep} { // right goes before any key
 				if fits(cand, r) {
 					return []string{a.compose(false, 0, nil, keyHints(cand), r)}

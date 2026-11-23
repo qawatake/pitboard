@@ -57,8 +57,13 @@ func (a *app) handle(k key) (quit bool) {
 		return true
 	case k.r == 'g':
 		a.startJump(pv)
-	case (k.r == 'j' || k.name == "down") && pv.offScreen() > 0,
-		(k.r == 'k' || k.name == "up") && pv.offScreen() < 0:
+	case k.r == 'k' && pv.offScreen() < 0 && a.inCurBlock(pv):
+		// Reading down through the cursor's line's contents went past its
+		// title: k reads back up through them, half a screen at a time, as
+		// j read down, before it moves to the line before.
+		pv.top = max(pv.top-max(pv.viewH/2, 1), pv.curRow)
+		pv.placed = false
+	case k.r == 'j' && pv.offScreen() > 0, k.r == 'k' && pv.offScreen() < 0:
 		// The cursor's line is off the screen in this direction: bring it
 		// back first, without moving it. The next j/k moves from there.
 		pv.follow = true
@@ -71,7 +76,10 @@ func (a *app) handle(k key) (quit bool) {
 		// The line under the cursor was rewritten: no key acts on it until
 		// j/k, and every one says so (page's guard).
 		a.react(pv, k.r)
-	case k.r == 'j' || k.name == "down":
+	case scrollKey(k, a.t.h) != 0:
+		// The view moves; the cursor stays (it may go off the screen).
+		a.scrollView(pv, scrollKey(k, a.t.h))
+	case k.r == 'j':
 		// What is between the cursor's line and the next stop is read
 		// first, half a screen at a time; the cursor stays. Reading on is
 		// the person's own move: the cursor is no longer only placed.
@@ -97,7 +105,7 @@ func (a *app) handle(k key) (quit bool) {
 		a.viewAll(pv)
 	case k.r == 'r':
 		a.react(pv, k.r)
-	case k.r == 'k' || k.name == "up":
+	case k.r == 'k':
 		if a.scrollToward(pv, -1) {
 			pv.placed = false
 			break
@@ -105,12 +113,6 @@ func (a *app) handle(k key) (quit bool) {
 		pv.lock, pv.placed = false, false
 		if !pv.step(-1) {
 			pv.top = max(pv.top-max(pv.viewH/2, 1), 0)
-		}
-	case k.name == "pgup":
-		pv.top = max(pv.top-max(a.t.h/2, 1), 0)
-	case k.name == "pgdn":
-		if !pv.atEnd {
-			pv.top += max(a.t.h/2, 1) // draw keeps it within the page
 		}
 	case k.name == "tab":
 		a.list, a.lfollow = true, true
@@ -144,9 +146,9 @@ func imeFree(k key) key {
 	case k.r == 0x3000:
 		k.r = ' '
 	case k.name == "ctrl+n":
-		k.name = "down"
+		k.name, k.r = "", 'j' // the cursor keys (↑ ↓ scroll the view)
 	case k.name == "ctrl+p":
-		k.name = "up"
+		k.name, k.r = "", 'k'
 	}
 	return k
 }
@@ -237,22 +239,20 @@ func (a *app) handleList(k key) (quit bool) {
 	switch {
 	case k.name == "tab" || k.r == 'q' || k.name == "esc":
 		a.list = false
-	case k.r == 'j' || k.name == "down":
+	case k.r == 'j':
 		if i+1 < len(ts) {
 			a.lcur, a.lfollow = ts[i+1].N, true
 		} else {
 			a.ltop++
 		}
-	case k.r == 'k' || k.name == "up":
+	case k.r == 'k':
 		if i > 0 && len(ts) > 0 {
 			a.lcur, a.lfollow = ts[i-1].N, true
 		} else {
 			a.ltop = max(a.ltop-1, 0)
 		}
-	case k.name == "pgup":
-		a.ltop = max(a.ltop-max(a.t.h/2, 1), 0)
-	case k.name == "pgdn":
-		a.ltop += max(a.t.h/2, 1)
+	case scrollKey(k, a.t.h) != 0:
+		a.ltop, a.lfollow = max(a.ltop+scrollKey(k, a.t.h), 0), false
 	case k.name == "enter" && len(ts) > 0 && a.lcurShown:
 		a.lopen[ts[i].N] = !a.lopen[ts[i].N]
 	case k.r == 'x' && len(ts) > 0 && a.lcurShown:
@@ -293,11 +293,16 @@ func (a *app) handlePane(k key) (quit bool) {
 		a.jump(a.top())
 	case k.r == 'A':
 		a.viewAll(a.top())
-	case k.r == 'j' || k.name == "down":
+	case scrollKey(k, a.t.h) != 0:
+		// The view moves; the cursor stays.
+		a.ptop, a.pfree = max(a.ptop+scrollKey(k, a.t.h), 0), true
+	case k.r == 'j':
+		a.pfree = false
 		if i+1 < len(ts) {
 			a.pcur = ts[i+1].N
 		}
-	case k.r == 'k' || k.name == "up":
+	case k.r == 'k':
+		a.pfree = false
 		if i == 0 {
 			// Back to the report's last stop: the person pressed k to get
 			// there, so it works at once.
@@ -419,4 +424,46 @@ func (a *app) handleHelp(k key) {
 	case k.r == 'k' || k.name == "up":
 		a.htop = max(a.htop-1, 0)
 	}
+}
+
+// scrollKey is how many rows a scroll key moves the view (0: k is not
+// one): half a screen for ctrl+d / ctrl+u, PageDown / PageUp and
+// alt+↓ / alt+↑, one row for ctrl+e / ctrl+y and ↓ / ↑ (what the mouse
+// wheel sends, by alternate scroll: see scrollOn). They never move the
+// cursor; j k do.
+func scrollKey(k key, h int) int {
+	half := max(h/2, 1)
+	switch k.name {
+	case "ctrl+d", "pgdn", "alt+down":
+		return half
+	case "ctrl+u", "pgup", "alt+up":
+		return -half
+	case "ctrl+e", "down":
+		return 1
+	case "ctrl+y", "up":
+		return -1
+	}
+	return 0
+}
+
+// scrollView moves what the screen shows of the page by d rows, within
+// the page (draw keeps it there); the cursor stays where it is.
+func (a *app) scrollView(pv *view, d int) {
+	if d > 0 && pv.atEnd {
+		return
+	}
+	pv.top, pv.follow = max(pv.top+d, 0), false
+}
+
+// inCurBlock says whether what the screen shows is inside the cursor's
+// line's own rows (its contents, read down through with j).
+func (a *app) inCurBlock(pv *view) bool {
+	end, ok := pv.ends[pv.cur]
+	return ok && pv.curRow < pv.top && end > pv.top
+}
+
+// taller says whether the page is taller than what the last frame showed
+// of it.
+func (pv *view) taller() bool {
+	return pv != nil && pv.viewH > 0 && pv.rowCount > pv.viewH
 }

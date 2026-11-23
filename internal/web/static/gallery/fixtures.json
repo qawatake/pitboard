@@ -5721,6 +5721,722 @@
     }
    ]
   },
+  "lists": {
+   "Note": "lists that wrap and do not, head words that fit one line and do not",
+   "Page": {
+    "Message": "",
+    "Err": "",
+    "ReadErr": "",
+    "Notices": null,
+    "Things": [
+     {
+      "Kind": "title",
+      "Title": [
+       {
+        "Text": "箇条",
+        "Style": "plain",
+        "URL": ""
+       }
+      ]
+     },
+     {
+      "Kind": "section",
+      "Title": [
+       {
+        "Text": "箇条",
+        "Style": "plain",
+        "URL": ""
+       }
+      ],
+      "Kids": [
+       {
+        "Kind": "item",
+        "Key": "tight",
+        "Target": "tight",
+        "Title": [
+         {
+          "Text": "並びがすべて 1 行",
+          "Style": "plain",
+          "URL": ""
+         }
+        ],
+        "Stop": true,
+        "CanOpen": true,
+        "Actions": {
+         "YN": true,
+         "Options": null,
+         "Comment": true,
+         "Hide": true,
+         "Read": false
+        },
+        "Sign": "▸",
+        "OpenSign": "▾",
+        "Token": "tok-tight",
+        "State": "todo",
+        "Body": [
+         {
+          "Kind": "list",
+          "Title": [
+           {
+            "Text": "いち",
+            "Style": "plain",
+            "URL": ""
+           }
+          ],
+          "Stop": true,
+          "Actions": {
+           "YN": false,
+           "Options": null,
+           "Comment": false,
+           "Hide": true,
+           "Read": false
+          },
+          "Sign": "·",
+          "OpenSign": "·",
+          "Token": "tok-2"
+         },
+         {
+          "Kind": "list",
+          "Title": [
+           {
+            "Text": "に",
+            "Style": "plain",
+            "URL": ""
+           }
+          ],
+          "Stop": true,
+          "Actions": {
+           "YN": false,
+           "Options": null,
+           "Comment": false,
+           "Hide": true,
+           "Read": false
+          },
+          "Sign": "·",
+          "OpenSign": "·",
+          "Token": "tok-3"
+         },
+         {
+          "Kind": "list",
+          "Title": [
+           {
+            "Text": "さん",
+            "Style": "plain",
+            "URL": ""
+           }
+          ],
+          "Stop": true,
+          "Actions": {
+           "YN": false,
+           "Options": null,
+           "Comment": false,
+           "Hide": true,
+           "Read": false
+          },
+          "Sign": "·",
+          "OpenSign": "·",
+          "Token": "tok-4"
+         }
+        ]
+       },
+       {
+        "Kind": "item",
+        "Key": "loose",
+        "Target": "loose",
+        "Title": [
+         {
+          "Text": "折り返す行のある並び",
+          "Style": "plain",
+          "URL": ""
+         }
+        ],
+        "Stop": true,
+        "CanOpen": true,
+        "Actions": {
+         "YN": true,
+         "Options": null,
+         "Comment": true,
+         "Hide": true,
+         "Read": false
+        },
+        "Sign": "▸",
+        "OpenSign": "▾",
+        "Token": "tok-loose",
+        "State": "todo",
+        "Body": [
+         {
+          "Kind": "list",
+          "Title": [
+           {
+            "Text": "短い",
+            "Style": "plain",
+            "URL": ""
+           }
+          ],
+          "Stop": true,
+          "Actions": {
+           "YN": false,
+           "Options": null,
+           "Comment": false,
+           "Hide": true,
+           "Read": false
+          },
+          "Sign": "·",
+          "OpenSign": "·",
+          "Token": "tok-6"
+         },
+         {
+          "Kind": "list",
+          "Title": [
+           {
+            "Text": "これは長い一行で、狭い幅でも広い幅でも折り返すほど長い文。だから並び全体の行の間を少し空けて、どこで次の行が始まるのかが見えるようにする。もう少し長くしておく",
+            "Style": "plain",
+            "URL": ""
+           }
+          ],
+          "Stop": true,
+          "Actions": {
+           "YN": false,
+           "Options": null,
+           "Comment": false,
+           "Hide": true,
+           "Read": false
+          },
+          "Sign": "·",
+          "OpenSign": "·",
+          "Token": "tok-7"
+         },
+         {
+          "Kind": "list",
+          "Title": [
+           {
+            "Text": "おわり",
+            "Style": "plain",
+            "URL": ""
+           }
+          ],
+          "Stop": true,
+          "Actions": {
+           "YN": false,
+           "Options": null,
+           "Comment": false,
+           "Hide": true,
+           "Read": false
+          },
+          "Sign": "·",
+          "OpenSign": "·",
+          "Token": "tok-8"
+         }
+        ]
+       },
+       {
+        "Kind": "item",
+        "Key": "runin",
+        "Target": "runin",
+        "Title": [
+         {
+          "Text": "1 行に収まる頭の語",
+          "Style": "plain",
+          "URL": ""
+         }
+        ],
+        "Stop": true,
+        "CanOpen": true,
+        "Actions": {
+         "YN": true,
+         "Options": null,
+         "Comment": true,
+         "Hide": true,
+         "Read": false
+        },
+        "Sign": "▸",
+        "OpenSign": "▾",
+        "Token": "tok-runin",
+        "State": "todo",
+        "Body": [
+         {
+          "Kind": "para",
+          "Title": [
+           {
+            "Text": "一行に収まる",
+            "Style": "plain",
+            "URL": ""
+           }
+          ],
+          "HeadWord": "頭の語"
+         }
+        ]
+       },
+       {
+        "Kind": "item",
+        "Key": "def",
+        "Target": "def",
+        "Title": [
+         {
+          "Text": "収まらない頭の語",
+          "Style": "plain",
+          "URL": ""
+         }
+        ],
+        "Stop": true,
+        "CanOpen": true,
+        "Actions": {
+         "YN": true,
+         "Options": null,
+         "Comment": true,
+         "Hide": true,
+         "Read": false
+        },
+        "Sign": "▸",
+        "OpenSign": "▾",
+        "Token": "tok-def",
+        "State": "todo",
+        "Body": [
+         {
+          "Kind": "list",
+          "Title": [
+           {
+            "Text": "これは頭の語のある行で、とても長いので、頭の語だけを一行に置き、中身をその下に一段下げて続ける。そうすれば太字の無いフォントでも頭が見える",
+            "Style": "plain",
+            "URL": ""
+           }
+          ],
+          "Stop": true,
+          "Actions": {
+           "YN": false,
+           "Options": null,
+           "Comment": false,
+           "Hide": true,
+           "Read": false
+          },
+          "Sign": "·",
+          "OpenSign": "·",
+          "Token": "tok-11",
+          "HeadWord": "理由"
+         },
+         {
+          "Kind": "list",
+          "Title": [
+           {
+            "Text": "一行",
+            "Style": "plain",
+            "URL": ""
+           }
+          ],
+          "Stop": true,
+          "Actions": {
+           "YN": false,
+           "Options": null,
+           "Comment": false,
+           "Hide": true,
+           "Read": false
+          },
+          "Sign": "·",
+          "OpenSign": "·",
+          "Token": "tok-12",
+          "HeadWord": "短い"
+         }
+        ]
+       }
+      ],
+      "Jump": 1,
+      "JumpKey": "a"
+     }
+    ],
+    "Waiting": 0,
+    "Unread": 0,
+    "Unsent": 0,
+    "SentUnread": 0,
+    "AIWaiting": false,
+    "Hidden": 0,
+    "CanWrite": true,
+    "CanUndo": false,
+    "CanSend": false,
+    "JumpTo": [
+     "tight"
+    ],
+    "Next": null,
+    "Summary": null,
+    "Comments": null,
+    "Session": "gallery1",
+    "Dir": "~/dev/sample",
+    "ImageMax": 20971520,
+    "Words": {
+     "close": "閉じる",
+     "go": "行へ",
+     "gone": "この pitboard は見つからなくなりました。そのディレクトリで pitboard serve をもう一度動かすと戻ります",
+     "imageTooLarge": "画像が大きすぎるので貼りませんでした (20 MiB まで)",
+     "jumping": "飛ぶ先の字を押してください (esc やめる)",
+     "noComments": "コメントはまだありません。m で書けます",
+     "noMarked": "印のある行はありません",
+     "notSent": "まだ送っていません (s で送る)",
+     "offline": "つながっていません。pitboard serve が出した URL を開き直してください",
+     "signClosed": "▸",
+     "signOpen": "▾"
+    },
+    "More": [
+     {
+      "Do": "jump",
+      "Key": "g",
+      "Word": "飛ぶ"
+     }
+    ],
+    "Tail": [
+     {
+      "Do": "write",
+      "Key": "m",
+      "Word": "書く"
+     },
+     {
+      "Do": "keys",
+      "Key": "?",
+      "Word": "キー"
+     }
+    ],
+    "Comment": [
+     {
+      "Do": "edit",
+      "Key": "e",
+      "Word": "直す"
+     },
+     {
+      "Do": "retract",
+      "Key": "x",
+      "Word": "取り消す"
+     }
+    ],
+    "Editor": [
+     {
+      "Do": "place",
+      "Key": "enter",
+      "Word": "置く"
+     },
+     {
+      "Do": "stop",
+      "Key": "esc",
+      "Word": "やめる"
+     },
+     {
+      "Do": "newline",
+      "Key": "shift+enter",
+      "Word": "改行"
+     }
+    ],
+    "Clears": [
+     "editor",
+     "key",
+     "panel",
+     "pointer"
+    ],
+    "Palette": [
+     {
+      "Name": "need",
+      "Label": "黄: あなたの手が要る (人待ちの ●・未送信・断り)"
+     },
+     {
+      "Name": "move",
+      "Label": "緑: 動いている (作業中・対応中)・未読の ●・y・足した行"
+     },
+     {
+      "Name": "quiet",
+      "Label": "薄い: 済んだ・AI 待ち・添え書き"
+     },
+     {
+      "Name": "structure",
+      "Label": "青: 見出し・リンク・カーソル・g の字"
+     },
+     {
+      "Name": "yours",
+      "Label": "青緑: あなたが入れたもの (答えのキー・選んだ答え)"
+     },
+     {
+      "Name": "bad",
+      "Label": "赤: 誤り・n・消した行"
+     }
+    ],
+    "Drop": {
+     "answer": 7,
+     "close": 5,
+     "comment": 8,
+     "hide": 2,
+     "jump": 4,
+     "keys": 3,
+     "n": 6,
+     "next": 2,
+     "open": 5,
+     "read": 7,
+     "undo": 1,
+     "write": 3,
+     "y": 7
+    }
+   },
+   "Offers": {
+    "def": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "open",
+        "Key": "enter",
+        "Word": "開く"
+       },
+       {
+        "Do": "y",
+        "Key": "y",
+        "Word": "よし"
+       },
+       {
+        "Do": "n",
+        "Key": "n",
+        "Word": "だめ"
+       },
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       },
+       {
+        "Do": "hide",
+        "Key": "x",
+        "Word": "隠す"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "close",
+        "Key": "enter",
+        "Word": "閉じる"
+       },
+       {
+        "Do": "y",
+        "Key": "y",
+        "Word": "よし"
+       },
+       {
+        "Do": "n",
+        "Key": "n",
+        "Word": "だめ"
+       },
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       },
+       {
+        "Do": "hide",
+        "Key": "x",
+        "Word": "隠す"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
+    "loose": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "open",
+        "Key": "enter",
+        "Word": "開く"
+       },
+       {
+        "Do": "y",
+        "Key": "y",
+        "Word": "よし"
+       },
+       {
+        "Do": "n",
+        "Key": "n",
+        "Word": "だめ"
+       },
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       },
+       {
+        "Do": "hide",
+        "Key": "x",
+        "Word": "隠す"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "close",
+        "Key": "enter",
+        "Word": "閉じる"
+       },
+       {
+        "Do": "y",
+        "Key": "y",
+        "Word": "よし"
+       },
+       {
+        "Do": "n",
+        "Key": "n",
+        "Word": "だめ"
+       },
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       },
+       {
+        "Do": "hide",
+        "Key": "x",
+        "Word": "隠す"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
+    "runin": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "open",
+        "Key": "enter",
+        "Word": "開く"
+       },
+       {
+        "Do": "y",
+        "Key": "y",
+        "Word": "よし"
+       },
+       {
+        "Do": "n",
+        "Key": "n",
+        "Word": "だめ"
+       },
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       },
+       {
+        "Do": "hide",
+        "Key": "x",
+        "Word": "隠す"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "close",
+        "Key": "enter",
+        "Word": "閉じる"
+       },
+       {
+        "Do": "y",
+        "Key": "y",
+        "Word": "よし"
+       },
+       {
+        "Do": "n",
+        "Key": "n",
+        "Word": "だめ"
+       },
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       },
+       {
+        "Do": "hide",
+        "Key": "x",
+        "Word": "隠す"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
+    "tight": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "open",
+        "Key": "enter",
+        "Word": "開く"
+       },
+       {
+        "Do": "y",
+        "Key": "y",
+        "Word": "よし"
+       },
+       {
+        "Do": "n",
+        "Key": "n",
+        "Word": "だめ"
+       },
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       },
+       {
+        "Do": "hide",
+        "Key": "x",
+        "Word": "隠す"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "close",
+        "Key": "enter",
+        "Word": "閉じる"
+       },
+       {
+        "Do": "y",
+        "Key": "y",
+        "Word": "よし"
+       },
+       {
+        "Do": "n",
+        "Key": "n",
+        "Word": "だめ"
+       },
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       },
+       {
+        "Do": "hide",
+        "Key": "x",
+        "Word": "隠す"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    }
+   }
+  },
   "long": {
    "Note": "long unbroken strings everywhere",
    "Page": {

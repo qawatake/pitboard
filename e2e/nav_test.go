@@ -22,16 +22,16 @@ const navReport = `<Notice id="n1" at="2020-11-22 21:46">お知らせ</Notice>
 </Fold>
 `
 
-// SPEC.md "画面": j k ↑↓ ctrl+n ctrl+p, full-width keys; k from the top
-// goes into the Notice.
+// SPEC.md "画面": j k ctrl+n ctrl+p, full-width keys move the cursor (↑ ↓
+// scroll the view: TestScrollKeys); k from the top goes into the Notice.
 func TestMoveKeys(t *testing.T) {
 	t.Parallel()
 	v, _ := open(t, navReport, 80, 24, "項目A")
 	// The first cursor is on the Notice.
 	v.WaitCursorOn("お知らせ")
 	for _, x := range []struct{ key, want string }{
-		{"j", "項目A"}, {"down", "項目B"}, {"ctrl+n", "項目C"}, {"ｊ", "中の畳み"}, {"j", "決まったこと"},
-		{"k", "中の畳み"}, {"k", "項目C"}, {"up", "項目B"}, {"ctrl+p", "項目A"}, {"ｋ", "お知らせ"},
+		{"j", "項目A"}, {"j", "項目B"}, {"ctrl+n", "項目C"}, {"ｊ", "中の畳み"}, {"j", "決まったこと"},
+		{"k", "中の畳み"}, {"k", "項目C"}, {"k", "項目B"}, {"ctrl+p", "項目A"}, {"ｋ", "お知らせ"},
 	} {
 		v.Keys(x.key)
 		v.WaitCursorOn(x.want)

@@ -116,6 +116,8 @@ function frame(cx, t, open, opts, jump) {
   b.appendChild(markOf(t));
   b.appendChild(signOf(cx, open ? t.OpenSign : t.Sign));
   const title = el('span', 'title');
+  // A list line one points at keeps its head word run-in (page.HeadWord).
+  if (t.HeadWord) title.append(el('strong', '', t.HeadWord), ': ');
   spans(title, t.Title, true);
   if (t.Hidden) title.appendChild(el('span', 'sr', ' (隠した行)'));
   b.appendChild(title);

@@ -39,3 +39,22 @@ func TestRefusalsEnum(t *testing.T) {
 		t.Errorf("Enums refusal %v", Enums()["refusal"])
 	}
 }
+
+func TestHeadWord(t *testing.T) {
+	for s, want := range map[string][2]string{
+		"**理由**: 長い文":         {"理由", "長い文"},
+		"**理由**：全角のコロン":       {"理由", "全角のコロン"},
+		"**太字** だけ":           {"", ""},
+		"ふつうの行":               {"", ""},
+		"**頭**: ":             {"", ""},
+		"**a b**:  body here": {"a b", "body here"},
+	} {
+		h, b, ok := HeadWord(s)
+		if ok != (want[0] != "") || (ok && (h != want[0] || b != want[1])) {
+			t.Errorf("HeadWord(%q) = %q %q %v", s, h, b, ok)
+		}
+	}
+	if Loose([]int{1, 1}) || !Loose([]int{1, 2}) {
+		t.Error("Loose")
+	}
+}

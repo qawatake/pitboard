@@ -55,8 +55,8 @@ type view struct {
 	// atEnd says whether the last frame showed the end of the page: j past
 	// the last stop then goes into the thoughts pane.
 	atEnd bool
-	// viewH is how many rows of the page the last frame showed.
-	viewH int
+	// viewH is how many rows of the page the last frame showed, of rowCount.
+	viewH, rowCount int
 }
 
 // settleDelay is how long a line the viewer moved the cursor to must have
@@ -74,6 +74,11 @@ type input struct {
 	label string
 	ed    edit // the text and the cursor in it
 	etop  int  // the first row of the text in view, when it is taller than the editor
+	// scroll is how far the person scrolled the page while writing (rows;
+	// pgup pgdn alt+↑↓, ↑ on the first line, ↓ on the last): the editor
+	// stays where it is in the page and scrolls with it. Typing brings it
+	// back (0).
+	scroll int
 	// at is the report line the editor goes under when it is not about a
 	// line (m: the cursor's line when it opened).
 	at string
@@ -137,6 +142,7 @@ type app struct {
 	pcur   int
 	popen  map[int]bool
 	ptop   int
+	pfree  bool // the pane was scrolled by a scroll key: it need not show the cursor
 
 	list      bool        // the thoughts list instead of the report
 	lcur      int         // thought number under the cursor in the list

@@ -423,6 +423,29 @@ const longReport = `<Notice id="long">とても長いお知らせの題がここ
 </Section>
 `
 
+const listsReport = `<Title>箇条</Title>
+
+<Section title="箇条">
+  <Item id="tight">並びがすべて 1 行
+    - いち
+    - に
+    - さん
+  </Item>
+  <Item id="loose">折り返す行のある並び
+    - 短い
+    - これは長い一行で、狭い幅でも広い幅でも折り返すほど長い文。だから並び全体の行の間を少し空けて、どこで次の行が始まるのかが見えるようにする。もう少し長くしておく
+    - おわり
+  </Item>
+  <Item id="runin">1 行に収まる頭の語
+    **頭の語**: 一行に収まる
+  </Item>
+  <Item id="def">収まらない頭の語
+    - **理由**: これは頭の語のある行で、とても長いので、頭の語だけを一行に置き、中身をその下に一段下げて続ける。そうすれば太字の無いフォントでも頭が見える
+    - **短い**: 一行
+  </Item>
+</Section>
+`
+
 const problemsReport = `<Title>誤りのある報告</Title>
 
 <Section title="節">
@@ -492,6 +515,7 @@ func makeFixtures(t *testing.T) *Fixtures {
 	g.comment("url", "", "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJK https://example.com/a/very/long/path/that/has/no/spaces/at/all/and/keeps/going")
 	f.Situations["long"] = g.situation("long unbroken strings everywhere", false, false)
 
+	f.Situations["lists"] = newGBoard(t, "lists", listsReport, true).situation("lists that wrap and do not, head words that fit one line and do not", false, false)
 	f.Situations["problems"] = newGBoard(t, "problems", problemsReport, true).situation("a report with format errors", false, false)
 	f.Situations["empty"] = newGBoard(t, "empty", "", true).situation("an empty report", false, false)
 	f.Situations["noreport"] = newGBoard(t, "noreport", "", false).situation("no report written yet", false, false)
@@ -616,6 +640,7 @@ var requiredDifferences = []string{
 	"rights-below", "unpinned", "under-band", "under-bar", "at-bottom", "focus-bar",
 	"loose-editor", "editor-empty", "edit-comment", "panel-scrolled", "help-scrolled",
 	"image-large", "message", "sent", "index-none", "index-several", "index-gone",
+	"list-tight", "list-loose", "head-runin", "head-def",
 }
 
 // TestGalleryCovers: every value of every enum (page's, the modes, the

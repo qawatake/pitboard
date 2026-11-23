@@ -15,6 +15,22 @@ import (
 
 func (a *app) handleInput(k key) {
 	e, w := &a.in.ed, a.editWidth()
+	// While writing, only PageUp / PageDown and alt+↑↓ scroll (ctrl+d u e
+	// y edit the text); ↑ on the first line and ↓ on the last scroll a row
+	// (what the mouse wheel sends). Any other key is about the text: the
+	// editor comes back into view first.
+	row, _ := e.Cursor(w)
+	last := len(e.rows(w)) - 1
+	switch {
+	case k.name == "pgup" || k.name == "pgdn" || k.name == "alt+up" || k.name == "alt+down":
+		a.in.scroll += scrollKey(k, a.t.h)
+		return
+	case k.name == "up" && row == 0, k.name == "down" && row >= last:
+		a.in.scroll += scrollKey(k, a.t.h)
+		return
+	case k.name != "paste-end":
+		a.in.scroll = 0
+	}
 	switch k.name {
 	case "esc":
 		a.in = nil
@@ -44,14 +60,6 @@ func (a *app) handleInput(k key) {
 		e.KillToEnd()
 	case "ctrl+u":
 		e.KillToStart()
-	case "pgup", "pgdn":
-		// The report above still scrolls while writing.
-		pv, d := a.top(), max(a.t.h/3, 1)
-		if k.name == "pgup" {
-			pv.top = max(pv.top-d, 0)
-		} else {
-			pv.top += d
-		}
 	case "ctrl+g":
 		a.external()
 	case "newline":
@@ -415,6 +423,13 @@ func (a *app) drawEditing() {
 		at = len(rows)
 		top = max(min(top, len(rows)-h), 0)
 	}
+	// What the person scrolled while writing: the editor scrolls with the
+	// page (and may leave the screen: then the terminal's cursor hides).
+	if a.in.scroll != 0 {
+		total, placed := len(rows)+len(block), top
+		top = max(min(placed+a.in.scroll, total-h), 0)
+		a.in.scroll = top - placed // no further than the page goes
+	}
 	all := make([]string, 0, len(rows)+len(block))
 	for _, r := range rows[:at] {
 		all = append(all, r.line)
@@ -468,6 +483,9 @@ func (a *app) editorHints() []string {
 		all = append(all, x)
 	}
 	all = append(all, hint{k: "ctrl+g", d: "エディタ", rank: 1})
+	if pv := a.top(); pv != nil && pv.taller() {
+		all = append(all, hint{k: "pgup pgdn", d: "スクロール", rank: 1})
+	}
 	var ks []hint
 	for lvl := 0; lvl <= 3; lvl++ {
 		ks = ks[:0]

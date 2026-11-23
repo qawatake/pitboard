@@ -127,6 +127,10 @@ export const DIFFS = {
   'index-none': (a) => all(a, '.boards > .msg').length > 0,
   'index-several': (a) => all(a, '.boards > .boardrow').length >= 3,
   'index-gone': (a) => all(a, '.boardrow.gone').length > 0,
+  'list-tight': (a) => all(a, '.li').length >= 2 && all(a, '.li.loose').length === 0,
+  'list-loose': (a) => all(a, '.li.loose').length > 0,
+  'head-runin': (a) => all(a, '.hasHead:not(.def) > .hw').length > 0,
+  'head-def': (a) => all(a, '.hasHead.def > .hw').length > 0,
 };
 
 // facts is what a drawn frame shows of the data model, by axis.

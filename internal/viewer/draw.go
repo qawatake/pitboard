@@ -99,6 +99,12 @@ func (a *app) draw() {
 	a.t.h -= len(banner) + head
 	defer func() { a.t.h = fullH }()
 	var bottom []string
+	if cur != nil {
+		// Whether the page is taller than the screen, for the hints
+		// drawn now (the scroll keys): as many rows as it has, against
+		// the screen less a line of hints.
+		a.top().rowCount, a.top().viewH = len(rows), max(a.t.h-1, 1)
+	}
 	for range 2 {
 		guess := len(bottom)
 		if guess == 0 {
@@ -145,7 +151,7 @@ func (a *app) draw() {
 	h := max(a.t.h-len(bottom), 1)
 	if cur != nil {
 		a.top().atEnd = *top+h >= len(rows)
-		a.top().viewH = h
+		a.top().viewH, a.top().rowCount = h, len(rows)
 	}
 	if a.tauto != 0 {
 		on, shown := 0, true

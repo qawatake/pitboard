@@ -27,7 +27,6 @@ Usage:
   pitboard -s SESSION open         list the thoughts still --doing or --hold (nothing if none)
   pitboard -s SESSION check        check report.md; prints problems with line numbers, exit 1 if any,
                                    and warnings about removed rows (they do not change the exit code)
-  pitboard -s SESSION ack-removed  stop the warnings about the rows removed so far
   pitboard -s SESSION wait [--timeout DURATION]
                                    wait until the person sends, then print what
                                    'changes' prints (run it in the background
@@ -221,6 +220,13 @@ Manners:
   - The layout is yours (which sections, what goes in them), but the report
     is skimmed, not read. One item per line; details go in the item's
     following lines (shown when the person opens it).
+  - An Item's contents should fit one screen. When something needs a long
+    explanation, add a Section for that topic (paragraphs, lists, Items)
+    and point to it from a short line in "For you"; do not pile it into
+    one Item's contents. Remove the Section once it has served.
+  - A list line is one short clause. When it needs a sentence or two, give
+    it a head word ("- **head**: body") or sub-items; keep an Item's
+    contents to what the person must read, not everything you know.
   - A line you want a reaction or a thought on must be an Item, Ask or Link
     with an id.
   - A Notice is for what the person must know first: when tools or the
@@ -255,9 +261,8 @@ Manners:
     capital letter (<Item>, not <item>).
   - Run 'pitboard check' after every rewrite of report.md and fix what it
     reports. The other commands ('changes', 'settle', 'wait') and the hooks
-    also end with "report.md has N problem(s), M warning(s). Run: pitboard -s SESS check"
-    while the report has problems or warnings: when you see it, run that and
-    fix them.
+    also end with "report.md has N problem(s). Run: pitboard -s SESS check"
+    while the report has problems: when you see it, run that and fix them.
   - Where to reply: what arrives from the board (through 'wait', 'changes'
     or the hooks) is answered in the report: the answer to a question, what
     you changed and how, what happens next. In the chat, say only a line or
@@ -287,16 +292,10 @@ Manners:
     only spends your context every time you read it. Always drop an answer
     the person hid. A line you still use (progress you keep updating, a
     line still in progress) may stay.
-  - When to remove a row: once the person hid it, or it is resolved (its
-    question answered, its comments settled done). Do not drop a row the
-    person has not answered yet (ask="y" or an Ask they have not answered
-    or hidden, wait="you" they have not acted on, look="y" they have not
-    read) or one with a sent comment you have not settled done: 'check'
-    warns of each such removal (warning: row "ID" (title) was removed but
-    the person has not hidden or answered it / ... but it has an open
-    comment (N); a Fold without an id: warning: Fold "title" was removed
-    ...), and the line other commands end with counts it once. Put the row back, or, if removing it was right, settle
-    its comments and run 'pitboard -s SESS ack-removed'.
+  - Remove a row once the person hid it or it is resolved; a row removed
+    while they have not answered it, or with a sent comment you have not
+    settled done, is warned of once ("warning: row ... was removed but
+    ..."): put it back if removing it was wrong.
   - Mark with wait="you" every Item that needs the person's hand (its
     status words alone get no color).
   - Put look="y" only on lines you want the person to read: an answer you
