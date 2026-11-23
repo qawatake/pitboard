@@ -22,36 +22,56 @@ import (
 // shorten it).
 var sendTimeout = 5 * time.Second
 
-// errNoTarget means there is nowhere to send to.
-var errNoTarget = errors.New("送り先がありません")
+// errNoTarget means there is no way to wake the AI: no $PITBOARD_SEND and
+// no herdr. Its text says how to fix it.
+var errNoTarget = errors.New(`AI を起こす方法がありません。PITBOARD_SEND を設定してください (pitboard -h の "Send")`)
 
 // wakeMessage is the line typed into the AI's terminal.
 func wakeMessage(session string, n int) string {
 	return fmt.Sprintf("pitboard: the person sent %d item(s) from the board. Run \"pitboard -s %s changes\" and act on them.", n, session)
 }
 
-// unsent counts what the AI has not been given yet: what 'changes' would
-// tell (a thought taken back before it was delivered is not counted).
-func unsent(evs []Event, seen int) int { return len(deliverable(evs, seen)) }
+// unsent counts what the person has not sent yet: what the next send would
+// deliver (a thought taken back before it was sent is not counted).
+func unsent(evs []Event) int { return len(deliverable(evs, lastSend(evs), noCut)) }
+
+// sentUnread counts what was sent but the AI has not read yet.
+func sentUnread(evs []Event, seen int) int { return len(deliverable(evs, seen, lastSend(evs))) }
 
 // deliver types msg into the terminal of the AI of session: through
-// $PITBOARD_SEND if set, or through herdr when running inside it.
+// $PITBOARD_SEND if set, or else through herdr when it is on PATH (the
+// viewer itself need not run inside herdr; the AI's agent is looked up by
+// its session). The error's text says why it failed and how to fix it.
 func deliver(session, msg string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), sendTimeout)
 	defer cancel()
 	if sh := os.Getenv("PITBOARD_SEND"); sh != "" {
 		c := exec.CommandContext(ctx, "sh", "-c", sh)
 		c.Env = append(os.Environ(), "PITBOARD_SESSION="+session, "PITBOARD_MESSAGE="+msg)
-		return runQuiet(ctx, c, "PITBOARD_SEND")
+		if err := runQuiet(ctx, c, "PITBOARD_SEND"); err != nil {
+			return fmt.Errorf("送れませんでした: %w", err)
+		}
+		return nil
 	}
-	if os.Getenv("HERDR_ENV") != "1" {
+	if _, err := exec.LookPath("herdr"); err != nil {
 		return errNoTarget
 	}
 	pane, err := herdrPane(ctx, session)
 	if err != nil {
 		return err
 	}
-	return runQuiet(ctx, exec.CommandContext(ctx, "herdr", "agent", "prompt", pane, msg), "herdr agent prompt")
+	if err := runQuiet(ctx, exec.CommandContext(ctx, "herdr", "agent", "prompt", pane, msg), "herdr agent prompt"); err != nil {
+		return fmt.Errorf("送れませんでした: %w", err)
+	}
+	return nil
+}
+
+// shortID is the head of a session id, as shown to the person.
+func shortID(s string) string {
+	if r := []rune(s); len(r) > 8 {
+		return string(r[:8])
+	}
+	return s
 }
 
 // herdrPane finds the pane of the agent whose session is session.
@@ -60,7 +80,7 @@ func herdrPane(ctx context.Context, session string) (string, error) {
 	var out bytes.Buffer
 	c.Stdout = &out
 	if err := runQuiet(ctx, c, "herdr agent list"); err != nil {
-		return "", err
+		return "", fmt.Errorf("送れませんでした: %w", err)
 	}
 	var list struct {
 		Result struct {
@@ -73,14 +93,14 @@ func herdrPane(ctx context.Context, session string) (string, error) {
 		} `json:"result"`
 	}
 	if err := json.Unmarshal(out.Bytes(), &list); err != nil {
-		return "", fmt.Errorf("herdr agent list: 読めませんでした: %v", err)
+		return "", fmt.Errorf("送れませんでした: herdr agent list: 読めませんでした: %v", err)
 	}
 	for _, a := range list.Result.Agents {
 		if a.AgentSession.Value == session && a.PaneID != "" {
 			return a.PaneID, nil
 		}
 	}
-	return "", fmt.Errorf("%w (herdr にこのセッションの AI がいません)", errNoTarget)
+	return "", fmt.Errorf("herdr にこのセッション (%s) の AI がいません。AI を herdr の中で動かすか、PITBOARD_SEND を設定してください", shortID(session))
 }
 
 // runQuiet runs c without the terminal (no stdin; output is not shown) and

@@ -166,6 +166,8 @@ func (s *Store) seenPath() string   { return filepath.Join(s.dir, "seen") }
 //	hide     key (what the line says, see hideKey), title: the person no
 //	         longer needs to see that line
 //	unhide   key, title: show it again
+//	send     the person sent what is above it: 'changes' delivers only
+//	         what comes before the latest send
 //	retract  thought: the person took the thought back
 //	unretract  thought: they undid that (u right after x)
 type Event struct {
@@ -288,11 +290,13 @@ func (s *Store) Changes() ([]string, error) {
 		if b, err := os.ReadFile(s.reportPath()); err == nil {
 			nodes, _, _ = parseReport(string(b))
 		}
-		last := seen
-		for _, e := range evs {
-			last = max(last, e.N)
+		// Only what the person has sent (what is before the latest send)
+		// is delivered; what comes after waits for the next send.
+		last := lastSend(evs)
+		if last <= seen {
+			return nil
 		}
-		for _, e := range deliverable(evs, seen) {
+		for _, e := range deliverable(evs, seen, last) {
 			if line := describe(e, nodes); line != "" {
 				out = append(out, line)
 			}
@@ -307,15 +311,38 @@ func (s *Store) Changes() ([]string, error) {
 
 // Pending is the events changes would deliver next, without delivering
 // them.
-func (s *Store) Pending() []Event { return deliverable(s.Events(), s.Seen()) }
+func (s *Store) Pending() []Event {
+	evs := s.Events()
+	return deliverable(evs, s.Seen(), lastSend(evs))
+}
 
-// deliverable is what of the events after seen is told to the AI (settle,
-// the AI's own, is not). A thought taken back before it was delivered is not
+// lastSend is the number of the latest send (0: none yet).
+func lastSend(evs []Event) int {
+	for i := len(evs) - 1; i >= 0; i-- {
+		if evs[i].Op == "send" {
+			return evs[i].N
+		}
+	}
+	return 0
+}
+
+// noCut is a cut past every event.
+const noCut = int(^uint(0) >> 1)
+
+// deliverable is what of the events after seen and before cut is told to
+// the AI (settle, the AI's own, and send are not; events from cut on are
+// not considered at all). A thought taken back before it was delivered is not
 // told at all, nor is its taking back: the AI never knew it. For a thought
 // already delivered, what is told is whether it now stands or is taken back,
 // if that differs from what the AI was last told: one retract or unretract
 // (carrying the thought's text), where the last of them is.
-func deliverable(evs []Event, seen int) []Event {
+func deliverable(all []Event, seen, cut int) []Event {
+	var evs []Event
+	for _, e := range all {
+		if e.N < cut {
+			evs = append(evs, e)
+		}
+	}
 	thoughts := map[int]Event{}
 	final := map[int]bool{} // taken back, in the end
 	told := map[int]bool{}  // taken back, as the AI was last told
@@ -339,7 +366,7 @@ func deliverable(evs []Event, seen int) []Event {
 			continue
 		}
 		switch e.Op {
-		case "settle":
+		case "settle", "send":
 		case "thought":
 			if !final[e.N] {
 				out = append(out, e)
@@ -455,12 +482,13 @@ type thought struct {
 type state struct {
 	react    map[string]Event
 	thoughts []*thought // oldest first
-	seen     int
+	seen     int             // what the AI has read ('changes')
+	sent     int             // the latest send: what the person has sent
 	hidden   map[string]bool // hideKey of each hidden line
 }
 
 func replayEvents(evs []Event, seen int) *state {
-	st := &state{react: map[string]Event{}, seen: seen, hidden: map[string]bool{}}
+	st := &state{react: map[string]Event{}, seen: seen, sent: lastSend(evs), hidden: map[string]bool{}}
 	byN := map[int]*thought{}
 	for _, e := range evs {
 		switch e.Op {
@@ -495,16 +523,6 @@ func replayEvents(evs []Event, seen int) *state {
 	return st
 }
 
-func (st *state) unread() int {
-	c := 0
-	for _, t := range st.thoughts {
-		if t.N > st.seen {
-			c++
-		}
-	}
-	return c
-}
-
 func (st *state) on(id string) []*thought {
 	var out []*thought
 	for _, t := range st.thoughts {
@@ -515,14 +533,16 @@ func (st *state) on(id string) []*thought {
 	return out
 }
 
-// statusOf is a thought's state in three words: not yet given to the AI,
-// given, or given a destination by the AI.
+// statusOf is a thought's state in four words: not sent yet, sent but not
+// read by the AI, read, or given a destination by the AI.
 func (st *state) statusOf(t *thought) (word, color string) {
 	switch {
 	case t.settled != "":
 		return "済", dim // where it went is read in the list (tab, enter)
+	case t.N > st.sent:
+		return "未送信", yellow
 	case t.N > st.seen:
-		return "未読", yellow
+		return "未読", dim
 	default:
 		return "受け取った", dim
 	}

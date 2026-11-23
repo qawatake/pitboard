@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -95,10 +94,14 @@ type app struct {
 	st   *Store // nil until a session exists
 	rep  *view
 	msg  string // shown on the bottom line until the next key
+	// msgLines is how many lines msg may take (0: one). Only what says why
+	// sending failed and how to fix it takes two.
+	msgLines int
 
 	evMod, seenMod time.Time
 	state          *state
-	unsent         int // what the AI has not been given yet (reactions, thoughts, hides)
+	unsent         int // what the person has not sent yet (reactions, thoughts, hides)
+	unread         int // what was sent and the AI has not read yet
 
 	in *input // the editor at the bottom, while writing
 	// inAt is where the editor's input position is among the bottom lines
@@ -226,13 +229,13 @@ func safely(f func() error) (err error) {
 
 func (a *app) loadEvents() {
 	if a.st == nil {
-		a.state, a.unsent = replayEvents(nil, 0), 0
+		a.state, a.unsent, a.unread = replayEvents(nil, 0), 0, 0
 		return
 	}
 	a.evMod, a.seenMod = modTime(a.st.eventsPath()), modTime(a.st.seenPath())
 	evs, seen := a.st.Events(), a.st.Seen()
 	a.state = replayEvents(evs, seen)
-	a.unsent = unsent(evs, seen)
+	a.unsent, a.unread = unsent(evs), sentUnread(evs, seen)
 	if a.rep != nil {
 		a.rep.hidden = a.state.hidden
 	}
@@ -361,7 +364,7 @@ func abs(x int) int {
 // ---- keys ----
 
 func (a *app) handle(k key) (quit bool) {
-	a.msg = ""
+	a.msg, a.msgLines = "", 0
 	if k.name == "ctrl+c" {
 		return true
 	}
@@ -785,23 +788,27 @@ func (a *app) wake() {
 		return
 	}
 	a.loadEvents()
-	if a.unsent == 0 {
+	n := a.unsent
+	if n == 0 {
 		a.msg = "送るものはありません"
 		return
 	}
-	// Sending may take seconds: say so, and drop the keys pressed meanwhile
+	// The mark comes first: what is above it is what the AI gets from
+	// 'changes', whether or not it can be woken now.
+	if _, err := a.st.Append(Event{Op: "send"}); err != nil {
+		a.msg = "送れませんでした: " + err.Error()
+		return
+	}
+	a.loadEvents()
+	// Waking may take seconds: say so, and drop the keys pressed meanwhile
 	// (they were pressed at a screen that said nothing yet, and would wipe
 	// out the result).
 	a.msg = "送っています…"
 	a.render()
-	err := deliver(a.st.session, wakeMessage(a.st.session, a.unsent))
+	err := deliver(a.st.session, wakeMessage(a.st.session, n))
 	a.dropBefore = time.Now()
 	if err != nil {
-		if errors.Is(err, errNoTarget) {
-			a.msg = err.Error()
-		} else {
-			a.msg = "送れませんでした: " + err.Error()
-		}
+		a.msg, a.msgLines = "送る印は付けました。AI を起こせなかったので、チャットで一言伝えてください。"+err.Error(), 2
 		return
 	}
 	a.msg = "AI に送りました"
@@ -1119,10 +1126,10 @@ func (a *app) draw() {
 	for len(lines) < h {
 		lines = append(lines, "")
 	}
-	if !a.help && a.unsent > 0 && len(lines) > 0 {
-		// What the AI has not been given yet, on the top line however far
-		// the page is scrolled.
-		lines[0] = a.overlayRight(lines[0], plainText(fmt.Sprintf("● 未送信 %d", a.unsent), yellow))
+	if mark := a.sendMark(); !a.help && len(mark) > 0 && len(lines) > 0 {
+		// What the person has not sent, and what the AI has not read yet,
+		// on the top line however far the page is scrolled.
+		lines[0] = a.overlayRight(lines[0], mark)
 	}
 	var at *[2]int
 	if a.in != nil && !a.help {
@@ -1133,6 +1140,22 @@ func (a *app) draw() {
 		}
 	}
 	a.t.draw(append(lines, bottom...), at)
+}
+
+// sendMark is the top right: "送信済み N" (sent, not read by the AI yet;
+// faint) and "● 未送信 N" (not sent; yellow).
+func (a *app) sendMark() text {
+	var t text
+	if a.unread > 0 {
+		t = plainText(fmt.Sprintf("送信済み %d", a.unread), dim)
+	}
+	if a.unsent > 0 {
+		if len(t) > 0 {
+			t = append(t, plainText("  ", "")...)
+		}
+		t = append(t, plainText(fmt.Sprintf("● 未送信 %d", a.unsent), yellow)...)
+	}
+	return t
 }
 
 // overlayRight puts right at the right end of an already drawn line, where
@@ -1337,7 +1360,16 @@ func (a *app) bottom() []string {
 		if t.width() > a.room(0, r) {
 			r = nil // the message before the count of hidden lines
 		}
-		return []string{a.compose(false, 0, nil, t, r)}
+		if a.msgLines < 2 || t.width() <= a.room(0, r) {
+			return []string{a.compose(false, 0, nil, t, r)}
+		}
+		// Two lines at most; the second is cut with … if need be.
+		ls := t.wrap(a.room(0, nil))
+		second := ls[1]
+		for _, l := range ls[2:] {
+			second = append(second, l...)
+		}
+		return []string{a.compose(false, 0, nil, ls[0], nil), a.compose(false, 0, nil, second, nil)}
 	}
 	switch {
 	case a.msg != "":
@@ -1630,7 +1662,7 @@ func (a *app) pane(avail int) []string {
 	// Quiet: the only thing that draws the eye is what the AI has not read.
 	// How many is said at the top right (未送信); here, how to send them.
 	var right text
-	if a.state.unread() > 0 {
+	if a.unsent > 0 {
 		right = plainText("s で送る", yellow)
 	}
 	head := a.compose(false, 0, nil, plainText("思いつき", bold+blue), right)
@@ -1701,6 +1733,12 @@ func (a *app) openPane(order []*thought) []string {
 	return append(out, "")
 }
 
+// headed is a line with a faint head word ("理由: ", "行き先: ") and the
+// rest in the normal color.
+func headed(head, s string) text {
+	return append(plainText(head, dim), plainText(s, "")...)
+}
+
 // thoughtDetails is what an opened thought shows: the line it was written
 // on (and its title then), the whole text, and where it went.
 func (a *app) thoughtDetails(t *thought, ind int) []row {
@@ -1717,16 +1755,18 @@ func (a *app) thoughtDetails(t *thought, ind int) []row {
 		if t.Title != "" && t.Title != about {
 			about += " (書いたときの題: " + t.Title + ")"
 		}
-		rows = append(rows, a.para(ind, plainText("行: "+about, dim))...)
+		rows = append(rows, a.para(ind, headed("行: ", about))...)
 	}
 	for _, l := range strings.Split(strings.TrimSpace(t.Text), "\n") {
 		rows = append(rows, a.para(ind, plainText(l, ""))...)
 	}
 	switch {
 	case t.settled != "":
-		rows = append(rows, a.para(ind, plainText("行き先: "+t.settled, yellow))...)
+		rows = append(rows, a.para(ind, headed("行き先: ", t.settled))...)
+	case t.N > a.state.sent:
+		rows = append(rows, a.para(ind, plainText("まだ送っていません (s で送る)", dim))...)
 	case t.N > a.state.seen:
-		rows = append(rows, a.para(ind, plainText("まだ AI に届いていません", dim))...)
+		rows = append(rows, a.para(ind, plainText("送りました。AI はまだ読んでいません", dim))...)
 	default:
 		rows = append(rows, a.para(ind, plainText("AI は受け取りました。行き先はまだです", dim))...)
 	}

@@ -155,6 +155,7 @@ Manners:
       continues here (the following lines of a thought are indented)
     hide: Drop the log
     unhide: Drop the log
+    retract thought 7: only post-tool
   y means "good / done", n "not needed / no". answer is the option chosen.
   The text in parentheses is the line's title when the person pressed the
   key (or began writing). "→ いまは: ..." means you have rewritten the line
@@ -164,6 +165,10 @@ Manners:
   hide means the person decided they no longer need to see that line. Nothing
   needs doing; you may drop the line the next time you rewrite the report.
   unhide means they want to see it again.
+  retract thought N means the person took that thought back. If you were
+  acting on it, stop. It needs no settle. (A thought taken back before it
+  reached you is never told; "unretract thought N" means a retract you were
+  told was undone, and the thought stands again.)
   (The viewer hides a line by what it says: when you change its title, state
   or status, it shows again as new. Changing only its contents, note, path
   or options does not bring it back; neither does adding to a hidden Fold.
