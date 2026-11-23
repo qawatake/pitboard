@@ -391,6 +391,9 @@ Browser:
   background (or finds the session's running one), prints its URL, opens it
   (--no-open: only prints it) and returns at once. It listens on 127.0.0.1
   only, and the URL holds a key that changes each time a server starts.
+  Its port is 7482 ("PITB" on a phone keypad), or the next free one up to
+  7491 (each session has its own server), else any free one; --port N is
+  exact.
   The server stops by itself after 30 minutes with no page open;
   'pitboard -s ID serve --stop' stops it now, 'pitboard serve --status'
   lists the running ones (--url: with their URLs), --foreground keeps it in

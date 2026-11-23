@@ -8,6 +8,7 @@ import (
 	"image"
 	"image/png"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -506,5 +507,75 @@ func TestStaticHasNoInnerHTML(t *testing.T) {
 	idx, _ := staticFS.ReadFile("static/index.html")
 	if bytes.Contains(idx, []byte("<script>")) || bytes.Contains(idx, []byte("style=")) || bytes.Contains(idx, []byte("http")) {
 		t.Error("index.html has inline script/style or an external URL")
+	}
+}
+
+// A cookie left by another session's earlier server on the same port (the
+// default port is shared by sessions in turn) just fails, and opening the
+// printed URL replaces it.
+func TestStaleCookieOnSamePort(t *testing.T) {
+	f := setup(t)
+	stale := func(r *http.Request) {
+		r.Header.Del("Cookie")
+		r.AddCookie(&http.Cookie{Name: f.s.CookieName(), Value: strings.Repeat("a", 64)})
+	}
+	if resp := f.req("GET", "/api/page", nil, stale); resp.StatusCode != 403 {
+		t.Errorf("stale cookie: %d", resp.StatusCode)
+	}
+	resp := f.req("GET", "/?t="+f.s.Token(), nil, stale)
+	if resp.StatusCode != http.StatusSeeOther || !strings.Contains(resp.Header.Get("Set-Cookie"), f.s.CookieName()+"="+f.s.Token()) {
+		t.Fatalf("login over a stale cookie: %d %q", resp.StatusCode, resp.Header.Get("Set-Cookie"))
+	}
+	if resp := f.req("GET", "/api/page", nil, nil); resp.StatusCode != 200 {
+		t.Errorf("after login: %d", resp.StatusCode)
+	}
+}
+
+func portOf(ln net.Listener) int { return ln.Addr().(*net.TCPAddr).Port }
+
+// The default is DefaultPort when free; when taken, the next ones; past
+// them, any free port. --port is exact.
+func TestListenPorts(t *testing.T) {
+	if DefaultPort != 7482 {
+		t.Errorf("DefaultPort %d", DefaultPort)
+	}
+	// The default itself, unless something on this machine holds it.
+	if ln, err := net.Listen("tcp", "127.0.0.1:7482"); err == nil {
+		ln.Close()
+		got, err := Listen(PortDefault)
+		if err != nil || portOf(got) != DefaultPort {
+			t.Errorf("default: %v %v", got, err)
+		}
+		if got != nil {
+			got.Close()
+		}
+	}
+	// A range whose first port is taken: the next free one.
+	hold, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer hold.Close()
+	first := portOf(hold)
+	got, err := listenFrom(first, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p := portOf(got); p == first {
+		t.Errorf("took the held port %d", p)
+	}
+	got.Close()
+	// All of the range taken: some other free port.
+	got, err = listenFrom(first, 1)
+	if err != nil || portOf(got) == first {
+		t.Errorf("fallback: %v %v", got, err)
+	}
+	got.Close()
+	// Exact: an error naming the port.
+	if ln, err := Listen(first); err == nil {
+		ln.Close()
+		t.Error("exact port taken: no error")
+	} else if !strings.Contains(err.Error(), strconv.Itoa(first)) {
+		t.Errorf("exact port error %q", err)
 	}
 }

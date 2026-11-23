@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/qawatake/pitboard/internal/board"
+	"github.com/qawatake/pitboard/internal/web"
 )
 
 // serve refuses what it does not know before listening.
@@ -173,5 +175,28 @@ func TestServeIdles(t *testing.T) {
 	}
 	if logb, _ := os.ReadFile(logPath(st)); !strings.Contains(string(logb), "stopped (idle)") {
 		t.Errorf("log: %s", logb)
+	}
+}
+
+// Without --port, serve takes the default (web.Listen tries 7482 and on);
+// with --port it is exact, and a taken one is an error naming it.
+func TestServePort(t *testing.T) {
+	a, err := parseServe(nil)
+	if err != nil || a.o.Port != web.PortDefault {
+		t.Errorf("default: %+v %v", a.o.Port, err)
+	}
+	if a, _ := parseServe([]string{"--port", "0"}); a.o.Port != 0 {
+		t.Errorf("--port 0: %d", a.o.Port)
+	}
+	serveBoard(t)
+	hold, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer hold.Close()
+	p := strconv.Itoa(hold.Addr().(*net.TCPAddr).Port)
+	err = run([]string{"-s", "srv1", "serve", "--no-open", "--port", p}, io.Discard)
+	if err == nil || !strings.Contains(err.Error(), "port "+p) {
+		t.Errorf("taken --port: %v", err)
 	}
 }
