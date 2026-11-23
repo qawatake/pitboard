@@ -36,6 +36,7 @@ type partSpec struct {
 	parents  []string        // where it may appear ("" is the top level)
 	oneLine  bool            // its content is a single line of text
 	holdsAny bool            // holds parts and text (Section, Fold)
+	para     bool            // its content is one paragraph of text (Notice)
 }
 
 var parts = map[string]partSpec{
@@ -46,6 +47,7 @@ var parts = map[string]partSpec{
 	"Option":  {attrs: map[string]bool{"key": true}, parents: []string{"Ask"}, oneLine: true},
 	"Link":    {attrs: map[string]bool{"id": true, "path": false, "url": false, "ask": false, "look": false}, parents: []string{"", "Section", "Fold"}, oneLine: true},
 	"Fold":    {attrs: map[string]bool{"title": true, "id": false, "look": false}, parents: []string{"", "Section", "Fold"}, holdsAny: true},
+	"Notice":  {attrs: map[string]bool{"id": true}, parents: []string{""}, para: true},
 	"Code":    {attrs: map[string]bool{"lang": false}, parents: []string{"", "Section", "Fold", "Item"}},
 }
 
@@ -63,12 +65,18 @@ var (
 	reHeadWord = regexp.MustCompile(`^\*\*[^*]+\*\*[:：]`)
 )
 
+// maxNotices is how many Notice parts a report may have.
+const maxNotices = 3
+
 // maxListLevel is how deep lists nest (levels 0, 1, 2).
 const maxListLevel = 2
 
 // viewerKeys are the keys the viewer uses for itself; an Option cannot use
 // them as its key.
-const viewerKeys = "cjkmnqrsxy"
+const viewerKeys = "cjkmnqrsuxy"
+
+// viewerKeyList is viewerKeys spaced out for messages ("c j k ...").
+func viewerKeyList() string { return strings.Join(strings.Split(viewerKeys, ""), " ") }
 
 type frame struct {
 	name   string // "" for the top level
@@ -93,13 +101,14 @@ type reportParser struct {
 	// indent is the indentation of the line being read (-1: text on the
 	// line of a tag), brk whether it ends with a line break (two spaces or
 	// a backslash).
-	indent int
-	brk    bool
-	root   frame
-	stack  []*frame
-	probs  []Problem
-	ids    map[string]int
-	nodes  []*node
+	indent  int
+	brk     bool
+	root    frame
+	stack   []*frame
+	probs   []Problem
+	ids     map[string]int
+	notices int // how many Notice parts so far
+	nodes   []*node
 }
 
 func (p *reportParser) errf(line int, format string, args ...any) {
@@ -294,6 +303,11 @@ func (p *reportParser) open(no int, raw, trim string) {
 		n.status, n.reason = attrs["status"], attrs["note"]
 	case "Ask":
 		n.kind = kQuestion
+	case "Notice":
+		n.kind = kNotice
+		if p.notices++; p.notices > maxNotices {
+			p.errf(no, "at most %d <Notice> parts: say only what the person must know first", maxNotices)
+		}
 	case "Option":
 		n.kind, n.label = kChoice, attrs["key"]
 	case "Link":
@@ -373,7 +387,7 @@ func (p *reportParser) open(no int, raw, trim string) {
 		case !reKeyForm.MatchString(k):
 			p.errf(no, "Option key %q: use one letter a-z", k)
 		case strings.Contains(viewerKeys, k):
-			p.errf(no, "Option key %q is a viewer key; do not use any of %s", k, strings.Join(strings.Split(viewerKeys, ""), " "))
+			p.errf(no, "Option key %q is a viewer key; do not use any of %s", k, viewerKeyList())
 		case parent.keys[k]:
 			p.errf(no, "Option key %q used twice in this Ask", k)
 		default:
@@ -476,6 +490,9 @@ func (p *reportParser) text(no int, s string) {
 	f := p.top()
 	spec := parts[f.name]
 	switch {
+	case spec.para:
+		f.n.text = joinLines(f.n.text, s)
+		return
 	case spec.oneLine:
 		if f.n.text != "" {
 			p.errf(no, "<%s> takes one line of text", f.name)

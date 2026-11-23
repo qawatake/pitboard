@@ -39,8 +39,7 @@ type view struct {
 	probs    []Problem // what is wrong with the report
 	readErr  string    // the last read failed (a bug); the previous screen is kept
 	open     map[string]bool
-	cut      map[string]bool // stops whose line did not fit and was cut with …
-	cur      string          // key of the node under the cursor
+	cur      string // key of the node under the cursor
 	top      int
 	follow   bool // scroll the cursor into view on the next render
 	curRow   int
@@ -126,8 +125,6 @@ type app struct {
 
 	noSession bool // the session given with -s does not exist (yet)
 
-	exe *exeWatch // the viewer's own executable; nil: not watched
-
 	// dropBefore: keys read before this time are dropped (pressed while
 	// sending).
 	dropBefore time.Time
@@ -165,7 +162,7 @@ func runViewer(base string, st *Store) error {
 		return err
 	}
 	defer t.close()
-	a := &app{t: t, base: base, lopen: map[int]bool{}, exe: newExeWatch()}
+	a := &app{t: t, base: base, lopen: map[int]bool{}}
 	a.setStore(st)
 	if sig := a.loop(); sig != nil {
 		// Stopped by a signal: the terminal is given back by the deferred
@@ -188,7 +185,7 @@ func (a *app) setStore(st *Store) {
 			a.noSession = true
 		}
 	}
-	rep := &view{path: path, open: map[string]bool{}, cut: map[string]bool{}}
+	rep := &view{path: path, open: map[string]bool{}}
 	rep.load()
 	a.rep = rep
 	a.loadEvents()
@@ -295,7 +292,6 @@ func (a *app) loop() os.Signal {
 			a.t.resize()
 			a.keepCursor()
 		case <-tick.C:
-			_ = safely(func() error { a.exe.check(); return nil })
 			if a.st == nil {
 				if ss := sessions(a.base); len(ss) > 0 {
 					a.setStore(newStore(a.base, ss[0]))
@@ -520,7 +516,7 @@ func (a *app) target(pv *view) *node {
 // Option whose key the viewer uses itself (a check error) cannot be chosen.
 func keysFor(n *node) (yn bool, choices []string, thought bool) {
 	switch n.kind {
-	case kTodo, kDoing, kDone, kLink:
+	case kTodo, kDoing, kDone, kLink, kNotice:
 		yn = true
 	case kQuestion:
 		for _, c := range n.kids {
@@ -760,10 +756,10 @@ func index(xs []string, x string) int {
 }
 
 func (a *app) canOpen(pv *view, n *node) bool {
-	if n.kind == kLink || n.kind == kChoice {
+	if n.kind == kLink || n.kind == kChoice || n.kind == kNotice {
 		return false
 	}
-	if n.kind == kDetails || n.kind == kQuestion || len(n.body) > 0 || n.reason != "" || pv.cut[n.key] {
+	if n.kind == kDetails || n.kind == kQuestion || len(n.body) > 0 || n.reason != "" {
 		return true
 	}
 	return n.id != "" && len(a.state.on(n.id)) > 0
@@ -1221,6 +1217,7 @@ type row struct {
 	line  string
 	key   string // set on the first line of a stop
 	isCur bool
+	cont  bool // the rest of a line wrapped (or its right part below it)
 }
 
 func (a *app) textWidth() int {
@@ -1262,14 +1259,17 @@ func (a *app) draw() {
 	// bottom takes. Lay out with the last guess, then once more if it was
 	// wrong.
 	top0, follow0 := *top, *follow
-	// A newer executable is said on the top lines, above everything and
-	// however far the page is scrolled.
+	// The AI's notices are on the top lines, however far the page is
+	// scrolled. The cursor on one is always on screen.
 	var banner []string
-	if a.exe.stale() {
-		for _, r := range a.para(0, plainText(msgNewBuild, yellow+bold)) {
-			banner = append(banner, r.line)
+	onNotice := false
+	if !a.list && !a.help {
+		for _, r := range a.noticeRows(a.top()) {
+			if len(banner) < max(a.t.h-2, 0) {
+				banner = append(banner, r.line)
+				onNotice = onNotice || r.isCur
+			}
 		}
-		banner = banner[:min(len(banner), max(a.t.h-2, 0))]
 	}
 	// Everything below lays out in what the banner leaves.
 	fullH := a.t.h
@@ -1285,15 +1285,21 @@ func (a *app) draw() {
 		*top, *follow = top0, follow0
 		if ci >= 0 && *follow {
 			*follow = false
+			// The whole of the cursor's line (a wrapped title) comes into
+			// view; its head when it is taller than the screen.
+			ce := ci
+			for ce+1 < len(rows) && rows[ce+1].cont {
+				ce++
+			}
+			if ce >= *top+h-1 {
+				*top = ce - h + 2
+			}
 			if ci < *top+1 {
 				*top = max(ci-1, 0)
 			}
-			if ci >= *top+h-1 {
-				*top = ci - h + 2
-			}
 		}
 		*top = max(min(*top, len(rows)-h), 0)
-		*shown = ci >= *top && ci < *top+h
+		*shown = (ci >= *top && ci < *top+h) || onNotice
 		bottom = a.bottomLines(len(rows))
 		if len(bottom) == guess {
 			break
@@ -1526,12 +1532,10 @@ func (a *app) helpRows() []row {
 		{"", "報告の終わりからさらに j で、報告の下のコメントへ (欄が広がる)。コメントの 1 件目で k で報告へ"},
 		{"", "日本語入力のままでも、↑↓ ctrl+n ctrl+p と全角の英字 (ｊ ｙ など) が効く"},
 		{"space", "カーソルより下で、いちばん近い印のある行 (黄の ●・人待ちの項目・緑の ●) へ。下に無ければ上から。折りたたみは開く"},
-		{"r", "読んだ: カーソルの行の緑の ● を消す (カーソルを当てる・開くだけでは消えない。y n・答え・コメント・x でも消える)"},
+		{"r", "読んだ: カーソルの行の緑の ● (右上の「未読」) を消す (カーソルを当てる・開くだけでは消えない。y n・答え・コメント・x でも消える)"},
 		{"A", "いま報告にある行をすべて読んだことにする (緑の ● を消す)"},
 		{"enter", "開く・閉じる (コメントの欄でも)"},
-		{"x (コメント)", "コメントの欄と一覧では、そのコメントを取り消す"},
 		{"u", "直前の操作を取り消す (y n・答え・コメントを置く / 直す / 取り消す・隠す / 表示に戻す・r・A。新しい順に 1 つずつ。送ったあとなら、取り消しを次に送る)"},
-		{"e (コメント)", "コメントの欄と一覧で、そのコメントを直す (enter で置き換える。esc でやめる)"},
 		{"y", "よし (項目・リンク)"},
 		{"n", "だめ (項目・リンク)"},
 		{"a b …", "問いに答える (選択肢のキー。問いを開いているときだけ。閉じていれば開く)"},
@@ -1541,8 +1545,10 @@ func (a *app) helpRows() []row {
 		{"x", "この行を隠す (隠した行の上では表示に戻す)"},
 		{"H", "隠した行を表示する / しない"},
 		{"tab", "コメントの一覧 / 報告へ"},
+		{"x (コメント)", "コメントの欄と一覧では、そのコメントを取り消す"},
+		{"e (コメント)", "コメントの欄と一覧で、そのコメントを直す (enter で置き換える。esc でやめる)"},
 		{"?", "このキーの一覧"},
-		{"q", "終了 (一覧からは報告へ)"},
+		{"q", "終了 (一覧からは報告へ。ctrl+c はどこでも終了)"},
 		{"", ""},
 		{"書いているとき", ""},
 		{"enter", "pitboard に置く (s で送るまで AI には届かない)"},
@@ -1917,8 +1923,8 @@ func (a *app) packKeys(keys []hint, right text, more bool) []string {
 
 // ---- the thoughts at the bottom of the report ----
 
-// paneOrder is the thoughts the pane shows first: those still waiting for a
-// destination (newest first), then those given one (most recently first).
+// paneOrder is the thoughts the pane shows first: those not 対応済 yet
+// (newest first), then those 対応済 (most recently settled first).
 func (a *app) paneOrder() []*thought {
 	var open, done []*thought
 	for i := len(a.state.thoughts) - 1; i >= 0; i-- {
@@ -1935,6 +1941,7 @@ func (a *app) paneOrder() []*thought {
 
 const (
 	paneMax     = 3  // thoughts shown in the pane
+	paneRows    = 3  // rows a thought takes at most in the pane
 	paneMinH    = 20 // below this screen height, only the pane's heading
 	minBodyRows = 6  // the report keeps at least this many rows
 )
@@ -1953,7 +1960,29 @@ func (a *app) pane(avail int) []string {
 	if a.t.h < paneMinH {
 		n = 0
 	}
-	for n > 0 && avail-(n+3) < minBodyRows { // + heading and the blank above and below
+	// Each thought wraps to paneRows rows at most; its state is never cut.
+	var each [][]string
+	for _, t := range order[:n] {
+		word, color := a.state.statusOf(t)
+		base := ""
+		if t.finished() {
+			base = dim
+		}
+		body := withImages(strings.Join(strings.Fields(t.Text), " "), base).capped(4 * a.textWidth())
+		var ls []string
+		for _, r := range a.titled(false, 2, 0, nil, body, plainText(word, color), paneRows) {
+			ls = append(ls, r.line)
+		}
+		each = append(each, ls)
+	}
+	height := func(n int) int {
+		h := 3 // the heading and the blank above and below
+		for _, ls := range each[:n] {
+			h += len(ls)
+		}
+		return h
+	}
+	for n > 0 && avail-height(n) < minBodyRows {
 		n--
 	}
 	// Quiet: how many are not sent is said at the top right (未送信), and
@@ -1963,15 +1992,8 @@ func (a *app) pane(avail int) []string {
 		return []string{head}
 	}
 	out := []string{"", head}
-	w := a.textWidth()
-	for _, t := range order[:n] {
-		word, color := a.state.statusOf(t)
-		base := ""
-		if t.finished() {
-			base = dim
-		}
-		body := withImages(strings.Join(strings.Fields(t.Text), " "), base).capped(2 * w)
-		out = append(out, a.compose(false, 2, nil, body, plainText(word, color)))
+	for _, ls := range each[:n] {
+		out = append(out, ls...)
 	}
 	return append(out, "")
 }
@@ -1992,8 +2014,8 @@ func (a *app) openPane(order []*thought) []string {
 		if a.popen[t.N] {
 			mark = plainText("▾", "")
 		}
-		body := withImages(strings.Join(strings.Fields(t.Text), " "), base).capped(2 * a.textWidth())
-		r := a.line(sel, 0, mark, body, plainText(word, color), false)
+		body := withImages(strings.Join(strings.Fields(t.Text), " "), base).capped(4 * a.textWidth())
+		r := a.titled(sel, 0, 0, mark, body, plainText(word, color), paneRows)
 		r[0].key = fmt.Sprint(t.N) // the first row of a thought
 		rows = append(rows, r...)
 		if a.popen[t.N] {
@@ -2033,7 +2055,7 @@ func headed(head, s string) text {
 }
 
 // thoughtDetails is what an opened thought shows: the line it was written
-// on (and its title then), the whole text, and where it went.
+// on (and its title then), the whole text, and what the AI did with it.
 func (a *app) thoughtDetails(t *thought, ind int) []row {
 	var rows []row
 	var nodes []*node
@@ -2220,18 +2242,60 @@ func (a *app) para(indent int, t text) []row {
 	return out
 }
 
-// line draws one part: its first row carries the mark and the right part;
-// when wrap is set, the rest of the text follows on rows indented to it.
-func (a *app) line(sel bool, indent int, mark, body, right text, wrap bool) []row {
-	if !wrap {
-		return []row{{line: a.compose(sel, indent, mark, body, right), isCur: sel}}
-	}
-	lns := body.wrap(a.room(indent, right))
-	out := []row{{line: a.compose(sel, indent, mark, lns[0], right), isCur: sel}}
-	for _, ln := range lns[1:] {
-		out = append(out, row{line: a.compose(false, indent, nil, ln, nil)})
+// line draws one part: its first row carries the mark and the right part,
+// and the rest of the text follows on rows indented to it.
+func (a *app) line(sel bool, indent int, mark, body, right text) []row {
+	return a.titled(sel, indent, 0, mark, body, right, 0)
+}
+
+// titleCap is the most of a title drawn (cut with … past it), so that no
+// title costs more than a few screens' worth of work however long it is.
+const titleCap = 2000
+
+// minTitle is the least room a title keeps beside its right part.
+const minTitle = 8
+
+// rightFits says whether right goes at the end of a line's first row: it
+// takes at most half the width and leaves the title room. Otherwise it goes
+// on rows of its own under the title. Either way it is never cut.
+func (a *app) rightFits(indent int, right text) bool {
+	rw := right.width()
+	return rw <= a.textWidth()/2 && rw+2+minTitle <= a.textWidth()-indent-markW
+}
+
+// rightRows is a right part too wide to share the title's row: right
+// aligned on rows of its own (wrapped if it is wider than a row).
+func (a *app) rightRows(right text) []row {
+	var out []row
+	for _, ln := range right.wrap(a.textWidth() - markW - minTitle) {
+		out = append(out, row{line: a.compose(false, 0, nil, nil, ln), cont: true})
 	}
 	return out
+}
+
+// titled draws a title that wraps instead of being cut. The right part
+// stays whole at the end of the first row, and every row of the title
+// leaves its column free, so the right parts read as one column. The rows
+// after the first start where the title's text starts (extra: how far a
+// list number reaches past the mark field). most > 0 keeps that many rows
+// of the title at most, the last ending in …. The cursor and the marks go
+// on the first row only.
+func (a *app) titled(sel bool, indent, extra int, mark, body, right text, most int) []row {
+	var below []row
+	if len(right) > 0 && !a.rightFits(indent, right) {
+		below, right = a.rightRows(right), nil
+	}
+	w := a.room(indent, right) - extra
+	lns := body.wrap(w)
+	if most > 0 && len(lns) > most {
+		last := append(append(text{}, lns[most-1]...), lns[most]...)
+		lns = append(lns[:most-1:most-1], last.trunc(max(w, 4)))
+	}
+	out := []row{{line: a.compose(sel, indent, mark, lns[0], right), isCur: sel}}
+	for _, ln := range lns[1:] {
+		out = append(out, row{line: a.compose(false, indent+extra, nil, ln, nil), cont: true})
+	}
+	return append(out, below...)
 }
 
 func join(parts ...text) text {
@@ -2394,7 +2458,6 @@ func (a *app) rows(pv *view) []row {
 		}
 		blank()
 	}
-	pv.cut = map[string]bool{}
 	chosen := "" // the answered Option of the Ask being drawn
 	var curAsk *node
 	pv.walk(func(n *node) {
@@ -2402,6 +2465,8 @@ func (a *app) rows(pv *view) []row {
 		ind := n.depth * 2
 		open := pv.open[n.key]
 		switch n.kind {
+		case kNotice:
+			// Drawn above the page (noticeRows).
 		case kTitle:
 			rows = append(rows, a.para(0, inline(n.text, bold))...)
 			rows = append(rows, row{})
@@ -2454,25 +2519,19 @@ func (a *app) rows(pv *view) []row {
 			if hidden {
 				base = dim
 			}
-			body, right := inline(n.text, base).capped(8*a.textWidth()), a.right(pv, n)
+			body, right := inline(n.text, base).capped(titleCap), a.right(pv, n)
 			nav := pv.navigable(n)
-			// A stop is kept to one line and cut with …; a cut stop opens
-			// to its full text. Other lines, links and plain lines are
-			// wrapped so nothing is lost.
-			whole := !nav || n.kind == kLink || n.kind == kPlain
-			if !whole && body.width() > a.room(ind, right) {
-				pv.cut[n.key] = true
-			}
+			// Titles wrap; nothing is cut, so a line opens only for what it
+			// holds.
 			can := nav && a.canOpen(pv, n)
 			if can && open {
 				// Open: the title in bold, so it stands apart from what it
 				// holds (in the normal weight).
-				body = inline(n.text, base+bold).capped(8 * a.textWidth())
+				body = inline(n.text, base+bold).capped(titleCap)
 			}
 			// A line the cursor cannot stop at cannot be opened either, so
 			// what it holds is always shown.
 			shown := (can && open) || (!nav && n.kind != kDetails)
-			wrap := whole || (can && open)
 			mark := markOf(n.kind, can, open)
 			if hidden {
 				mark = plainText("⌀", dim)
@@ -2484,7 +2543,7 @@ func (a *app) rows(pv *view) []row {
 				}
 				lns = a.listItem(sel, ind, n, base, mark, right)
 			} else {
-				lns = a.line(sel, ind, mark, body, right, wrap)
+				lns = a.line(sel, ind, mark, body, right)
 			}
 			if nav {
 				lns[0].key = n.key
@@ -2507,6 +2566,35 @@ func (a *app) rows(pv *view) []row {
 	})
 	return rows
 }
+
+// noticeRows is the AI's notices, fixed above the page: yellow, wrapped
+// to noticeRows rows each, a stop like any other line.
+func (a *app) noticeRows(pv *view) []row {
+	var rows []row
+	if a.st == nil || a.noSession || pv.missing {
+		return nil
+	}
+	pv.walk(func(n *node) {
+		if n.kind != kNotice {
+			return
+		}
+		sel := n.key != "" && n.key == pv.cur && !a.inPane
+		mark, base := plainText("!", yellow+bold), yellow
+		if pv.isHidden(n) {
+			mark, base = plainText("⌀", dim), dim
+		}
+		lns := a.titled(sel, 0, 0, mark, inline(n.text, base).capped(4*a.textWidth()), a.right(pv, n), noticeMax)
+		lns[0].key = n.key
+		rows = append(rows, lns...)
+	})
+	if len(rows) > 0 {
+		rows = append(rows, row{}) // apart from the page scrolling under it
+	}
+	return rows
+}
+
+// noticeMax is how many rows a notice takes at most.
+const noticeMax = 3
 
 // paraText is a paragraph as drawn: a small heading is bold in the color of
 // section headings.
@@ -2536,11 +2624,7 @@ func (a *app) listItem(sel bool, ind int, n *node, base string, mark, right text
 		mark = listMark(n)
 	}
 	extra := max(mark.width()-markW, 0)
-	lns := inline(n.text, base).wrap(a.room(ind, right) - extra)
-	out := []row{{line: a.compose(sel, ind, mark, lns[0], right), isCur: sel}}
-	for _, ln := range lns[1:] {
-		out = append(out, row{line: a.compose(false, ind+extra, nil, ln, nil)})
-	}
+	out := a.titled(sel, ind, extra, mark, inline(n.text, base), right, 0)
 	for _, s := range n.subs {
 		out = append(out, a.listItem(false, ind+markW+extra, s, base, nil, nil)...)
 	}
@@ -2604,16 +2688,16 @@ func (a *app) contents(pv *view, n *node, ind int) []row {
 			word, color := a.state.statusOf(t)
 			for i, l := range strings.Split(strings.TrimSpace(t.Text), "\n") {
 				if i == 0 {
-					rows = append(rows, a.line(false, ind+markW, plainText("✎", dim), withImages(l, ""), plainText(word, color), true)...)
+					rows = append(rows, a.line(false, ind+markW, plainText("✎", dim), withImages(l, ""), plainText(word, color))...)
 				} else {
-					rows = append(rows, a.line(false, ind+markW, nil, withImages(l, ""), nil, true)...)
+					rows = append(rows, a.line(false, ind+markW, nil, withImages(l, ""), nil)...)
 				}
 			}
 			if t.Title != "" && t.Title != n.title() {
-				rows = append(rows, a.line(false, ind+markW, nil, plainText("(書いたときは: "+t.Title+")", dim).capped(8*a.textWidth()), nil, true)...)
+				rows = append(rows, a.line(false, ind+markW, nil, plainText("(書いたときは: "+t.Title+")", dim).capped(8*a.textWidth()), nil)...)
 			}
 			if t.sstate != "" {
-				rows = append(rows, a.line(false, ind+markW, nil, headed(settleHead(t.sstate), t.settled).capped(8*a.textWidth()), nil, true)...)
+				rows = append(rows, a.line(false, ind+markW, nil, headed(settleHead(t.sstate), t.settled).capped(8*a.textWidth()), nil)...)
 			}
 		}
 	}
@@ -2651,9 +2735,9 @@ func (a *app) listRows() []row {
 		if open {
 			mark = plainText("▾", "")
 		}
-		// A long destination is cut, so the thought keeps its room.
-		st := plainText(word, color).capped(2 * a.textWidth()).trunc(max(a.textWidth()/2, 8))
-		rows = append(rows, a.line(sel, 0, mark, body, st, false)...)
+		// The first line of the thought wraps; its state is never cut.
+		st := plainText(word, color).capped(2 * a.textWidth())
+		rows = append(rows, a.line(sel, 0, mark, body.capped(4*a.textWidth()), st)...)
 		if open {
 			rows = append(rows, a.thoughtDetails(t, 0)...)
 			rows = append(rows, row{})
@@ -2666,19 +2750,25 @@ func (a *app) listRows() []row {
 
 // walk visits the nodes that are on screen.
 func (pv *view) walk(f func(n *node)) {
-	var rec func(ns []*node)
-	rec = func(ns []*node) {
+	var rec func(ns []*node, notices bool)
+	rec = func(ns []*node, notices bool) {
 		for _, n := range ns {
+			if (n.kind == kNotice) != notices {
+				continue
+			}
 			if !pv.showHidden && (pv.isHidden(n) || (n.kind == kSection && pv.allHidden(n.kids))) {
 				continue
 			}
 			f(n)
 			if n.kind == kSection || ((n.kind == kDetails || n.kind == kQuestion) && pv.open[n.key]) {
-				rec(n.kids)
+				rec(n.kids, false)
 			}
 		}
 	}
-	rec(pv.nodes)
+	// Notices first: they are drawn above the page, so the cursor meets
+	// them first (and starts on them).
+	rec(pv.nodes, true)
+	rec(pv.nodes, false)
 }
 
 // allHidden says whether every one of ns is hidden (a Section whose lines

@@ -175,7 +175,7 @@ func TestNoOldWords(t *testing.T) {
 		all = append(all, r.line)
 	}
 	// The screens without a report, and the editor's file.
-	all = append(all, msgChanged, msgMoved, msgNoReport, msgNoBoard, msgNoSession, msgNewBuild)
+	all = append(all, msgChanged, msgMoved, msgNoReport, msgNoBoard, msgNoSession)
 	for _, setup := range []func(b *app){
 		func(b *app) { b.setStore(nil) },
 		func(b *app) { os.Mkdir(filepath.Join(b.base, ".pitboard"), 0o755); b.setStore(nil) },

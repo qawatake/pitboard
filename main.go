@@ -20,7 +20,11 @@ var skill string
 // hookStdin is where `pitboard hook` reads the hook's JSON (tests replace it).
 var hookStdin io.Reader = os.Stdin
 
-const usage = `pitboard - a board beside an AI session: the AI reports, the person reacts
+// usage is pitboard -h. The keys an Option cannot use come from viewerKeys,
+// so the two never disagree.
+var usage = strings.ReplaceAll(usageText, "{viewerKeys}", viewerKeyList())
+
+const usageText = `pitboard - a board beside an AI session: the AI reports, the person reacts
 
 Usage:
   pitboard [-s SESSION] [view]     the viewer (without -s: the most recently updated session)
@@ -28,7 +32,7 @@ Usage:
   pitboard -s SESSION path         print the path of the session's report.md (write the report there)
   pitboard -s SESSION changes      print what the person has sent since the last call, one per line
   pitboard -s SESSION settle N [--doing|--hold|--done] TEXT
-                                   say how far thought N is and where it went
+                                   set thought N's state and what you did with it
                                    (several: --STATE N TEXT --STATE N TEXT ...)
   pitboard -s SESSION check        check report.md; prints problems with line numbers, exit 1 if any
   pitboard -s SESSION wait [--timeout DURATION]
@@ -90,6 +94,7 @@ Writing report.md:
   numbered lines, and lists in an Item, are read only. Inside Code nothing
   of this applies.
 
+    <Notice id="reopen">Reopen pitboard: I installed a new version</Notice>
     <Title>Build the minimal pitboard</Title>
 
     One paragraph saying where things stand.
@@ -111,7 +116,8 @@ Writing report.md:
     </Section>
 
     <Section title="In progress">
-      <Item id="impl" state="doing" status="working">Implement the viewer</Item>
+      <Item id="impl" state="doing">Implement the viewer</Item>
+      <Item id="cli" status="queued">Add the CLI</Item>
       <Item id="parts" status="waiting on you" wait="you" note="needs the answer above">Fix the part list</Item>
     </Section>
 
@@ -129,11 +135,16 @@ Writing report.md:
     </Fold>
 
   Parts (anything else is an error):
+    Notice    id (required). One paragraph of text. At the top level only,
+              3 at most. The board shows it above the page, in yellow,
+              however far the person scrolls (3 rows at most each). See
+              Manners for when to use it.
     Title     the page title, one line
     Section   title="..." (required). Holds Item Ask Link Code Fold and text.
               Not inside another Section or a Fold.
     Item      id (required), state = todo (default) | doing | done,
-              status (a short word shown at the right end),
+              status (a short word shown at the right end; only what the
+              mark cannot say, see Manners),
               note (why the status; shown when opened),
               ask="y" (you want a y / n on it; not on a done Item),
               wait="you" (it cannot move on until the person does
@@ -150,31 +161,31 @@ Writing report.md:
               sense on its own, without the options. (look="y" is allowed
               but adds nothing: an Ask is marked anyway.)
     Option    key (required, one letter a-z, unique in its Ask; not one of
-              the viewer's own keys c j k m n q r s x y). One line.
+              the viewer's own keys {viewerKeys}). One line.
     Link      id (required), and exactly one of path (a file, shown as
               written) or url (http:// or https://). One line: its title.
               The board shows the path or URL under the title; it does not
               open files. Put what must be read in the board in Code.
               ask="y" and look="y" as on Item.
-    Fold      title (required), id (optional; keeps it open across retitling
-              when folds are added or removed above it), look="y" (as on
-              Item; read means everything it holds). Holds what a Section
-              holds. Starts closed.
+    Fold      title (required), id (optional; keeps it open when folds above
+              it are added or removed), look="y" (as on Item; read means
+              everything it holds). Holds what a Section holds. Starts
+              closed.
     Code      lang (optional; "diff" is colored). Raw until </Code>; the
               indentation of the <Code> tag is removed from its lines.
-  id: 1-16 of a-z 0-9 -, unique in the page. The person reacts to Item, Ask
-  and Link through their id: y / n on Items and Links, an Option key on an
-  Ask, and thoughts written on any of them.
+  id: 1-16 of a-z 0-9 -, unique in the page. The person reacts to Item, Ask,
+  Link and Notice through their id: y / n on Items, Links and Notices, an
+  Option key on an Ask, and thoughts written on any of them.
 
   Marks: the board puts a yellow ● beside each line waiting for the person
   (an Ask not answered yet, an Item or Link with ask="y" without a y / n on
   what it says now) and a green ● (unread) beside each line with look="y"
   that they have not read since it last changed. Only the person clears
-  it: r (read) on the line, or reacting, commenting on or hiding it; moving
-  the cursor over it or opening it does not. space takes them to
-  the nearest marked line below the cursor (yellow, green, or an Item with
-  wait="you"; all alike), from the top when there is none below. Lines
-  without look="y" get no green mark, whatever changes.
+  it, with r (read) on the line or by reacting to it; the cursor does
+  not. space takes them to the nearest marked line below the cursor
+  (yellow, green, or an Item with wait="you"; all alike), from the top
+  when there is none below. Lines without look="y" get no green mark,
+  whatever changes.
   So: mark with ask="y" (or make an Ask) exactly what you need them to
   answer, and with look="y" exactly what you need them to read. Rewriting a
   look="y" line (title, state, status, note, contents) marks it unread
@@ -190,12 +201,15 @@ A layout to start from:
        is the question, the contents the answer; they hide it with x once
        read.
        (Answers do not scroll away with the chat.)
-    4. "In progress": what you are doing now and next, with status working /
-       queued / waiting on you / on hold. (They see what moves without asking.)
+    4. "In progress": what you are doing now (state="doing") and next, with
+       a status only where the mark cannot say it: waiting on you, queued,
+       on hold. (They see what moves without asking.)
     5. "Decided": one decision per line; they hide what they no longer need.
        (Decisions made in the chat are not lost.)
     6. "Where": repos, files, URLs (Link). (One place to find things.)
-    7. "Done": in a Fold, newest first. (Kept, but out of the way.)
+    7. "Done": in a Fold, newest first. Move a line here as soon as it is
+       done; do not let done lines pile up in "In progress". (Kept, but out
+       of the way.)
   Manners for it: the more a section needs the person's hand, the higher it
   goes. Leave out a section that would be empty. When the report no longer
   fits on one screen, move what is done into the Fold, or drop it.
@@ -206,6 +220,18 @@ Manners:
     following lines (shown when the person opens it).
   - A line you want a reaction or a thought on must be an Item, Ask or Link
     with an id.
+  - A Notice is for what the person must know first: when tools or the
+    environment need something from them (reopen the viewer, set
+    something up), or when your work is stuck. Not for ordinary questions
+    or answers. Remove it once it has done its job.
+  - Say a title in one sentence; details go in the contents. (A long title
+    wraps, it is not cut; still, do not cram who does it or remarks in
+    parentheses into it.)
+  - A status says only what the mark cannot: waiting on you, queued, on
+    hold. Never repeat the mark in words: no "working" (作業中) on a
+    state="doing" line, no "done" (済み) on a state="done" one.
+  - When a line is done, move it into the "Done" Fold; do not leave done
+    lines in the sections in progress.
   - When contents run past 3 lines, do not pour them into a paragraph: show
     their structure with lists and bold head words. Nest what you compare.
     One list line says one thing.
@@ -291,8 +317,8 @@ Manners:
   unhide means they want to see it again.
   edit thought N means the person rewrote a thought you already received:
   the text is the whole new thought. Act on the new text; if you had
-  settled it, settle it again (the board shows it as read, without a
-  destination). (A thought rewritten before it reached you just arrives as
+  settled it, settle it again (the board shows it as 既読 again, with no
+  state from you). (A thought rewritten before it reached you just arrives as
   "thought N" with the new text.)
   retract thought N means the person took that thought back. If you were
   acting on it, stop. It needs no settle. (A thought taken back before it
@@ -311,11 +337,11 @@ Manners:
   or state.)
 
 Thoughts:
-  (The board calls them comments.) You need not handle every thought at
-  once, but give every thought you received a destination with
-  'pitboard -s ID settle N TEXT' (e.g. "made it a todo", "answered",
-  "noted", "not doing it"). The board shows it, so the person can write a
-  thought and forget it. Never leave one without a destination.
+  (The board calls them comments; commands and their output say thought.)
+  You need not handle every thought at once, but settle every thought you
+  received with 'pitboard -s ID settle N TEXT' (e.g. "made it a todo",
+  "answered", "noted", "not doing it"). The board shows it, so the person
+  can write a thought and forget it. Never leave one unsettled.
   A state goes before TEXT: --done (the default), --doing (working on it)
   or --hold (put off); the latest settle counts. When a thought takes a
   while, tell it at once with 'settle N --doing' (or --hold, with why),
@@ -364,7 +390,8 @@ Send:
      at the top right: sending then only records the send, and 'wait' wakes
      you. A second 'wait' on the same session prints "already waiting (pid
      N)" and ends (exit 0), leaving it to the first.
-  2. The hooks (above), while you work and before you stop.
+  2. The hooks (above), while you work and before you stop. (s does not
+     wake you through them; they deliver while you work.)
   3. Typing into your terminal, when no 'wait' is waiting. The viewer types:
 
     pitboard: N sent. Run: pitboard -s SESS changes

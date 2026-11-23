@@ -59,7 +59,7 @@ func hook(event string, stdin io.Reader, stdout io.Writer) error {
 		return nil
 	}
 	msg := "pitboard (the person acted on the board):\n" + strings.Join(lines, "\n") + "\n" +
-		fmt.Sprintf("Settle each thought with \"pitboard -s %s settle N TEXT [N TEXT ...]\" once you know where it goes.", in.SessionID)
+		fmt.Sprintf("Settle each thought with \"pitboard -s %s settle N [--doing|--hold|--done] TEXT\" (several: --STATE N TEXT --STATE N TEXT ...) once you know what to do with it.", in.SessionID)
 	if n := st.problemNote(); n != "" {
 		msg += "\n" + n
 	}

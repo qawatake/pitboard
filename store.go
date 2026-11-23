@@ -781,7 +781,7 @@ func replayEvents(evs []Event, seen int) *state {
 				t.retracted = e.Op == "retract"
 			}
 		case "edit":
-			// Rewritten: the AI's destination was for the old text.
+			// Rewritten: the AI's settle was for the old text.
 			if t := byN[e.Thought]; t != nil {
 				t.Text, t.lastN = e.Text, e.N
 				t.settled, t.settledN, t.sstate = "", 0, ""

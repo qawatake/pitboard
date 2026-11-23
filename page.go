@@ -23,6 +23,7 @@ const (
 	kDetails              // Fold / <details>
 	kPara                 // paragraph
 	kCode                 // Code / ```
+	kNotice               // Notice: fixed at the top of the screen
 )
 
 type node struct {
@@ -69,6 +70,8 @@ func (n *node) part() string {
 		return "Link"
 	case n.kind == kDetails:
 		return "Fold"
+	case n.kind == kNotice:
+		return "Notice"
 	}
 	return fmt.Sprint(n.kind)
 }
@@ -131,12 +134,13 @@ func assignKeys(nodes []*node) {
 //
 //	plain line      its text (two lines with the same text hide together)
 //	Item Ask Link   kind, id, title, state, status
+//	Notice          kind, id, text
 //	Fold            kind, and its id or title
 func hideKey(n *node) string {
 	switch {
 	case n.kind == kPlain:
 		return "-|" + n.text + subsText(n.subs)
-	case n.item() || n.kind == kQuestion || n.kind == kLink:
+	case n.item() || n.kind == kQuestion || n.kind == kLink || n.kind == kNotice:
 		if n.id == "" {
 			return ""
 		}

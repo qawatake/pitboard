@@ -59,7 +59,7 @@ func TestHookWithoutBoardDoesNothing(t *testing.T) {
 func TestHookOutputs(t *testing.T) {
 	st := testStore(t)
 	in := hookInput(st.base, "s1", "")
-	const settleLine = `Settle each thought with "pitboard -s s1 settle N TEXT [N TEXT ...]" once you know where it goes.`
+	const settleLine = `Settle each thought with "pitboard -s s1 settle N [--doing|--hold|--done] TEXT" (several: --STATE N TEXT --STATE N TEXT ...) once you know what to do with it.`
 
 	// Nothing to deliver: nothing printed.
 	for _, ev := range []string{"prompt-submit", "post-tool", "stop"} {
