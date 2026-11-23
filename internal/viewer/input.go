@@ -399,7 +399,7 @@ func (a *app) drawEditing() {
 		pv := a.top()
 		rows, top = a.rows(pv), pv.top
 		if n := pv.nodeAt(key); n != nil {
-			ind = n.Depth * 2
+			ind = indentOf(n)
 		}
 		at, headRow, _ = a.editorAt(rows, pv.ends, key)
 	}

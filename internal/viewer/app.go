@@ -58,6 +58,8 @@ type view struct {
 	// atEnd says whether the last frame showed the end of the page: j past
 	// the last stop then goes into the thoughts pane.
 	atEnd bool
+	// viewH is how many rows of the page the last frame showed.
+	viewH int
 }
 
 // settleDelay is how long a line the viewer moved the cursor to must have
@@ -112,6 +114,8 @@ type app struct {
 	// (line, column; 0-based), set when they are laid out.
 	inAt [2]int
 	help bool // the list of all keys
+	// jumping is set while g waits for the letter of where to go.
+	jumping bool
 	// kbd is set when the terminal answered that it tells keys apart
 	// (kitty keyboard protocol): shift+enter is then a key of its own.
 	kbd  bool

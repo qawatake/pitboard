@@ -32,6 +32,10 @@ func (a *app) handle(k key) (quit bool) {
 		a.handleInput(k)
 		return false
 	}
+	if a.jumping {
+		a.handleJump(k)
+		return false
+	}
 	if k.r == '?' {
 		a.help = true
 		return false
@@ -50,12 +54,25 @@ func (a *app) handle(k key) (quit bool) {
 	switch {
 	case k.r == 'q':
 		return true
+	case k.r == 'g':
+		if len(a.jumpTargets(pv)) > 0 {
+			a.jumping = true
+		}
 	case (k.r == 'j' || k.name == "down") && pv.offScreen() > 0,
 		(k.r == 'k' || k.name == "up") && pv.offScreen() < 0:
 		// The cursor's line is off the screen in this direction: bring it
 		// back first, without moving it. The next j/k moves from there.
 		pv.follow = true
+	case pv.offScreen() != 0 && reactKey(pv, k):
+		// The cursor's line is off the screen: a reaction only brings it
+		// back, so nothing goes on a line the person is not looking at.
+		pv.follow = true
 	case k.r == 'j' || k.name == "down":
+		// What is between the cursor's line and the next stop is read
+		// first, half a screen at a time; the cursor stays.
+		if a.scrollToward(pv, 1) {
+			break
+		}
 		if pv.step(1) {
 			pv.lock, pv.placed = false, false
 			break
@@ -67,7 +84,7 @@ func (a *app) handle(k key) (quit bool) {
 			break
 		}
 		pv.lock, pv.placed = false, false
-		pv.top++ // past the last stop: scroll the page
+		pv.top += max(pv.viewH/2, 1) // past the last stop: scroll the page
 	case k.r == ' ':
 		a.jump(pv)
 	case k.r == 'A':
@@ -75,9 +92,12 @@ func (a *app) handle(k key) (quit bool) {
 	case k.r == 'r':
 		a.read(pv)
 	case k.r == 'k' || k.name == "up":
+		if a.scrollToward(pv, -1) {
+			break
+		}
 		pv.lock, pv.placed = false, false
 		if !pv.step(-1) {
-			pv.top = max(pv.top-1, 0)
+			pv.top = max(pv.top-max(pv.viewH/2, 1), 0)
 		}
 	case k.name == "pgup":
 		pv.top = max(pv.top-max(a.t.h/2, 1), 0)

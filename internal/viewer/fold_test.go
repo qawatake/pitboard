@@ -122,3 +122,53 @@ func TestTitleNeverTheCursor(t *testing.T) {
 		check("gone", a)
 	}
 }
+
+// What a Fold holds goes 2 past the first character of its title (its
+// marks under the title's text, 2 further), a Fold in a Fold as much
+// again; text lines up with the titles of the Items in it. Narrow screens
+// keep it.
+func TestFoldIndent(t *testing.T) {
+	src := "<Fold title=\"見本\">\n<Item id=\"a\">項目 a\n  中身の文\n</Item>\n書き出す CSV の行\n- 箇条\n<Ask id=\"q\">問い\n<Option key=\"a\">選ぶ</Option>\n<Option key=\"b\">選ばない</Option>\n</Ask>\n<Fold title=\"内側\">\n<Item id=\"b\">項目 b</Item>\n</Fold>\n</Fold>\n"
+	for _, w := range []int{80, 40} {
+		st := testStore(t)
+		os.WriteFile(st.ReportPath(), []byte(src), 0o644)
+		a := testApp(t, st)
+		a.t.w = w
+		pv := a.top()
+		for _, k := range []string{"fold:1", "a", "q", "fold:2"} {
+			pv.open[k] = true
+		}
+		ls, _ := screen(t, a)
+		col := func(s string) int {
+			i := rowOf(ls, s)
+			if i < 0 {
+				t.Fatalf("w %d: no %q:\n%s", w, s, strings.Join(ls, "\n"))
+			}
+			return width(ls[i][:strings.Index(ls[i], s)])
+		}
+		title := col("見本")
+		checks := []struct {
+			s    string
+			want int
+		}{
+			{"▾ 項目 a", title + 2},
+			{"中身の文", title + 4 + 2},
+			{"書き出す CSV の行", title + 4},
+			{"箇条", title + 4},
+			{"? 問い", title + 2},
+			{"a  選ぶ", title + 4 + 2},
+			{"▾ 内側", title + 2},
+			{"項目 b", title + 4 + 4},
+		}
+		for _, c := range checks {
+			if got := col(c.s); got != c.want {
+				t.Errorf("w %d: %q at %d, want %d:\n%s", w, c.s, got, c.want, strings.Join(ls, "\n"))
+			}
+		}
+		for _, l := range ls {
+			if visibleWidth(l) > w {
+				t.Errorf("w %d: too wide %q", w, l)
+			}
+		}
+	}
+}

@@ -158,7 +158,8 @@ func TestSpaceJumps(t *testing.T) {
 	wait(t, settleDelay)
 	a.render()
 	a.handle(key{r: 'y'})
-	if s := reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), ""); !strings.Contains(s, "space 次へ") {
+	// space is still of use (on a narrow line it goes before g).
+	if s := reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), ""); !a.anyMarked(a.top()) || !strings.Contains(s, "g 飛ぶ") {
 		t.Errorf("hints: %q", s)
 	}
 	// An Item waiting for the person (wait="you") does not hold space:

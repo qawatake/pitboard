@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/qawatake/pitboard/internal/report"
 )
 
 // ---- rendering ----
@@ -13,6 +15,9 @@ type row struct {
 	key   string // set on the first line of a stop
 	isCur bool
 	cont  bool // the rest of a line wrapped (or its right part below it)
+	// jump is set on the first row of a place g goes to (a Section's
+	// heading, a top-level Fold, a notice).
+	jump *report.Node
 }
 
 func (a *app) textWidth() int {
@@ -38,6 +43,11 @@ func (a *app) draw() {
 		pv.settleCursor()
 		pins = a.pin(pv, a.t.h, "")
 		rows = a.rows(pv)
+		if a.jumping {
+			ts := a.jumpTargets(pv)
+			a.markJumps(pins.rows, ts)
+			a.markJumps(rows, ts)
+		}
 		top, follow, shown, cur = &pv.top, &pv.follow, &pv.curShown, &pv.curRow
 	}
 	if a.help {
@@ -136,6 +146,7 @@ func (a *app) draw() {
 	h := max(a.t.h-len(bottom), 1)
 	if cur != nil {
 		a.top().atEnd = *top+h >= len(rows)
+		a.top().viewH = h
 	}
 	if a.tauto != 0 {
 		on, shown := 0, true

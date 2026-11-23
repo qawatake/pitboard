@@ -176,7 +176,7 @@ func TestUndoHint(t *testing.T) {
 	}
 	a.handle(key{r: 'y'})
 	// Narrow: u goes first.
-	if s := hintLine(a); strings.Contains(s, "u 取り消す") || !strings.Contains(s, "x 隠す") {
+	if s := hintLine(a); strings.Contains(s, "u 取り消す") || !strings.Contains(s, "c 行に書く") {
 		t.Errorf("narrow hints %q", s)
 	}
 	a.handle(key{name: "tab"})

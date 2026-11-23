@@ -127,7 +127,7 @@ func TestPaneAfterTextWithoutStops(t *testing.T) {
 		a.render()
 		presses++
 	}
-	if !a.inPane || presses < 10 {
+	if !a.inPane || presses < 3 {
 		t.Errorf("j must scroll the text to its end, then enter the pane (%d presses)", presses)
 	}
 	if ls, _ := screen(t, a); !strings.Contains(strings.Join(ls, "\n"), "段落 39") {

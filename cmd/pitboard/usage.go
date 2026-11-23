@@ -96,31 +96,28 @@ Writing report.md:
       <Item id="hook" ask="y">Decide whether to install the hook
         Installing it touches ~/.claude/settings.json.
       </Item>
-    </Section>
 
-    <Section title="Answers">
       <Item id="why-cwd" look="y">Why keep the data in the working directory?
         So that each project has its own board.
       </Item>
     </Section>
 
     <Section title="In progress">
-      <Item id="impl" state="doing">Implement the viewer</Item>
+      <Item id="impl" state="doing">Implement the viewer
+        <Code lang="diff">
+        -old
+        +new
+        </Code>
+      </Item>
+      <Link id="pr" url="https://github.com/OWNER/REPO/pull/1">The pull request</Link>
       <Item id="cli" status="queued">Add the CLI</Item>
       <Item id="parts" status="waiting on you" wait="you" note="needs the answer above">Fix the part list</Item>
     </Section>
 
-    <Section title="To look at">
-      <Link id="spec" path="pitboard/SPEC.md">The spec</Link>
-      <Link id="pr" url="https://github.com/OWNER/REPO/pull/1">The pull request</Link>
-      <Code lang="diff">
-      -old
-      +new
-      </Code>
-    </Section>
-
-    <Fold title="Done (1)">
-      <Item id="tui" state="done">One-column viewer</Item>
+    <Fold title="Decided (1)">
+      <Item id="one-col" state="done">One column: the viewer sits beside the chat
+        A narrow pane has no room for two.
+      </Item>
     </Fold>
 
   Parts (anything else is an error):
@@ -186,25 +183,25 @@ A layout to start from:
   The layout is yours; this is a starting point, not a rule. From the top:
     1. The title, and where things stand in a sentence or two.
        (What the person reads first when they come back.)
-    2. "For you": what needs the person's decision, check or work: Ask, or
-       Item with ask="y". (When it is empty, they know they need do nothing.)
-    3. "Answers": answers to what they asked, each with look="y". The title
-       is the question, the contents the answer; they hide it with x once
-       read.
-       (Answers do not scroll away with the chat.)
+    2. Notices, only when there is one (see Manners).
+    3. "For you": first what the person is to answer or do (Ask, Item with
+       ask="y" or wait="you"); under them, your answers to what they asked,
+       each an Item with look="y" whose title is the question and contents
+       the answer (they hide it with x once read). (When it is empty, they
+       know they need do nothing.)
     4. "In progress": what you are doing now (state="doing"; the board
        says 作業中 itself) and next, with a status only for something else:
        waiting on you, queued, on hold. (They see what moves without
        asking.)
-    5. "Decided": one decision per line; they hide what they no longer need.
+    5. "Decided": in a Fold, one decision per line, with its reason.
        (Decisions made in the chat are not lost.)
-    6. "Where": repos, files, URLs (Link). (One place to find things.)
-    7. "Done": in a Fold, newest first. Move a line here as soon as it is
-       done; do not let done lines pile up in "In progress". (Kept, but out
-       of the way.)
   Manners for it: the more a section needs the person's hand, the higher it
-  goes. Leave out a section that would be empty. When the report no longer
-  fits on one screen, move what is done into the Fold, or drop it.
+  goes. Leave out a section that would be empty. When a line is done, drop
+  it from "In progress" (git keeps the history; do not pile done lines up).
+  Put a link in the contents of the line that needs it, or as a Link right
+  under that line; do not make a section of links. When a question is
+  answered, drop the Ask and keep what was decided as one line in
+  "Decided".
 
 Manners:
   - The layout is yours (which sections, what goes in them), but the report
@@ -229,8 +226,8 @@ Manners:
     state="doing" Item without a status shows 作業中 (working) there by
     itself, so write a status only to say something else (waiting on you,
     queued, on hold), and never "done" (済み) on a state="done" one.
-  - When a line is done, move it into the "Done" Fold; do not leave done
-    lines in the sections in progress.
+  - When a line is done, drop it from the sections in progress (git keeps
+    the history).
   - When contents run past 3 lines, do not pour them into a paragraph: show
     their structure with lists and bold head words. Nest what you compare.
     One list line says one thing.
@@ -257,13 +254,13 @@ Manners:
     report, with ask="y" (or an Ask) or wait="you". Never only in the chat.
   - Questions and answers: when the person asks you something on the board
     (a thought), answer in the report, so that the board alone tells them
-    where things stand when they come back. Keep a section like "Answers"
-    with one Item per question: its title is the question (short, close to
+    where things stand when they come back. Put one Item per question at
+    the bottom of "For you": its title is the question (short, close to
     their words), its contents the answer, with look="y". The person hides
     it with x once read; when "hide:" for it arrives, drop that Item the
     next time you rewrite the report. You may
     also drop an answer the person replied to, once you judge it settled.
-    When a thought was a question, settle it with "answered (in Answers)".
+    When a thought was a question, settle it with "answered (in For you)".
   - Mark with wait="you" every Item that needs the person's hand (its
     status words alone get no color).
   - Put look="y" only on lines you want the person to read: an answer you

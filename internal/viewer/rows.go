@@ -91,7 +91,7 @@ func (a *app) right(pv *view, n *report.Node) text {
 		if ch := n.Choice(re.plain()); ch != nil {
 			head := append(append(text{}, re...), plainText(" ", "")...)
 			head = append(head, plainText(report.PlainOf(ch.Text), dim).trunc(answerHead)...)
-			ind := n.Depth * 2
+			ind := indentOf(n)
 			if long := join(mine(head), st); inline(n.Text, "").width() <= a.room(ind, long) {
 				return long
 			}
@@ -107,6 +107,16 @@ func atWord(t time.Time) string {
 		return t.Format("15:04")
 	}
 	return t.Format("1/2 15:04")
+}
+
+// indentOf is how far n's mark is indented: what a Fold holds goes 4 past
+// the Fold's mark (2 past the first character of its title), each Fold
+// within a Fold as much again; an Ask's options go 2 past its mark.
+func indentOf(n *report.Node) int {
+	if n.Kind == report.KindChoice {
+		return max(n.Depth-1, 0)*4 + 2
+	}
+	return n.Depth * 4
 }
 
 // answerHead is how much of the chosen option a closed question shows.
@@ -179,7 +189,7 @@ func (a *app) rows(pv *view) []row {
 	pv.ends = map[string]int{}
 	pv.walk(func(n *report.Node) {
 		sel := n.Key != "" && n.Key == pv.cur && !a.inPane
-		ind := n.Depth * 2
+		ind := indentOf(n)
 		open := pv.open[n.Key]
 		switch n.Kind {
 		case report.KindNotice:
@@ -197,7 +207,9 @@ func (a *app) rows(pv *view) []row {
 			rows = append(rows, row{})
 		case report.KindSection:
 			blank()
-			rows = append(rows, a.para(0, inline(n.Text, bold+blue))...)
+			h := a.para(0, inline(n.Text, bold+blue))
+			h[0].jump = n
+			rows = append(rows, h...)
 		case report.KindPara:
 			blank()
 			rows = append(rows, a.para(ind, paraText(n, ""))...)
@@ -274,6 +286,9 @@ func (a *app) rows(pv *view) []row {
 				lns[0].key = n.Key
 				lns[0].line = gutterMark(lns[0].line, a.markOfLine(pv, n))
 			}
+			if n.Kind == report.KindDetails {
+				lns[0].jump = n
+			}
 			rows = append(rows, lns...)
 			if n.Kind == report.KindLink {
 				rows = append(rows, a.linkTarget(n, ind)...)
@@ -285,7 +300,7 @@ func (a *app) rows(pv *view) []row {
 				if n.Kind == report.KindDetails {
 					// An open Fold: the thoughts on it right under its
 					// title, among what it holds (marks in their column).
-					c = a.thoughtRows(n, ind+2)
+					c = a.thoughtRows(n, ind+4)
 				} else {
 					c = a.contents(pv, n, ind+2)
 				}

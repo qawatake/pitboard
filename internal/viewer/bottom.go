@@ -24,6 +24,9 @@ func (a *app) bottomLines(n int) []string {
 		return a.editorLines(true)
 	}
 	hints := a.bottom()
+	if a.jumping && !a.list && !a.inPane {
+		hints = a.jumpLines(a.jumpTargets(a.top()))
+	}
 	if a.list {
 		return hints
 	}
@@ -59,6 +62,8 @@ func (a *app) helpRows() []row {
 		{"", "報告の終わりからさらに j で、報告の下のコメントへ (欄が広がる)。コメントの 1 件目で k で報告へ"},
 		{"", "報告のいちばん上からさらに k で、上に固定されたお知らせへ"},
 		{"", "日本語入力のままでも、↑↓ ctrl+n ctrl+p と全角の英字 (ｊ ｙ など) が効く"},
+		{"g", "節へ飛ぶ: お知らせ・節・いちばん外の折りたたみに a b c … が付く。その字で、そこの最初の行へ (見出しを画面の上に)。esc でやめる"},
+		{"", "開いた中身が画面より高ければ、j k は次 (前) の行へ移る前に、間を半画面ずつスクロールする (カーソルは動かず、画面の外に出ることもある。そのとき y n x r c は、まずカーソルの行を画面に戻す)"},
 		{"space", "カーソルより下で、いちばん近い印のある行 (黄の ●・人待ちの項目・緑の ●) へ。下に無ければ上から。折りたたみは開く"},
 		{"r", "読んだ: カーソルの行の緑の ● (右上の「未読」) を消す (カーソルを当てる・開くだけでは消えない。y n・答え・コメント・x でも消える)"},
 		{"A", "いま報告にある行をすべて読んだことにする (緑の ● を消す)"},
@@ -204,6 +209,13 @@ func (a *app) bottom() []string {
 		if pv.err == "" && !pv.missing {
 			keys = append(keys, hint{k: "j k ↑↓", d: "スクロール", rank: rankEnter})
 		}
+		// Where the cursor's line went (reacting brings it back first).
+		switch pv.offScreen() {
+		case -1:
+			right = join(plainText("↑ カーソルは上", dim), right)
+		case 1:
+			right = join(plainText("↓ カーソルは下", dim), right)
+		}
 		return a.oneLine(keys, right)
 	}
 	var enter, read, answer, yn, write, hide []hint
@@ -276,11 +288,12 @@ func concat(hs ...[]hint) []hint {
 }
 
 // The order in which hints are left out when the line is narrow: lowest
-// first (u, then x, enter, n, y, c). A hint with rank 0 (one with a short
+// first (u, then x and space, g, enter, n, y, c). A hint with rank 0 (one with a short
 // form, m, ?) is kept.
 const (
 	rankU = iota + 1
 	rankX
+	rankG
 	rankEnter
 	rankN
 	rankY
@@ -309,6 +322,9 @@ func (a *app) oneLine(keys []hint, right text) []string {
 		if a.anyMarked(a.top()) {
 			// Where to go next: before "m 書く", dropped first when narrow.
 			keys = append(append([]hint{}, keys...), hint{k: "space", d: "次へ", rank: rankX})
+		}
+		if len(a.jumpTargets(a.top())) > 0 {
+			keys = append(append([]hint{}, keys...), hint{k: "g", d: "飛ぶ", rank: rankG})
 		}
 	}
 	shorten := func(ks []hint) []hint {

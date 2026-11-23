@@ -37,7 +37,7 @@ func (a *app) noticeHead(pv *view, n *report.Node, most int) []row {
 	}
 	body := inline(n.Text, base).capped(titleCap)
 	lns := a.titled(sel, 0, 0, mark, body, a.right(pv, n), most)
-	lns[0].key = n.Key
+	lns[0].key, lns[0].jump = n.Key, n
 	return lns
 }
 

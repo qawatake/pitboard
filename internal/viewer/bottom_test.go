@@ -124,14 +124,15 @@ func TestHintsShowM(t *testing.T) {
 	a.handle(key{r: 'j'}) // the Item
 	a.render()
 	s := reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), "")
-	if s != "      y よし  n だめ  c 行に書く  x 隠す  space 次へ  m 書く  ? キー" {
+	if s != "      y よし  n だめ  c 行に書く  x 隠す  space 次へ  g 飛ぶ  m 書く  ? キー" {
 		t.Errorf("hints: %q", s)
 	}
-	// Dropped in order x, enter, n, y, c; m and ? stay.
+	// Dropped in order x and space, g, enter, n, y, c; m and ? stay.
 	for _, c := range []struct {
 		w    int
 		want string
 	}{
+		{70, "      y よし  n だめ  c 行に書く  g 飛ぶ  m 書く  ? キー"},
 		{54, "      y よし  n だめ  c 行に書く  m 書く  ? キー"},
 		{48, "      y よし  c 行に書く  m 書く  ? キー"},
 		{40, "      c 行に書く  m 書く  ? キー"},

@@ -143,8 +143,6 @@ func TestEditorLabelOverATallLine(t *testing.T) {
 	a := testApp(t, st)
 	a.t.w, a.t.h = 80, 24
 	a.draw()
-	a.handle(key{r: 'j'})
-	a.draw()
 	a.handle(key{r: 'c'})
 	ls, _ := screen(t, a)
 	if rowOf(ls, "にコメント") < 0 || rowOf(ls, "enter 置く") < 0 {
