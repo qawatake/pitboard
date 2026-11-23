@@ -57,7 +57,8 @@ A second front end on the same board files, built ONLY on `internal/page` (+ `bo
 ## Tests
 
 - Go: handlers (auth, Host/Origin, CSP headers, act round-trips for every action against a scratch board, stale `seen`, image limits), JSON shape.
-- No browser automation required from you. Keep JS small and plain (ES modules, no framework) so it can be reviewed by reading. If you can run a headless check with tools already on this machine without installing anything and without launching the system Chrome app, do; otherwise say it is unverified.
+- Browser checks: NEVER launch the system Chrome (headless or not): it triggers Keychain password prompts for the user (their words: 「chromeのheadlessとかは私にパスワード入力を求めたりするから使わずに。playwright-cliとかなら大丈夫かな」). `playwright-cli` (its own bundled browser) is allowed and encouraged for verifying the page against a scratch board: keys, mouse, editor, live update, CSP console errors, a11y names. Close what you open.
+- Beyond that, no browser automation is required from you. Keep JS small and plain (ES modules, no framework) so it can be reviewed by reading. If you can run a headless check with tools already on this machine without installing anything and without launching the system Chrome app, do; otherwise say it is unverified.
 - Manual pty/terminal regression: viewer unchanged.
 
 ## Docs
