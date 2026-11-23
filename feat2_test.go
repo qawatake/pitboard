@@ -305,6 +305,9 @@ func TestEditorCursor(t *testing.T) {
 		ls, raw := screen(t, a)
 		row := -1
 		for i, l := range ls {
+			if strings.Contains(l, "enter 置く") {
+				break // the editor's hints come after its text
+			}
 			if strings.TrimRight(l, " ") == strings.TrimRight("      "+c.last, " ") {
 				row = i
 			}

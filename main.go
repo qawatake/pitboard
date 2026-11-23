@@ -143,8 +143,7 @@ Writing report.md:
     Section   title="..." (required). Holds Item Ask Link Code Fold and text.
               Not inside another Section or a Fold.
     Item      id (required), state = todo (default) | doing | done,
-              status (a short word shown at the right end; only what the
-              mark cannot say, see Manners),
+              status (a short word shown at the right end; see Manners),
               note (why the status; shown when opened),
               ask="y" (you want a y / n on it; not on a done Item),
               wait="you" (it cannot move on until the person does
@@ -201,9 +200,10 @@ A layout to start from:
        is the question, the contents the answer; they hide it with x once
        read.
        (Answers do not scroll away with the chat.)
-    4. "In progress": what you are doing now (state="doing") and next, with
-       a status only where the mark cannot say it: waiting on you, queued,
-       on hold. (They see what moves without asking.)
+    4. "In progress": what you are doing now (state="doing"; the board
+       says 作業中 itself) and next, with a status only for something else:
+       waiting on you, queued, on hold. (They see what moves without
+       asking.)
     5. "Decided": one decision per line; they hide what they no longer need.
        (Decisions made in the chat are not lost.)
     6. "Where": repos, files, URLs (Link). (One place to find things.)
@@ -227,9 +227,12 @@ Manners:
   - Say a title in one sentence; details go in the contents. (A long title
     wraps, it is not cut; still, do not cram who does it or remarks in
     parentheses into it.)
-  - A status says only what the mark cannot: waiting on you, queued, on
-    hold. Never repeat the mark in words: no "working" (作業中) on a
-    state="doing" line, no "done" (済み) on a state="done" one.
+  - The head of an Item says only what can be done with it: ▸ / ▾ when it
+    opens (it has contents or a note), a faint · when it does not, ✓ when
+    it is done. How far it is goes at the right end, in words: a
+    state="doing" Item without a status shows 作業中 (working) there by
+    itself, so write a status only to say something else (waiting on you,
+    queued, on hold), and never "done" (済み) on a state="done" one.
   - When a line is done, move it into the "Done" Fold; do not leave done
     lines in the sections in progress.
   - When contents run past 3 lines, do not pour them into a paragraph: show

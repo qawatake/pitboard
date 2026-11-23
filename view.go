@@ -20,7 +20,7 @@ const (
 	lgutter = 4
 	markCol = 2
 	maxText = 76 // width between the gutters, including the 2-cell mark field
-	markW   = 2  // the mark field every line has (▸ ▾ → ? ○ · ~ ✓)
+	markW   = 2  // the mark field every line has (▸ ▾ → ? · ✓ ! ⌀)
 
 	msgChanged   = "報告が書き換わりました。もう一度押してください"
 	msgMoved     = "報告が書き換わりました。カーソルの行を確かめてください"
@@ -39,7 +39,8 @@ type view struct {
 	probs    []Problem // what is wrong with the report
 	readErr  string    // the last read failed (a bug); the previous screen is kept
 	open     map[string]bool
-	cur      string // key of the node under the cursor
+	cur      string         // key of the node under the cursor
+	ends     map[string]int // where each stop's rows end (its contents too), from rows
 	top      int
 	follow   bool // scroll the cursor into view on the next render
 	curRow   int
@@ -88,6 +89,13 @@ type input struct {
 	label string
 	ed    edit // the text and the cursor in it
 	etop  int  // the first row of the text in view, when it is taller than the editor
+	// at is the report line the editor goes under when it is not about a
+	// line (m: the cursor's line when it opened).
+	at string
+	// Laid out by drawEditing: how far the editor is indented (to the
+	// title of the line it goes under), and whether it shows its label.
+	ind       int
+	showLabel bool
 }
 
 func newInput(id, title, label string) *input {
@@ -146,8 +154,9 @@ type app struct {
 	popen  map[int]bool
 	ptop   int
 
-	list      bool // the thoughts list instead of the report
-	lcur      int  // thought number under the cursor in the list
+	list      bool        // the thoughts list instead of the report
+	lcur      int         // thought number under the cursor in the list
+	lends     map[int]int // where each thought's rows end in the list, from listRows
 	lopen     map[int]bool
 	ltop      int
 	lfollow   bool
@@ -464,7 +473,8 @@ func (a *app) handle(k key) (quit bool) {
 	case k.name == "tab":
 		a.list, a.lfollow = true, true
 	case k.r == 'm' && a.canWrite():
-		a.in = newInput("", "", "コメントを書く")
+		a.in = newInput("", "", "宛先なしのコメント")
+		a.in.at = pv.cur
 	case k.r == 's':
 		a.wake()
 	case k.name == "enter" && pv.curShown:
@@ -840,7 +850,12 @@ func (a *app) handleInput(k key) {
 }
 
 // editWidth is the width the editor's text is laid out in.
-func (a *app) editWidth() int { return a.textWidth() - markW }
+func (a *app) editWidth() int {
+	if a.in != nil {
+		return max(a.textWidth()-markW-a.in.ind, 8)
+	}
+	return a.textWidth() - markW
+}
 
 // write records what is in the editor as a thought and closes the editor
 // (empty text closes it without recording). It reports false when the
@@ -1028,7 +1043,7 @@ func (a *app) handleList(k key) (quit bool) {
 	case k.r == 'e' && len(ts) > 0 && a.lcurShown:
 		a.rewrite(ts[i].N)
 	case k.r == 'm' && a.canWrite():
-		a.in = newInput("", "", "コメントを書く")
+		a.in = newInput("", "", "宛先なしのコメント")
 	case k.r == 's':
 		a.wake()
 	}
@@ -1090,7 +1105,7 @@ func (a *app) handlePane(k key) (quit bool) {
 	case k.name == "tab":
 		a.list, a.lfollow = true, true
 	case k.r == 'm' && a.canWrite():
-		a.in = newInput("", "", "コメントを書く")
+		a.in = newInput("", "", "宛先なしのコメント")
 	case k.r == 's':
 		a.wake()
 	}
@@ -1225,6 +1240,10 @@ func (a *app) textWidth() int {
 }
 
 func (a *app) draw() {
+	if a.in != nil && !a.help {
+		a.drawEditing()
+		return
+	}
 	var rows []row
 	var cur *int
 	var top *int
@@ -1236,11 +1255,6 @@ func (a *app) draw() {
 	} else {
 		pv := a.top()
 		pv.settleCursor()
-		if a.in != nil && a.in.id != "" && a.in.id == pv.cur {
-			// While writing about the cursor's line, keep it in view however
-			// tall the editor grows.
-			pv.follow = true
-		}
 		rows = a.rows(pv)
 		top, follow, shown, cur = &pv.top, &pv.follow, &pv.curShown, &pv.curRow
 	}
@@ -2002,26 +2016,7 @@ func (a *app) pane(avail int) []string {
 // every thought in the pane's order, scrolled to keep the cursor's in view.
 func (a *app) openPane(order []*thought) []string {
 	head := a.compose(false, 0, nil, plainText("コメント", bold+blue), nil)
-	var rows []row
-	for _, t := range order {
-		word, color := a.state.statusOf(t)
-		base := ""
-		if t.finished() {
-			base = dim
-		}
-		sel := t.N == a.pcur
-		mark := plainText("▸", "")
-		if a.popen[t.N] {
-			mark = plainText("▾", "")
-		}
-		body := withImages(strings.Join(strings.Fields(t.Text), " "), base).capped(4 * a.textWidth())
-		r := a.titled(sel, 0, 0, mark, body, plainText(word, color), paneRows)
-		r[0].key = fmt.Sprint(t.N) // the first row of a thought
-		rows = append(rows, r...)
-		if a.popen[t.N] {
-			rows = append(rows, a.thoughtDetails(t, markW)...)
-		}
-	}
+	rows, _ := a.paneAll(order)
 	room := max(a.t.h/2-3, 1) // less the heading and the blank above and below
 	// Keep the cursor's thought in view, and its opened lines as far as
 	// they fit.
@@ -2046,6 +2041,34 @@ func (a *app) openPane(order []*thought) []string {
 		out = append(out, rows[i].line)
 	}
 	return append(out, "")
+}
+
+// paneAll is every thought of the pane as drawn while the cursor is in
+// it, and where each one's rows end.
+func (a *app) paneAll(order []*thought) ([]row, map[int]int) {
+	var rows []row
+	ends := map[int]int{}
+	for _, t := range order {
+		word, color := a.state.statusOf(t)
+		base := ""
+		if t.finished() {
+			base = dim
+		}
+		sel := t.N == a.pcur
+		mark := plainText("▸", "")
+		if a.popen[t.N] {
+			mark = plainText("▾", "")
+		}
+		body := withImages(strings.Join(strings.Fields(t.Text), " "), base).capped(4 * a.textWidth())
+		r := a.titled(sel, 0, 0, mark, body, plainText(word, color), paneRows)
+		r[0].key = fmt.Sprint(t.N) // the first row of a thought
+		rows = append(rows, r...)
+		if a.popen[t.N] {
+			rows = append(rows, a.thoughtDetails(t, markW)...)
+		}
+		ends[t.N] = len(rows)
+	}
+	return rows, ends
 }
 
 // headed is a line with a faint head word ("理由: ", "対応: ") and the
@@ -2130,8 +2153,9 @@ func (a *app) hiddenCount() text {
 	return plainText(fmt.Sprintf("隠した行 %d", c), dim)
 }
 
-// editorLines is the editor at the bottom: a title saying what is being
-// written, then the text, growing up to a third of the screen.
+// editorLines is the editor and its hints, as drawEditing puts them among
+// the lines: a label saying what is being written (when it shows one), the
+// text, growing up to a third of the screen, and the hints.
 func (a *app) editorLines() []string {
 	e, w := &a.in.ed, a.editWidth()
 	rs := e.rows(w)
@@ -2160,24 +2184,175 @@ func (a *app) editorLines() []string {
 			changed = plainText("この行は書き換わりました", magenta)
 		}
 	}
-	out := []string{""}
-	for i, l := range plainText(a.in.label, cyan+bold).wrap(a.room(0, changed)) {
-		if i == 0 {
-			out = append(out, a.compose(false, 0, nil, l, changed))
-		} else {
-			out = append(out, a.compose(false, 0, nil, l, nil))
+	ind := a.in.ind
+	var out []string
+	switch {
+	case a.in.showLabel && a.in.label != "":
+		for i, l := range plainText(a.in.label, cyan+bold).wrap(a.room(ind, changed)) {
+			if i == 0 {
+				out = append(out, a.compose(false, ind, nil, l, changed))
+			} else {
+				out = append(out, a.compose(false, ind, nil, l, nil))
+			}
 		}
+	case len(changed) > 0:
+		out = append(out, a.compose(false, ind, nil, nil, changed))
 	}
 	for i := *top; i < len(rs) && i < *top+limit; i++ {
 		if i == crow {
 			// The input position, past the gutter and the mark field (the
 			// terminal's cursor is put there).
-			a.inAt = [2]int{len(out), lgutter + markW + ccol}
+			a.inAt = [2]int{len(out), lgutter + ind + markW + ccol}
 		}
 		l := withImages(string(e.text[rs[i].start:rs[i].end]), "")
-		out = append(out, a.compose(false, 0, nil, l, nil))
+		out = append(out, a.compose(false, ind, nil, l, nil))
 	}
 	return append(out, hints...)
+}
+
+// editorAt says where the editor goes among rows: at (the row it is put
+// before), head (the first row of what it is about, kept in view when it
+// fits), and ind (the indentation of that line's title).
+func (a *app) editorAt(rows []row, ends map[string]int, key string) (at, head, ind int) {
+	at, head = -1, -1
+	if e, ok := ends[key]; ok {
+		at = e
+		for i, r := range rows {
+			if r.key == key {
+				head = i
+				break
+			}
+		}
+	}
+	if head < 0 {
+		head = at
+	}
+	return at, head, ind
+}
+
+// drawEditing draws the screen while the editor is open. The editor and
+// its hints go among the lines, right under what they are about: the line
+// a comment is written on (c), the cursor's line (m), the comment being
+// rewritten (e, in the pane or the list). They are kept in the upper two
+// thirds of the screen, scrolling what is above if need be, without moving
+// the page's own scroll position: closing the editor puts back the screen
+// as it was. The last line stays empty.
+func (a *app) drawEditing() {
+	var banner []string
+	if !a.list {
+		for _, r := range a.noticeRows(a.top()) {
+			if len(banner) < max(a.t.h-6, 0) {
+				banner = append(banner, r.line)
+			}
+		}
+	}
+	h := max(a.t.h-len(banner)-1, 1)
+	var rows []row
+	top, at, head, ind := 0, -1, -1, 0
+	switch {
+	case a.list:
+		rows, top = a.listRows(), a.ltop
+		n := a.in.edit
+		if n == 0 {
+			n = a.lcur
+		}
+		if e, ok := a.lends[n]; ok {
+			at = e
+			for i, r := range rows {
+				if r.isCur {
+					head = i
+				}
+			}
+		}
+	case a.inPane:
+		// The pane, in full, under the page.
+		pv := a.top()
+		rows, top = a.rows(pv), pv.top
+		rows = append(rows, row{}, row{line: a.compose(false, 0, nil, plainText("コメント", bold+blue), nil)})
+		prows, ends := a.paneAll(a.paneOrder())
+		n := a.in.edit
+		if n == 0 {
+			n = a.pcur
+		}
+		if e, ok := ends[n]; ok {
+			at = len(rows) + e
+			for i, r := range prows {
+				if r.key == fmt.Sprint(n) {
+					head = len(rows) + i
+				}
+			}
+		}
+		rows = append(rows, prows...)
+	default:
+		pv := a.top()
+		pv.settleCursor()
+		rows, top = a.rows(pv), pv.top
+		key := a.in.id
+		if key == "" {
+			key = a.in.at
+		}
+		if n := pv.nodeAt(key); n != nil {
+			ind = n.depth * 2
+		}
+		at, head, _ = a.editorAt(rows, pv.ends, key)
+	}
+	if at < 0 {
+		// Nothing to go under: halfway down what is on screen.
+		at = min(len(rows), top+h/2)
+	}
+	if head < 0 || head > at {
+		head = at
+	}
+	a.in.ind = ind
+	// c needs no label (what it is about is right above it), unless that
+	// line is too tall to be seen with it.
+	a.in.showLabel = a.in.id == "" || a.in.edit != 0
+	var block []string
+	limit := max(h*2/3, 1)
+	place := func() {
+		block = append(append([]string{""}, a.editorLines()...), "")
+		end := at + len(block)
+		if end > top+limit {
+			top = end - limit
+		}
+		if head < top && end-head <= limit {
+			top = head
+		}
+		if at < top {
+			top = at
+		}
+		top = max(top, 0)
+	}
+	place()
+	if !a.in.showLabel && head < top {
+		a.in.showLabel = true
+		place()
+	}
+	all := make([]string, 0, len(rows)+len(block))
+	for _, r := range rows[:at] {
+		all = append(all, r.line)
+	}
+	all = append(all, block...)
+	for _, r := range rows[at:] {
+		all = append(all, r.line)
+	}
+	lines := make([]string, 0, h)
+	for i := top; i < len(all) && len(lines) < h; i++ {
+		lines = append(lines, all[i])
+	}
+	for len(lines) < h {
+		lines = append(lines, "")
+	}
+	if mark := a.sendMark(); len(mark) > 0 {
+		lines[0] = a.overlayRight(lines[0], mark)
+	}
+	var cur *[2]int
+	// The terminal's own cursor goes where the person writes, so an input
+	// method shows what is being composed there.
+	if r := at + 1 + a.inAt[0] - top; r >= 0 && r < h {
+		cur = &[2]int{len(banner) + r + 1, a.inAt[1] + 1}
+	}
+	a.t.draw(append(append(banner, lines...), ""), cur)
 }
 
 // editorHints is the editor's one line of hints. When narrow, they are
@@ -2197,11 +2372,11 @@ func (a *app) editorHints() []string {
 				ks = append(ks, k)
 			}
 		}
-		if keyHints(ks).width() <= a.room(0, nil) {
+		if keyHints(ks).width() <= a.room(a.in.ind, nil) {
 			break
 		}
 	}
-	return []string{a.compose(false, 0, nil, keyHints(ks), nil)}
+	return []string{a.compose(false, a.in.ind, nil, keyHints(ks), nil)}
 }
 
 // compose lays out one screen line: the left gutter (holding the cursor
@@ -2319,6 +2494,9 @@ func join(parts ...text) text {
 func (a *app) right(pv *view, n *node) text {
 	var st text
 	switch {
+	case n.status == "" && n.kind == kDoing:
+		// The mark at the head no longer tells how far it is: the words do.
+		st = plainText("作業中", green)
 	case n.status == "":
 	case n.wait == "you":
 		st = plainText(n.status, yellow)
@@ -2412,10 +2590,9 @@ func markOf(k kind, canOpen, open bool) text {
 		return plainText("▾", "")
 	case canOpen:
 		return plainText("▸", "")
-	case k == kDoing:
-		return plainText("~", "")
-	case k == kTodo:
-		return plainText("○", "")
+	case k == kDoing, k == kTodo:
+		// Nothing to open: a quiet dot. How far it is goes at the right end.
+		return plainText("·", dim)
 	case k == kPlain:
 		return plainText("·", dim)
 	}
@@ -2460,6 +2637,7 @@ func (a *app) rows(pv *view) []row {
 	}
 	chosen := "" // the answered Option of the Ask being drawn
 	var curAsk *node
+	pv.ends = map[string]int{}
 	pv.walk(func(n *node) {
 		sel := n.key != "" && n.key == pv.cur && !a.inPane
 		ind := n.depth * 2
@@ -2558,9 +2736,14 @@ func (a *app) rows(pv *view) []row {
 				// and a blank line after it when opened.
 				c := a.contents(pv, n, ind+2)
 				rows = append(rows, c...)
+				if nav {
+					pv.ends[n.key] = len(rows)
+				}
 				if can && open && len(c) > 0 {
 					blank()
 				}
+			} else if nav {
+				pv.ends[n.key] = len(rows)
 			}
 		}
 	})
@@ -2725,6 +2908,7 @@ func (a *app) listRows() []row {
 		return append(rows, a.para(0, plainText("コメントはまだありません。m で書けます", dim))...)
 	}
 	cur := a.listCur()
+	a.lends = map[int]int{}
 	for _, t := range ts {
 		sel := t == cur
 		open := a.lopen[t.N]
@@ -2740,6 +2924,9 @@ func (a *app) listRows() []row {
 		rows = append(rows, a.line(sel, 0, mark, body.capped(4*a.textWidth()), st)...)
 		if open {
 			rows = append(rows, a.thoughtDetails(t, 0)...)
+		}
+		a.lends[t.N] = len(rows)
+		if open {
 			rows = append(rows, row{})
 		}
 	}

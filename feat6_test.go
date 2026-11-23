@@ -67,7 +67,7 @@ func TestWaitingAndNewMarks(t *testing.T) {
 	// The marks have a column of their own, beside the cursor's, the
 	// Fold's too.
 	rows := shown(a)
-	for _, want := range []string{"> ● ○ この方針", "  ● ○ ただの項目", "  ● ▸ 済んだこと"} {
+	for _, want := range []string{"> ● · この方針", "  ● · ただの項目", "  ● ▸ 済んだこと"} {
 		if !strings.Contains(rows, want) {
 			t.Errorf("want %q in\n%s", want, rows)
 		}
@@ -89,7 +89,7 @@ func TestWaitingAndNewMarks(t *testing.T) {
 	if _, f := a.counts(pv); f != 1 {
 		t.Errorf("unread while on it: %d", f)
 	}
-	if rows := shown(a); !strings.Contains(rows, "> ● ○ ただの項目") {
+	if rows := shown(a); !strings.Contains(rows, "> ● · ただの項目") {
 		t.Errorf("the mark goes under the cursor:\n%s", rows)
 	}
 	// Leaving it, coming back, opening: still unread.
