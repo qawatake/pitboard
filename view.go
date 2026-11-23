@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -109,6 +110,7 @@ type app struct {
 	state     *state
 	unsent    int // what the person has not sent yet (reactions, thoughts, hides)
 	unread    int // what was sent and the AI has not read yet
+	waiter    bool // a 'pitboard wait' is waiting: sending reaches the AI
 
 	in *input // the editor at the bottom, while writing
 	// inAt is where the editor's input position is among the bottom lines
@@ -241,6 +243,7 @@ func (a *app) loadEvents() {
 		return
 	}
 	a.loadViewed()
+	a.waiter = a.st.Waiter() != 0
 	a.evMod, a.seenMod = modTime(a.st.eventsPath()), modTime(a.st.seenPath())
 	evs, seen := a.st.Events(), a.st.Seen()
 	a.state = replayEvents(evs, seen)
@@ -304,6 +307,7 @@ func (a *app) loop() os.Signal {
 			} else if !modTime(a.st.viewedPath()).Equal(a.viewedMod) {
 				a.loadViewed() // another viewer of the same board
 			}
+			a.waiter = a.st.Waiter() != 0
 		}
 		a.render()
 	}
@@ -851,6 +855,12 @@ func (a *app) wake() {
 		return
 	}
 	a.loadEvents()
+	// A 'pitboard wait' waiting for this send wakes the AI by ending: no
+	// terminal is typed into.
+	if a.st.Waiter() != 0 {
+		a.msg = "送りました"
+		return
+	}
 	// Waking may take seconds: say so, and drop the keys pressed meanwhile
 	// (they were pressed at a screen that said nothing yet, and would wipe
 	// out the result).
@@ -858,6 +868,10 @@ func (a *app) wake() {
 	a.render()
 	err := deliver(a.st.session, wakeMessage(a.st.session, n))
 	a.dropBefore = time.Now()
+	if errors.Is(err, errNoTarget) {
+		a.msg, a.msgLines = "送る印は付けました。AI が待っていないので、チャットで一言伝えてください。\n"+err.Error(), 2
+		return
+	}
 	if err != nil {
 		a.msg, a.msgLines = "送る印は付けました。AI を起こせなかったので、チャットで一言伝えてください。\n"+err.Error(), 2
 		return
@@ -1225,6 +1239,9 @@ func (a *app) sendMark() text {
 		if f > 0 {
 			add(fmt.Sprintf("新着 %d", f), green)
 		}
+	}
+	if a.waiter {
+		add("AI 待機中", dim)
 	}
 	if a.unread > 0 {
 		add(fmt.Sprintf("送信済み %d", a.unread), dim)

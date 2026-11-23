@@ -98,7 +98,7 @@ func TestSendNowhere(t *testing.T) {
 	st.Append(Event{Op: "thought", Text: "a"})
 	a := testApp(t, st)
 	a.handle(key{r: 's'})
-	if a.msg != "送る印は付けました。AI を起こせなかったので、チャットで一言伝えてください。\n"+`AI を起こす方法がありません。PITBOARD_SEND を設定してください (pitboard -h の "Send")` {
+	if a.msg != "送る印は付けました。AI が待っていないので、チャットで一言伝えてください。\n"+`AI に pitboard wait を動かしてもらうか、PITBOARD_SEND を設定してください (pitboard -h の "Send")` {
 		t.Errorf("msg %q", a.msg)
 	}
 	// The mark stays: the AI gets the thought from changes.

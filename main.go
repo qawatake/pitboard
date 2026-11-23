@@ -29,6 +29,9 @@ Usage:
   pitboard -s SESSION changes      print what the person has sent since the last call, one per line
   pitboard -s SESSION settle N TEXT   say where thought N went
   pitboard -s SESSION check        check report.md; prints problems with line numbers, exit 1 if any
+  pitboard -s SESSION wait [--timeout DURATION]
+                                   wait until the person sends from the board, then print what
+                                   'changes' prints (run it in the background before you stop; see Send)
   pitboard -h                      this help
   pitboard hook prompt-submit|post-tool|stop   for Claude Code hooks: delivers 'changes' (see Hooks)
   pitboard --skill                 print the Claude Code skill (SKILL.md); it points here
@@ -390,6 +393,8 @@ func run(args []string, out io.Writer) error {
 			return fmt.Errorf("settle: %q is not a thought number", args[0])
 		}
 		return st.Settle(n, strings.Join(args[1:], " "))
+	case "wait":
+		return runWait(st, args, out)
 	case "check":
 		b, err := os.ReadFile(st.reportPath())
 		if err != nil {
