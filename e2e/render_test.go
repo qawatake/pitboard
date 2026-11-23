@@ -223,10 +223,10 @@ func TestRenderParts(t *testing.T) {
 	t.Run("right-end words and their colors", func(t *testing.T) {
 		v.In(t)
 		for _, x := range []struct{ title, word, color string }{
-			{"待ち", "あなた待ち", "yellow"},    // wait="you"
-			{"動いている2", "半分", "green"},     // doing with a status
-			{"動いている", "作業中", "green"},     // doing without one: the tool says 作業中
-			{"並んでいる", "queued", "dim"},     // any other status
+			{"待ち", "あなた待ち", "yellow"},  // wait="you"
+			{"動いている2", "半分", "green"},  // doing with a status
+			{"動いている", "作業中", "green"},  // doing without one: the tool says 作業中
+			{"並んでいる", "queued", "dim"}, // any other status
 		} {
 			r := rowOf(t, v, x.title)
 			line := v.Line(r)
