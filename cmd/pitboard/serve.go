@@ -21,12 +21,16 @@ import (
 	"github.com/qawatake/pitboard/internal/web"
 )
 
-// 'pitboard serve' runs in the background: it starts a server for the
-// session (or finds the one running), prints its URL, opens it and
-// returns. The server keeps .pitboard/<session>/serve.json (pid, when the
-// process started, port, token) while it runs, writes what it has to say
-// to serve.log (never the token), and stops by itself when no page has
-// been connected for serveIdle.
+// 'pitboard serve' shows boards in a browser. There is one server per
+// user, in the background: serve starts it if it is not running, then
+// registers the board (a call with the server's token) and opens its page,
+// /s/<id>/. Running it for another session or project adds that board;
+// nothing restarts. The server keeps its state in the user's state
+// directory ($XDG_STATE_HOME/pitboard or ~/.local/state/pitboard):
+// serve.json (pid, when the process started, port, token; 0600) while it
+// runs, serve.log (never the token), and boards.json (the boards
+// registered, restored when it starts again). It stops by itself when no
+// page has been connected for serveIdle.
 
 // serveIdle is how long a background server waits with no page connected
 // before it stops ($PITBOARD_SERVE_IDLE overrides it, for tests).
@@ -45,20 +49,43 @@ type serveState struct {
 }
 
 func (s serveState) url() string { return fmt.Sprintf("http://127.0.0.1:%d/?t=%s", s.Port, s.Token) }
+func (s serveState) boardURL(id string) string {
+	return fmt.Sprintf("http://127.0.0.1:%d/s/%s/?t=%s", s.Port, id, s.Token)
+}
 
-func statePath(st *board.Store) string { return filepath.Join(st.Dir, "serve.json") }
-func logPath(st *board.Store) string   { return filepath.Join(st.Dir, "serve.log") }
+// stateDir is where the server keeps its state ($XDG_STATE_HOME/pitboard,
+// else ~/.local/state/pitboard). It is made (0700) when missing.
+func stateDir() (string, error) {
+	base := os.Getenv("XDG_STATE_HOME")
+	if !filepath.IsAbs(base) {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		base = filepath.Join(home, ".local", "state")
+	}
+	d := filepath.Join(base, "pitboard")
+	if err := os.MkdirAll(d, 0o700); err != nil {
+		return "", err
+	}
+	return d, nil
+}
 
-// runningServe is the session's server, if one runs (a stale file is
-// ignored).
-func runningServe(st *board.Store) (serveState, bool) {
+func statePath(dir string) string    { return filepath.Join(dir, "serve.json") }
+func logPath(dir string) string      { return filepath.Join(dir, "serve.log") }
+func registryPath(dir string) string { return filepath.Join(dir, "boards.json") }
+
+func readState(p string) (serveState, bool) {
 	var s serveState
-	b, err := os.ReadFile(statePath(st))
+	b, err := os.ReadFile(p)
 	if err != nil || json.Unmarshal(b, &s) != nil {
 		return s, false
 	}
 	return s, board.ProcessLive(s.PID, s.Start) && s.Port > 0 && s.Token != ""
 }
+
+// runningServe is the server, if one runs (a stale file is ignored).
+func runningServe(dir string) (serveState, bool) { return readState(statePath(dir)) }
 
 // answers says whether a server listens at port (any HTTP answer).
 func answers(port int) bool {
@@ -71,33 +98,33 @@ func answers(port int) bool {
 	return true
 }
 
-func writeState(st *board.Store, s serveState) error {
+func writeState(dir string, s serveState) error {
 	b, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {
 		return err
 	}
-	tmp := statePath(st) + ".tmp"
+	tmp := statePath(dir) + ".tmp"
 	if err := os.WriteFile(tmp, append(b, '\n'), 0o600); err != nil {
 		return err
 	}
-	return os.Rename(tmp, statePath(st))
+	return os.Rename(tmp, statePath(dir))
 }
 
 // removeState removes serve.json if it is this process's.
-func removeState(st *board.Store) {
+func removeState(dir string) {
 	var s serveState
-	if b, err := os.ReadFile(statePath(st)); err == nil && json.Unmarshal(b, &s) == nil && s.PID == os.Getpid() {
-		os.Remove(statePath(st))
+	if b, err := os.ReadFile(statePath(dir)); err == nil && json.Unmarshal(b, &s) == nil && s.PID == os.Getpid() {
+		os.Remove(statePath(dir))
 	}
 }
 
 type serveArgs struct {
-	o                        web.Options
-	foreground, stop, status bool
-	showURL                  bool
+	o                                web.Options
+	foreground, stop, status, forget bool
+	showURL                          bool
 }
 
-const serveUsage = "usage: pitboard serve [--port N] [--no-open] [--foreground] | serve --stop | serve --status [--url]"
+const serveUsage = "usage: pitboard [-s SESSION] serve [--port N] [--no-open] [--foreground] | serve --stop | serve --status [--url] | [-s SESSION] serve --forget"
 
 func parseServe(args []string) (serveArgs, error) {
 	a := serveArgs{o: web.Options{Open: true, Port: web.PortDefault}}
@@ -124,6 +151,8 @@ func parseServe(args []string) (serveArgs, error) {
 			err = flag(&a.stop, true)
 		case "--status", "-status":
 			err = flag(&a.status, true)
+		case "--forget", "-forget":
+			err = flag(&a.forget, true)
 		case "--url", "-url":
 			err = flag(&a.showURL, true)
 		case "--port", "-port":
@@ -146,8 +175,14 @@ func parseServe(args []string) (serveArgs, error) {
 			return a, err
 		}
 	}
-	if a.stop && a.status {
-		return a, errors.New("serve: give --stop or --status, not both")
+	n := 0
+	for _, b := range []bool{a.stop, a.status, a.forget} {
+		if b {
+			n++
+		}
+	}
+	if n > 1 {
+		return a, errors.New("serve: give one of --stop, --status, --forget")
 	}
 	return a, nil
 }
@@ -158,33 +193,71 @@ func runServe(base string, st *board.Store, args []string, out io.Writer) error 
 	if err != nil {
 		return err
 	}
-	switch {
-	case a.status:
-		return serveStatus(base, a.showURL, out)
-	case a.stop:
-		if st == nil {
-			return errors.New("serve --stop: no session (give -s SESSION)")
-		}
-		return serveStop(st, out)
-	}
-	a.o.Base, a.o.Store = base, st
-	// Without a session yet (nothing to keep its state in), it stays in
-	// the foreground, waiting for the first session as the viewer does.
-	hasDir := st != nil && isDir(st.Dir)
-	if a.foreground || !hasDir {
-		if !a.foreground {
-			fmt.Fprintln(os.Stderr, "pitboard: no session yet; serving in the foreground (ctrl+c stops)")
-		}
-		return serveForeground(st, hasDir, a.o, out)
-	}
-	if s, ok := runningServe(st); ok && answers(s.Port) {
-		return showServe(s, a.o.Open, out)
-	}
-	s, err := startBackground(st, a.o.Port)
+	dir, err := stateDir()
 	if err != nil {
 		return err
 	}
-	return showServe(s, a.o.Open, out)
+	// The background server itself: it serves the boards of its registry.
+	if os.Getenv(detachedEnv) == "1" {
+		return serveForeground(dir, nil, a.o, out)
+	}
+	if st != nil {
+		dropOldState(st, a.stop)
+	}
+	switch {
+	case a.status:
+		return serveStatus(dir, a.showURL, out)
+	case a.stop:
+		for _, name := range board.Sessions(base) {
+			dropOldState(board.Open(base, name), true)
+		}
+		return serveStop(dir, out)
+	case a.forget:
+		if st == nil {
+			return errors.New("serve --forget: no session (give -s SESSION)")
+		}
+		return serveForget(dir, st, out)
+	}
+	if st != nil && !isDir(st.Dir) {
+		return fmt.Errorf("no session %q yet (pitboard -s %s path creates it)", st.Session, st.Session)
+	}
+	if a.foreground {
+		var bs []*board.Store
+		if st != nil {
+			bs = []*board.Store{st}
+		}
+		return serveForeground(dir, bs, a.o, out)
+	}
+	s, ok := runningServe(dir)
+	if !ok || !answers(s.Port) {
+		if s, err = startBackground(dir, a.o.Port); err != nil {
+			return err
+		}
+	}
+	url := s.url()
+	if st != nil {
+		id, err := register(s, "/api/register", st)
+		if err != nil {
+			return err
+		}
+		url = s.boardURL(id)
+	}
+	fmt.Fprintln(out, url)
+	if a.o.Open {
+		web.OpenBrowser(url)
+	}
+	return nil
+}
+
+// dropOldState deletes the serve.json a per-session server of an older
+// pitboard left in the session's directory; with stop, it stops that
+// server first if it still runs (best effort).
+func dropOldState(st *board.Store, stop bool) {
+	p := filepath.Join(st.Dir, "serve.json")
+	if s, live := readState(p); live && stop {
+		syscall.Kill(s.PID, syscall.SIGTERM)
+	}
+	os.Remove(p)
 }
 
 func isDir(p string) bool {
@@ -192,42 +265,74 @@ func isDir(p string) bool {
 	return err == nil && fi.IsDir()
 }
 
-func showServe(s serveState, open bool, out io.Writer) error {
-	fmt.Fprintln(out, s.url())
-	if open {
-		web.OpenBrowser(s.url())
+// call sends the server a request with its token (the command line's
+// way in: no page has it).
+func call(s serveState, method, path string, body any, out any) error {
+	var rd io.Reader
+	if body != nil {
+		b, _ := json.Marshal(body)
+		rd = bytes.NewReader(b)
+	}
+	req, err := http.NewRequest(method, fmt.Sprintf("http://127.0.0.1:%d%s", s.Port, path), rd)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+s.Token)
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	c := &http.Client{Timeout: 10 * time.Second}
+	resp, err := c.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	b, _ := io.ReadAll(resp.Body)
+	if json.Unmarshal(b, out) != nil && resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("serve: %s: %s", resp.Status, strings.TrimSpace(string(b)))
 	}
 	return nil
 }
 
+// register shows st on the server s (path: /api/register or /api/forget),
+// and says its id.
+func register(s serveState, path string, st *board.Store) (string, error) {
+	var r web.Registration
+	if err := call(s, http.MethodPost, path, web.BoardRef{Dir: st.Base, Session: st.Session}, &r); err != nil {
+		return "", err
+	}
+	if r.Error != "" {
+		return "", fmt.Errorf("serve: %s", r.Error)
+	}
+	return r.ID, nil
+}
+
 // serveForeground serves until ctrl+c (or, for the background process,
 // SIGTERM or idling out), keeping serve.json while it runs.
-func serveForeground(st *board.Store, keepState bool, o web.Options, out io.Writer) error {
+func serveForeground(dir string, bs []*board.Store, o web.Options, out io.Writer) error {
 	detached := os.Getenv(detachedEnv) == "1"
-	o.Out = out
+	o.Out, o.Boards, o.Registry = out, bs, registryPath(dir)
 	if detached {
 		// Its output is the log: the URL (the token) never goes there.
-		o.Out = nil
+		o.Out, o.Open = nil, false
 		o.Idle = serveIdle
 		if d, err := time.ParseDuration(os.Getenv("PITBOARD_SERVE_IDLE")); err == nil && d > 0 {
 			o.Idle = d
 		}
 	}
-	if keepState {
-		if s, ok := runningServe(st); ok && s.PID != os.Getpid() && answers(s.Port) {
-			return fmt.Errorf("serve: already running for session %s (pid %d): %s", st.Session, s.PID, s.url())
-		}
-		o.Listening = func(port int, token string) {
-			s := serveState{PID: os.Getpid(), Start: board.ProcessStart(os.Getpid()), Port: port, Token: token, Started: time.Now()}
-			if err := writeState(st, s); err != nil {
-				fmt.Fprintln(os.Stderr, "pitboard: serve.json:", err)
-			}
-			if detached {
-				fmt.Fprintf(os.Stderr, "%s pitboard serve: listening on 127.0.0.1:%d (session %s, pid %d)\n", time.Now().Format(time.RFC3339), port, st.Session, os.Getpid())
-			}
-		}
-		defer removeState(st)
+	if s, ok := runningServe(dir); ok && s.PID != os.Getpid() && answers(s.Port) {
+		return fmt.Errorf("serve: already running (pid %d, port %d); pitboard serve --stop stops it", s.PID, s.Port)
 	}
+	o.Listening = func(port int, token string) {
+		s := serveState{PID: os.Getpid(), Start: board.ProcessStart(os.Getpid()), Port: port, Token: token, Started: time.Now()}
+		if err := writeState(dir, s); err != nil {
+			fmt.Fprintln(os.Stderr, "pitboard: serve.json:", err)
+		}
+		if detached {
+			fmt.Fprintf(os.Stderr, "%s pitboard serve: listening on 127.0.0.1:%d (pid %d)\n", time.Now().Format(time.RFC3339), port, os.Getpid())
+		}
+	}
+	defer removeState(dir)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	err := web.Run(ctx, o)
@@ -247,25 +352,25 @@ func errOrNone(err error, ctx context.Context) string {
 	return "idle"
 }
 
-// startBackground starts the session's server as a process of its own and
-// waits until it answers.
-func startBackground(st *board.Store, port int) (serveState, error) {
+// startBackground starts the server as a process of its own and waits
+// until it answers.
+func startBackground(dir string, port int) (serveState, error) {
 	exe, err := os.Executable()
 	if err != nil {
 		return serveState{}, err
 	}
-	logf, err := os.OpenFile(logPath(st), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
+	logf, err := os.OpenFile(logPath(dir), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
 	if err != nil {
 		return serveState{}, err
 	}
 	defer logf.Close()
-	os.Remove(statePath(st)) // stale: no live server holds it
-	args := []string{"-s", st.Session, "serve", "--foreground", "--no-open"}
+	os.Remove(statePath(dir)) // stale: no live server holds it
+	args := []string{"serve", "--foreground", "--no-open"}
 	if port != web.PortDefault {
 		args = append(args, "--port", strconv.Itoa(port))
 	}
 	cmd := exec.Command(exe, args...)
-	cmd.Dir = st.Base // where .pitboard/ is
+	cmd.Dir = dir // no board of its own: it serves its registry's
 	cmd.Env = append(os.Environ(), detachedEnv+"=1")
 	cmd.Stdout, cmd.Stderr = logf, logf
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
@@ -278,13 +383,13 @@ func startBackground(st *board.Store, port int) (serveState, error) {
 	for {
 		select {
 		case err := <-exited:
-			return serveState{}, fmt.Errorf("serve: the server stopped at once (%v); see %s:\n%s", err, logPath(st), logTail(logPath(st)))
+			return serveState{}, fmt.Errorf("serve: the server stopped at once (%v); see %s:\n%s", err, logPath(dir), logTail(logPath(dir)))
 		case <-deadline:
 			cmd.Process.Signal(syscall.SIGTERM)
-			return serveState{}, fmt.Errorf("serve: the server did not answer; see %s", logPath(st))
+			return serveState{}, fmt.Errorf("serve: the server did not answer; see %s", logPath(dir))
 		case <-time.After(50 * time.Millisecond):
 		}
-		if s, ok := runningServe(st); ok && s.PID == cmd.Process.Pid && answers(s.Port) {
+		if s, ok := runningServe(dir); ok && s.PID == cmd.Process.Pid && answers(s.Port) {
 			return s, nil
 		}
 	}
@@ -296,11 +401,11 @@ func logTail(p string) string {
 	return strings.Join(lines[max(len(lines)-5, 0):], "\n")
 }
 
-// serveStop stops the session's server.
-func serveStop(st *board.Store, out io.Writer) error {
-	s, ok := runningServe(st)
+// serveStop stops the server.
+func serveStop(dir string, out io.Writer) error {
+	s, ok := runningServe(dir)
 	if !ok {
-		fmt.Fprintf(out, "no serve running for session %s\n", st.Session)
+		fmt.Fprintln(out, "no serve running")
 		return nil
 	}
 	if err := syscall.Kill(s.PID, syscall.SIGTERM); err != nil {
@@ -308,7 +413,7 @@ func serveStop(st *board.Store, out io.Writer) error {
 	}
 	for range 100 {
 		if !board.ProcessLive(s.PID, s.Start) {
-			fmt.Fprintf(out, "stopped serve for session %s (port %d, pid %d)\n", st.Session, s.Port, s.PID)
+			fmt.Fprintf(out, "stopped serve (port %d, pid %d)\n", s.Port, s.PID)
 			return nil
 		}
 		time.Sleep(50 * time.Millisecond)
@@ -316,24 +421,70 @@ func serveStop(st *board.Store, out io.Writer) error {
 	return fmt.Errorf("serve --stop: pid %d did not stop", s.PID)
 }
 
-// serveStatus lists the servers of every session of the board.
-func serveStatus(base string, showURL bool, out io.Writer) error {
-	var b bytes.Buffer
-	for _, name := range board.Sessions(base) {
-		st := board.Open(base, name)
-		s, ok := runningServe(st)
-		if !ok {
-			continue
+// serveForget stops showing st: on the running server, or in the registry
+// kept for the next one.
+func serveForget(dir string, st *board.Store, out io.Writer) error {
+	id := ""
+	if s, ok := runningServe(dir); ok && answers(s.Port) {
+		var err error
+		if id, err = register(s, "/api/forget", st); err != nil {
+			return err
 		}
-		fmt.Fprintf(&b, "%s  port %d  pid %d  since %s", board.ShortSession(st), s.Port, s.PID, s.Started.Format("2006-01-02 15:04"))
+	} else {
+		var keep []web.Registered
+		for _, r := range web.ReadRegistry(registryPath(dir)) {
+			if filepath.Join(r.Dir, ".pitboard", r.Session) == st.Dir || sameBoard(r, st) {
+				id = r.ID
+				continue
+			}
+			keep = append(keep, r)
+		}
+		if id != "" {
+			if err := web.WriteRegistry(registryPath(dir), keep); err != nil {
+				return err
+			}
+		}
+	}
+	if id == "" {
+		fmt.Fprintf(out, "session %s is not served\n", st.Session)
+		return nil
+	}
+	fmt.Fprintf(out, "forgot %s (session %s)\n", id, st.Session)
+	return nil
+}
+
+func sameBoard(r web.Registered, st *board.Store) bool {
+	a, err1 := filepath.EvalSymlinks(filepath.Join(r.Dir, ".pitboard", r.Session))
+	b, err2 := filepath.EvalSymlinks(st.Dir)
+	return err1 == nil && err2 == nil && a == b
+}
+
+// serveStatus says whether the server runs, and lists its boards.
+func serveStatus(dir string, showURL bool, out io.Writer) error {
+	s, ok := runningServe(dir)
+	if !ok || !answers(s.Port) {
+		fmt.Fprintln(out, "no serve running")
+		return nil
+	}
+	var b bytes.Buffer
+	fmt.Fprintf(&b, "serve  port %d  pid %d  since %s", s.Port, s.PID, s.Started.Format("2006-01-02 15:04"))
+	if showURL {
+		fmt.Fprintf(&b, "  %s", s.url())
+	}
+	b.WriteByte('\n')
+	var idx web.Index
+	if err := call(s, http.MethodGet, "/api/boards", nil, &idx); err != nil {
+		return err
+	}
+	for _, r := range idx.Boards {
+		fmt.Fprintf(&b, "  %s  %s  (session %s)", r.ID, r.Dir, r.Session)
 		if showURL {
-			fmt.Fprintf(&b, "  %s", s.url())
+			fmt.Fprintf(&b, "  %s", s.boardURL(r.ID))
 		}
 		b.WriteByte('\n')
 	}
-	if b.Len() == 0 {
-		fmt.Fprintln(out, "no serve running")
-		return nil
+	if len(idx.Boards) == 0 {
+		fmt.Fprintln(&b, "  (no boards)")
 	}
 	_, err := out.Write(b.Bytes())
 	return err

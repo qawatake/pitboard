@@ -31,7 +31,7 @@ body {
 }
 .skip { position: absolute; left: -999px; }
 .skip:focus { left: 1rem; top: 1rem; z-index: 9; background: var(--bg); }
-#top, #board, #pane, #status, #bar { max-width: calc(46em + var(--gw)); margin: 0 auto; padding: 0 1rem 0 calc(1rem + var(--gw)); }
+#top, #board, #status, #bar { max-width: calc(46em + var(--gw)); margin: 0 auto; padding: 0 1rem 0 calc(1rem + var(--gw)); }
 #top { position: sticky; top: 0; z-index: 3; background: var(--bg); max-height: 40vh; overflow-y: auto; }
 #summary { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .2rem 1rem; font-size: .9em; min-height: 1.6em; padding-top: .3rem; }
 #notices:not(:empty) { padding-bottom: .6rem; }
@@ -66,7 +66,7 @@ h2.section { font-size: 1.1em; line-height: 1.4; color: var(--head); margin: 1.6
   margin-left: calc(-1 * var(--hang)); padding-left: var(--hang);
 }
 /* A long report: rows off screen are not laid out or painted until near. */
-#board > .row, #board .kids > .row, #pane > .row { content-visibility: auto; contain-intrinsic-size: auto 2em; }
+#board > .row, #board .kids > .row { content-visibility: auto; contain-intrinsic-size: auto 2em; }
 #board > .row.cur, #board .kids > .row.cur { content-visibility: visible; }
 .rowbtn {
   all: unset; box-sizing: border-box; display: grid;
@@ -88,6 +88,12 @@ button:focus-visible, a:focus-visible, .editor textarea:focus-visible { outline:
 .rowbtn > .gut { grid-column: 1; } .rowbtn > .dot { grid-column: 2; }
 .rowbtn > .sign { grid-column: 4; } .rowbtn > .title { grid-column: 5; } .rowbtn > .right { grid-column: 6; }
 .sign { color: var(--faint); text-align: center; padding-right: .3em; }
+/* The sign of a line that opens: a triangle about the height of a capital,
+   right (closed) or down (open), centred on the first line, in the sign's
+   own color. Drawn, not a glyph, so it is the same size in every font. */
+.sign.tri > i { display: inline-block; width: .78em; height: .78em; background: currentColor; vertical-align: -.03em; }
+.sign.tri.is-closed > i { clip-path: polygon(14% 4%, 92% 50%, 14% 96%); }
+.sign.tri.is-open > i { clip-path: polygon(4% 14%, 96% 14%, 50% 92%); }
 .title { overflow-wrap: anywhere; }
 .right { white-space: nowrap; text-align: right; font-size: .9em; display: flex; gap: .5em; justify-content: flex-end; padding-left: .8em; }
 .open > .rowbtn > .title { font-weight: 700; }
@@ -127,10 +133,37 @@ button:focus-visible, a:focus-visible, .editor textarea:focus-visible { outline:
 /* An input needs an edge to be seen as one: the only line on the page. */
 .editor textarea { width: 100%; min-height: 4.5em; font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); padding: .4rem; }
 .editor .hint { font-size: .85em; color: var(--faint); }
-#pane { margin-top: 2rem; }
-#pane:empty { display: none; }
-#pane h2, #board h2.listhead { font-size: 1.05em; color: var(--head); margin: .8rem 0 .3rem; }
 .cdetail { font-size: .95em; }
+/* The comments float: a dialog at the bottom right, over the page, above
+   the bar (a sheet the width of the screen on a phone). It is as tall as
+   what it holds, up to 70% of the screen; only then does it scroll. It
+   floats, so it has an edge (a hairline and a soft shadow): nothing else. */
+#cpanel {
+  position: fixed; z-index: 8; right: 1rem; bottom: calc(var(--foot-h, 4rem) + .4rem);
+  width: min(36rem, calc(100vw - 2rem)); max-height: 70vh; overflow-y: auto; overscroll-behavior: contain;
+  background: var(--bg); color: var(--fg);
+  border: 1px solid var(--line); box-shadow: 0 6px 28px rgb(0 0 0 / .18);
+  padding: .5rem 1rem .8rem calc(1rem + var(--gw));
+}
+/* Comments have no mark or sign: the gutter is the cursor's column only. */
+#cpanel { --mw: 0px; --sw: .4em; --gw: calc(var(--cw) + var(--mw) + var(--sw)); }
+#cpanel[hidden] { display: none; }
+#cpanel:focus { outline: none; }
+#cpanel h2 { font-size: 1.05em; color: var(--head); margin: .2rem 0 .3rem; }
+#cpanel .msg { margin: .6rem 0; }
+@media (max-width: 30em) {
+  #cpanel { left: 0; right: 0; width: auto; bottom: var(--foot-h, 4rem); border-width: 1px 0 0; }
+}
+@media (prefers-color-scheme: dark) { #cpanel { box-shadow: 0 6px 28px rgb(0 0 0 / .5); } }
+.crow .ctext { white-space: pre-wrap; }
+.crow { margin-block: .2rem .6rem; }
+.golink { all: unset; color: var(--link); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; overflow-wrap: anywhere; }
+.golink:focus-visible { outline: 1px solid var(--focus); outline-offset: 2px; }
+/* The index: one row per board, its title then where it is. */
+.boardrow { margin-block: .6rem; }
+.boardrow .title { display: flex; flex-direction: column; }
+.boardrow .bdir { font-size: .85em; overflow-wrap: anywhere; }
+.boardrow .right { align-self: start; }
 #foot { position: fixed; bottom: 0; left: 0; right: 0; z-index: 4; background: var(--bg); padding: .3rem 0 .5rem; }
 #status { color: var(--need); white-space: pre-line; }
 #bar { display: flex; flex-wrap: wrap; align-items: baseline; gap: .2rem 1.1rem; }
@@ -138,7 +171,7 @@ button:focus-visible, a:focus-visible, .editor textarea:focus-visible { outline:
 #hints > span { font-size: .9em; }
 #offline { position: sticky; top: 0; z-index: 5; background: var(--bg); color: var(--need); font-weight: 700; padding: .4rem 1rem; text-align: center; }
 #offline[hidden] { display: none; }
-body.offline #top, body.offline #board, body.offline #pane { opacity: .55; }
+body.offline #top, body.offline #board, body.offline #cpanel { opacity: .55; }
 .overlay { position: fixed; inset: 0; z-index: 10; background: rgb(0 0 0 / .55); display: flex; align-items: center; justify-content: center; flex-direction: column; gap: .5rem; padding: 1rem; }
 .overlay[hidden] { display: none; }
 .sheet { background: var(--bg); color: var(--fg); max-width: 46em; width: 100%; max-height: 90vh; overflow-y: auto; padding: 1rem 1.25rem; }

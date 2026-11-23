@@ -11,7 +11,9 @@ import (
 	"mime"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/qawatake/pitboard/internal/board"
@@ -30,15 +32,15 @@ const maxJSON = 1 << 20
 type PageJSON struct {
 	*page.Page
 	Session  string // the session's short id ("" none)
-	NoBoard  bool   // there is no .pitboard/ at all (MsgNoBoard)
-	Base     string // where boards are looked for, when there is none
+	Dir      string // where its .pitboard/ is
 	ImageMax int    // the largest image taken, in bytes
 	// Say is what to tell the person now (a hidden line came back), once.
 	Say string `json:",omitempty"`
 	// Words is what the page says by itself, by name: offline (it cannot
 	// reach the server: it cannot ask then, so it is given now), jumping (g
 	// waits for a letter), noMarked (space has nowhere to go),
-	// imageTooLarge.
+	// imageTooLarge, signClosed / signOpen (page.SignClosed, SignOpen: the
+	// signs drawn as triangles).
 	Words map[string]string
 	// More and Tail are the keys of the bar after the line's own (page's
 	// Bar, in the terminal's order).
@@ -48,6 +50,7 @@ type PageJSON struct {
 var words = map[string]string{
 	"offline": page.MsgOffline, "jumping": page.MsgJumpLetter, "noMarked": page.MsgNoMarked,
 	"imageTooLarge": board.ErrTooLarge.Error(),
+	"signClosed":    page.SignClosed, "signOpen": page.SignOpen,
 }
 
 func writeJSON(w http.ResponseWriter, v any) {
@@ -55,8 +58,8 @@ func writeJSON(w http.ResponseWriter, v any) {
 	json.NewEncoder(w).Encode(v)
 }
 
-func (s *Server) handlePage(w http.ResponseWriter, r *http.Request) {
-	t := s.tabOf(r.Header.Get(TabHeader))
+func (b *hosted) handlePage(w http.ResponseWriter, r *http.Request) {
+	t := b.tabOf(r.Header.Get(TabHeader))
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.fresh()
@@ -65,14 +68,7 @@ func (s *Server) handlePage(w http.ResponseWriter, r *http.Request) {
 	out := PageJSON{Page: p, ImageMax: board.ImageMax, Say: t.say, Words: words}
 	out.More, out.Tail = t.b.Bar(r.URL.Query().Get("hidden") == "1")
 	t.say = ""
-	if st := t.b.Store; st != nil {
-		out.Session = board.ShortSession(st)
-	} else {
-		if fi, err := os.Stat(s.base + "/.pitboard"); err != nil || !fi.IsDir() {
-			out.NoBoard, out.Page.Message = true, page.MsgNoBoard
-		}
-		out.Base = s.base
-	}
+	out.Session, out.Dir = board.ShortSession(b.st), b.st.Base
 	body, err := json.Marshal(out)
 	if err != nil {
 		http.Error(w, "pitboard: "+err.Error(), http.StatusInternalServerError)
@@ -119,7 +115,7 @@ func (s *Server) post(w http.ResponseWriter, r *http.Request, f func(w http.Resp
 		return
 	}
 	limit, tooBigMsg := int64(maxJSON), page.MsgTooLong
-	if r.URL.Path == "/api/image" {
+	if strings.HasSuffix(r.URL.Path, "/api/image") {
 		limit, tooBigMsg = int64(board.ImageMax)*4/3+4096, board.ErrTooLarge.Error() // base64
 	}
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, limit))
@@ -199,13 +195,13 @@ type OfferJSON struct {
 	Message string `json:",omitempty"`
 }
 
-func (s *Server) handleAct(w http.ResponseWriter, r *http.Request, body []byte) {
+func (b *hosted) handleAct(w http.ResponseWriter, r *http.Request, body []byte) {
 	var a Act
 	if err := json.Unmarshal(body, &a); err != nil {
 		http.Error(w, "pitboard: 読めませんでした", http.StatusBadRequest)
 		return
 	}
-	t := s.tabOf(r.Header.Get(TabHeader))
+	t := b.tabOf(r.Header.Get(TabHeader))
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.fresh()
@@ -339,8 +335,8 @@ func (t *tab) act(a Act) Result {
 	return Result{Message: fmt.Sprintf("知らない操作です: %q", a.Action)}
 }
 
-func (s *Server) handleSend(w http.ResponseWriter, r *http.Request, body []byte) {
-	t := s.tabOf(r.Header.Get(TabHeader))
+func (b *hosted) handleSend(w http.ResponseWriter, r *http.Request, body []byte) {
+	t := b.tabOf(r.Header.Get(TabHeader))
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.fresh()
@@ -355,7 +351,7 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request, body []byte)
 // ImageUpload is what POST /api/image takes: the image, base64.
 type ImageUpload struct{ Data string }
 
-func (s *Server) handleImage(w http.ResponseWriter, r *http.Request, body []byte) {
+func (b *hosted) handleImage(w http.ResponseWriter, r *http.Request, body []byte) {
 	var u ImageUpload
 	if err := json.Unmarshal(body, &u); err != nil {
 		http.Error(w, "pitboard: 読めませんでした", http.StatusBadRequest)
@@ -366,7 +362,7 @@ func (s *Server) handleImage(w http.ResponseWriter, r *http.Request, body []byte
 		writeJSON(w, Result{Message: page.ErrNotImage.Error()})
 		return
 	}
-	t := s.tabOf(r.Header.Get(TabHeader))
+	t := b.tabOf(r.Header.Get(TabHeader))
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.fresh()
@@ -379,17 +375,17 @@ func (s *Server) handleImage(w http.ResponseWriter, r *http.Request, body []byte
 }
 
 // handleImageGet serves the session's image by number: no path ever comes
-// from the browser, and only what is an image is served.
-func (s *Server) handleImageGet(w http.ResponseWriter, r *http.Request, num string) {
+// from the browser, only a regular file (not a link) in the session's
+// images/ is read, and only what is an image is served.
+func (h *hosted) handleImageGet(w http.ResponseWriter, r *http.Request, num string) {
 	n, err := strconv.Atoi(num)
 	if err != nil || n <= 0 || strconv.Itoa(n) != num {
 		http.NotFound(w, r)
 		return
 	}
-	st, _ := s.store()
-	b := &page.Board{Store: st} // only its images: the report is not read
+	b := &page.Board{Store: h.st} // only its images: the report is not read
 	p := b.ImageFile(n)
-	if p == "" {
+	if p == "" || !inImages(h.st, p) {
 		http.NotFound(w, r)
 		return
 	}
@@ -405,4 +401,21 @@ func (s *Server) handleImageGet(w http.ResponseWriter, r *http.Request, num stri
 	}
 	w.Header().Set("Content-Type", ct)
 	w.Write(data)
+}
+
+// inImages says whether p is a regular file right in st's images/, that
+// directory and the file both not links.
+func inImages(st *board.Store, p string) bool {
+	dir := filepath.Join(st.Dir, "images")
+	if filepath.Dir(p) != dir {
+		return false
+	}
+	for _, q := range []string{st.Dir, dir, p} {
+		fi, err := os.Lstat(q)
+		if err != nil || fi.Mode()&os.ModeSymlink != 0 {
+			return false
+		}
+	}
+	fi, _ := os.Lstat(p)
+	return fi.Mode().IsRegular()
 }

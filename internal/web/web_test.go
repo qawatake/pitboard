@@ -44,6 +44,7 @@ type fixture struct {
 	s    *Server
 	ts   *httptest.Server
 	host string
+	base string // the board's own path: /s/<id>
 	// things is the lines of the last page fetched, by key.
 	things map[string]*thingJSON
 }
@@ -61,16 +62,20 @@ func setupWith(t *testing.T, src string) *fixture {
 	if err := os.WriteFile(st.ReportPath(), []byte(src), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	s, err := New(Options{Base: base, Store: st})
+	s, err := New(Options{Boards: []*board.Store{st}})
 	if err != nil {
 		t.Fatal(err)
+	}
+	id := s.idOf(st)
+	if id == "" {
+		t.Fatal("board not registered")
 	}
 	ts := httptest.NewServer(s)
 	u, _ := url.Parse(ts.URL)
 	port, _ := strconv.Atoi(u.Port())
 	s.SetPort(port)
 	t.Cleanup(func() { s.Close(); ts.Close() })
-	return &fixture{t: t, st: st, s: s, ts: ts, host: u.Host}
+	return &fixture{t: t, st: st, s: s, ts: ts, host: u.Host, base: "/s/" + id}
 }
 
 // req sends a request with the cookie (auth), the right Origin on POST,
@@ -81,6 +86,10 @@ func (f *fixture) req(method, path string, body any, mod func(*http.Request)) *h
 	if body != nil {
 		b, _ := json.Marshal(body)
 		rd = bytes.NewReader(b)
+	}
+	// The board's own calls are under its path.
+	if strings.HasPrefix(path, "/api/") && !boardless[path] {
+		path = f.base + path
 	}
 	r, _ := http.NewRequest(method, f.ts.URL+path, rd)
 	r.AddCookie(&http.Cookie{Name: f.s.CookieName(), Value: f.s.Token()})
@@ -100,6 +109,9 @@ func (f *fixture) req(method, path string, body any, mod func(*http.Request)) *h
 	f.t.Cleanup(func() { resp.Body.Close() })
 	return resp
 }
+
+// boardless is the calls that are not a board's.
+var boardless = map[string]bool{"/api/boards": true, "/api/register": true, "/api/forget": true, "/api/events?index": true}
 
 func (f *fixture) page(tab string) PageJSON {
 	f.t.Helper()
@@ -495,18 +507,22 @@ func TestEvents(t *testing.T) {
 }
 
 func TestStaticHasNoInnerHTML(t *testing.T) {
-	b, err := staticFS.ReadFile("static/app.js")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, w := range []string{"innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "new Function"} {
-		if bytes.Contains(b, []byte(w)) {
-			t.Errorf("app.js uses %s", w)
+	for _, js := range []string{"app.js", "home.js"} {
+		b, err := staticFS.ReadFile("static/" + js)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, w := range []string{"innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "new Function"} {
+			if bytes.Contains(b, []byte(w)) {
+				t.Errorf("%s uses %s", js, w)
+			}
 		}
 	}
-	idx, _ := staticFS.ReadFile("static/index.html")
-	if bytes.Contains(idx, []byte("<script>")) || bytes.Contains(idx, []byte("style=")) || bytes.Contains(idx, []byte("http")) {
-		t.Error("index.html has inline script/style or an external URL")
+	for _, h := range []string{"index.html", "home.html"} {
+		idx, _ := staticFS.ReadFile("static/" + h)
+		if bytes.Contains(idx, []byte("<script>")) || bytes.Contains(idx, []byte("style=")) || bytes.Contains(idx, []byte("http")) {
+			t.Errorf("%s has inline script/style or an external URL", h)
+		}
 	}
 }
 

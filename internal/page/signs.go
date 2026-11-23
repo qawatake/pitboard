@@ -2,6 +2,17 @@ package page
 
 import "github.com/qawatake/pitboard/internal/report"
 
+// The signs of a line that opens, closed and open. Both fronts draw these
+// (the terminal as text, open in bold; the browser as a drawn triangle).
+// They stay ▸ ▾, not ▶ ▼: U+25B6 and U+25BC are East Asian Ambiguous (two
+// cells in a terminal set to treat those as wide, as CJK setups often are,
+// and ▶ may take the emoji form), while U+25B8 and U+25BE are one cell
+// everywhere. What is open is told by weight instead (bold).
+const (
+	SignClosed = "▸"
+	SignOpen   = "▾"
+)
+
 // SignOf is the mark at the head of a line the person points at, as it is
 // drawn closed (open false) or open: ▸ / ▾ when it opens, ✓ a done Item,
 // ? an Ask, → a Link, · an Item with nothing to open, ! a notice that does
@@ -11,9 +22,9 @@ func SignOf(n *report.Node, canOpen, open, hidden bool) string {
 	case hidden:
 		return "⌀"
 	case n.Kind == report.KindNotice && canOpen && open:
-		return "▾"
+		return SignOpen
 	case n.Kind == report.KindNotice && canOpen:
-		return "▸"
+		return SignClosed
 	case n.Kind == report.KindNotice:
 		return "!"
 	case n.Kind == report.KindLink:
@@ -23,9 +34,9 @@ func SignOf(n *report.Node, canOpen, open, hidden bool) string {
 	case n.Kind == report.KindQuestion:
 		return "?" // even when a long question opens
 	case canOpen && open:
-		return "▾"
+		return SignOpen
 	case canOpen:
-		return "▸"
+		return SignClosed
 	case n.Kind == report.KindDoing, n.Kind == report.KindTodo:
 		return "·"
 	case n.Kind == report.KindPlain:

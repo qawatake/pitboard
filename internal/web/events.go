@@ -18,39 +18,48 @@ const keepAlive = 15 * time.Second
 func (s *Server) watchLoop() {
 	tick := time.NewTicker(PollInterval)
 	defer tick.Stop()
-	gen := -1
 	for {
 		select {
 		case <-s.done:
 			return
 		case <-tick.C:
 		}
-		st, g := s.store()
-		if g != gen || s.watch == nil {
-			if gen != -1 {
-				s.notify()
+		s.mu.Lock()
+		bs := append([]*hosted(nil), s.order...)
+		s.mu.Unlock()
+		for _, b := range bs {
+			if b.poll() {
+				s.notify(b.id)
 			}
-			s.watch, gen = page.Open(st), g
-			continue
-		}
-		if s.watch.NoSession && st != nil {
-			if fi, err := statDir(st.Dir); err == nil && fi {
-				s.watch = page.Open(st)
-				s.notify()
-			}
-			continue
-		}
-		if s.watch.Changed() {
-			s.notify()
 		}
 	}
 }
 
-// notify tells every event stream that the board changed.
-func (s *Server) notify() {
+// poll says whether the board changed since it was last polled.
+func (b *hosted) poll() bool {
+	switch {
+	case b.watch == nil:
+		b.watch = page.Open(b.st)
+		return false
+	case b.watch.NoSession:
+		if fi, err := statDir(b.st.Dir); err == nil && fi {
+			b.watch = page.Open(b.st)
+			return true
+		}
+		return false
+	}
+	return b.watch.Changed()
+}
+
+// notify tells the event streams of board id, and the index's, that it
+// changed (id "": the index's only).
+func (s *Server) notify(id string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for c := range s.subs {
+	for c, of := range s.subs {
+		if of != id && of != "" {
+			continue
+		}
 		select {
 		case c <- struct{}{}:
 		default: // one waiting already says it
@@ -58,7 +67,8 @@ func (s *Server) notify() {
 	}
 }
 
-func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
+// handleEvents is the event stream of board id ("" the index).
+func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request, id string) {
 	fl, ok := w.(http.Flusher)
 	if !ok {
 		http.Error(w, "pitboard: 流せません", http.StatusInternalServerError)
@@ -66,7 +76,7 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	}
 	c := make(chan struct{}, 1)
 	s.mu.Lock()
-	s.subs[c] = true
+	s.subs[c] = id
 	s.lastSub = time.Now()
 	s.mu.Unlock()
 	defer func() {

@@ -98,9 +98,9 @@ func markOf(k report.Kind, canOpen, open bool) text {
 	case k == report.KindQuestion:
 		return plainText("?", yellow) // even when a long question opens
 	case canOpen && open:
-		return plainText("▾", "")
+		return plainText(page.SignOpen, bold)
 	case canOpen:
-		return plainText("▸", "")
+		return plainText(page.SignClosed, "")
 	case k == report.KindDoing, k == report.KindTodo:
 		// Nothing to open: a quiet dot. How far it is goes at the right end.
 		return plainText("·", dim)
@@ -254,7 +254,7 @@ func (a *app) rows(pv *view) []row {
 			case hidden:
 				mark = plainText("⌀", dim)
 			case heading:
-				mark = plainText(mark.plain(), bold+blue)
+				mark = plainText(mark.plain(), bold+blue) // open or not, as the heading
 			}
 			var lns []row
 			if n.Kind == report.KindPlain {

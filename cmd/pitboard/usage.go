@@ -16,8 +16,9 @@ Usage:
   pitboard [-s SESSION] [view]     the viewer (without -s: the most recently updated session)
                                    (-s may also come after the command)
   pitboard [-s SESSION] serve [--port N] [--no-open] [--foreground]
-                                   the same board in a browser, in the background
-                                   (see Browser); serve --stop, serve --status [--url]
+                                   the same board in a browser: one server for all
+                                   boards, in the background (see Browser);
+                                   serve --stop, serve --status [--url], serve --forget
   pitboard -s SESSION path         print the path of the session's report.md (write the report there)
   pitboard -s SESSION changes      print what the person has sent since the last call, one per line
   pitboard -s SESSION settle N [--doing|--hold|--done] TEXT
@@ -387,17 +388,22 @@ Thoughts:
 Browser:
   'pitboard -s ID serve' shows the same board in the person's browser: the
   same parts, words, marks and rules as the viewer, and the two may run at
-  once (each sees what the other does). It starts a server in the
-  background (or finds the session's running one), prints its URL, opens it
-  (--no-open: only prints it) and returns at once. It listens on 127.0.0.1
-  only, and the URL holds a key that changes each time a server starts.
+  once (each sees what the other does). There is one server per user, in
+  the background: serve starts it if it is not running, adds the board to
+  it, prints the board's URL (http://127.0.0.1:7482/s/<short id>/?t=…),
+  opens it (--no-open: only prints it) and returns at once. Run for another
+  session or project, it adds that board to the same server; nothing
+  restarts. The index (/) lists every board added. It listens on 127.0.0.1
+  only, and the URL holds a key that changes each time the server starts.
   Its port is 7482 ("PITB" on a phone keypad), or the next free one up to
-  7491 (each session has its own server), else any free one; --port N is
-  exact.
+  7491, else any free one; --port N is exact.
   The server stops by itself after 30 minutes with no page open;
-  'pitboard -s ID serve --stop' stops it now, 'pitboard serve --status'
-  lists the running ones (--url: with their URLs), --foreground keeps it in
-  the terminal (ctrl+c stops it). Its log: .pitboard/<session>/serve.log.
+  'pitboard serve --stop' stops it now, 'pitboard serve --status' shows it
+  and its boards (--url: with their URLs), 'pitboard -s ID serve --forget'
+  takes a board off it, --foreground keeps it in the terminal (ctrl+c stops
+  it). Its state and log: $XDG_STATE_HOME/pitboard/ (or
+  ~/.local/state/pitboard/): serve.json, serve.log, boards.json (the boards
+  added, shown again when it starts again, unless their directory is gone).
   If the person would rather use a browser than a terminal pane, tell them
   to run:
     pitboard -s ID serve

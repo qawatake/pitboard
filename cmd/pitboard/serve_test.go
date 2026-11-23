@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -46,73 +48,129 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// serveBoard is a board with session "srv1" and a report, as cwd.
-func serveBoard(t *testing.T) *board.Store {
+// serveBoard is a board with session "srv1" and a report, as cwd; the
+// server's state goes to a state directory of the test's own (never the
+// person's), and the server it starts is stopped at the end.
+func serveBoard(t *testing.T) (*board.Store, string) {
 	t.Helper()
+	state := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", state)
 	dir, _ := filepath.EvalSymlinks(t.TempDir())
-	st := board.Open(dir, "srv1")
-	if err := os.MkdirAll(st.Dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	os.WriteFile(st.ReportPath(), []byte("<Title>題</Title>\n"), 0o644)
+	st := newServeBoard(t, dir, "srv1")
 	t.Chdir(dir)
 	t.Setenv("PITBOARD_TEST_AS_MAIN", "1")
 	t.Setenv("PITBOARD_SESSION", "")
+	sd := filepath.Join(state, "pitboard")
 	t.Cleanup(func() {
-		if s, ok := runningServe(st); ok {
+		if s, ok := runningServe(sd); ok {
 			syscall.Kill(s.PID, syscall.SIGTERM)
 		}
 	})
+	return st, sd
+}
+
+func newServeBoard(t *testing.T, dir, session string) *board.Store {
+	t.Helper()
+	st := board.Open(dir, session)
+	if err := os.MkdirAll(st.Dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(st.ReportPath(), []byte("<Title>題 "+session+"</Title>\n"), 0o644)
 	return st
 }
 
+// serveCmd runs serve for session srv1 (or -s given first); a server it
+// starts takes any free port, never the person's 7482.
 func serveCmd(t *testing.T, args ...string) string {
 	t.Helper()
+	s := []string{"-s", "srv1"}
+	if len(args) > 1 && args[0] == "-s" {
+		s, args = slices.Clone(args[:2]), args[2:]
+	}
+	full := append(append(s, "serve"), args...)
+	if !slices.ContainsFunc(args, func(a string) bool { return strings.HasPrefix(a, "--st") || a == "--forget" }) {
+		full = append(full, "--port", "0")
+	}
 	var b bytes.Buffer
-	if err := run(append([]string{"-s", "srv1", "serve"}, args...), &b); err != nil {
+	if err := run(full, &b); err != nil {
 		t.Fatalf("serve %v: %v", args, err)
 	}
 	return strings.TrimSpace(b.String())
 }
 
-func TestServeBackground(t *testing.T) {
-	st := serveBoard(t)
-	url := serveCmd(t, "--no-open")
-	if !strings.HasPrefix(url, "http://127.0.0.1:") || !strings.Contains(url, "/?t=") {
-		t.Fatalf("url %q", url)
-	}
-	s, ok := runningServe(st)
-	if !ok || s.PID == os.Getpid() || url != s.url() {
-		t.Fatalf("state %+v %v", s, ok)
-	}
-	if fi, err := os.Stat(statePath(st)); err != nil || fi.Mode().Perm() != 0o600 {
-		t.Errorf("serve.json mode %v %v", fi.Mode(), err)
-	}
-	// It answers, and the token works.
+func login(t *testing.T, url string) *http.Response {
+	t.Helper()
 	c := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	resp, err := c.Get(url)
-	if err != nil || resp.StatusCode != http.StatusSeeOther {
-		t.Fatalf("login: %v %v", resp, err)
+	if err != nil {
+		t.Fatal(err)
 	}
 	resp.Body.Close()
+	return resp
+}
+
+func TestServeBackground(t *testing.T) {
+	st, sd := serveBoard(t)
+	url := serveCmd(t, "--no-open")
+	if !strings.HasPrefix(url, "http://127.0.0.1:") || !strings.Contains(url, "/s/srv1/?t=") {
+		t.Fatalf("url %q", url)
+	}
+	s, ok := runningServe(sd)
+	if !ok || s.PID == os.Getpid() || url != s.boardURL("srv1") {
+		t.Fatalf("state %+v %v", s, ok)
+	}
+	for _, p := range []string{statePath(sd), logPath(sd), registryPath(sd)} {
+		if fi, err := os.Stat(p); err != nil || fi.Mode().Perm() != 0o600 {
+			t.Errorf("%s mode %v %v", p, fi, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(st.Dir, "serve.json")); !os.IsNotExist(err) {
+		t.Errorf("serve.json in the session: %v", err)
+	}
+	// It answers, and the token works: to the board's page.
+	if resp := login(t, url); resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/s/srv1/" {
+		t.Fatalf("login: %v", resp.Status)
+	}
 	// Again: the same server, the same URL.
 	if again := serveCmd(t, "--no-open"); again != url {
 		t.Errorf("second serve %q, want %q", again, url)
 	}
-	if s2, _ := runningServe(st); s2.PID != s.PID {
+	// Another project's board: the same server, a path of its own.
+	other, _ := filepath.EvalSymlinks(t.TempDir())
+	newServeBoard(t, other, "srv2")
+	t.Chdir(other)
+	url2 := serveCmd(t, "-s", "srv2", "--no-open")
+	if s2, _ := runningServe(sd); s2.PID != s.PID {
 		t.Errorf("another server started: %d %d", s2.PID, s.PID)
 	}
-	if out := serveCmd(t, "--status"); !strings.Contains(out, "srv1") || !strings.Contains(out, strconv.Itoa(s.Port)) || strings.Contains(out, s.Token) {
-		t.Errorf("status %q", out)
+	if !strings.Contains(url2, fmt.Sprintf(":%d/s/srv2/?t=%s", s.Port, s.Token)) {
+		t.Errorf("second board %q", url2)
 	}
-	if out := serveCmd(t, "--status", "--url"); !strings.Contains(out, url) {
+	out := serveCmd(t, "--status")
+	for _, w := range []string{"port " + strconv.Itoa(s.Port), "srv1  " + st.Base, "srv2  " + other} {
+		if !strings.Contains(out, w) {
+			t.Errorf("status lacks %q: %q", w, out)
+		}
+	}
+	if strings.Contains(out, s.Token) {
+		t.Errorf("status shows the token: %q", out)
+	}
+	if out := serveCmd(t, "--status", "--url"); !strings.Contains(out, url) || !strings.Contains(out, url2) {
 		t.Errorf("status --url %q", out)
 	}
+	// Forget one: its path goes, the other stays.
+	if out := serveCmd(t, "-s", "srv2", "--forget"); !strings.Contains(out, "forgot srv2") {
+		t.Errorf("forget %q", out)
+	}
+	if resp := login(t, url2); resp.Header.Get("Location") != "/" {
+		t.Errorf("forgotten board still served: %s", resp.Header.Get("Location"))
+	}
+	t.Chdir(st.Base)
 	// Stop.
 	if out := serveCmd(t, "--stop"); !strings.Contains(out, "stopped") {
 		t.Errorf("stop %q", out)
 	}
-	if _, err := os.Stat(statePath(st)); !os.IsNotExist(err) {
+	if _, err := os.Stat(statePath(sd)); !os.IsNotExist(err) {
 		t.Errorf("serve.json left: %v", err)
 	}
 	if answers(s.Port) {
@@ -121,36 +179,80 @@ func TestServeBackground(t *testing.T) {
 	if out := serveCmd(t, "--stop"); !strings.Contains(out, "no serve running") {
 		t.Errorf("stop again %q", out)
 	}
-	logb, _ := os.ReadFile(logPath(st))
+	logb, _ := os.ReadFile(logPath(sd))
 	if strings.Contains(string(logb), s.Token) || !strings.Contains(string(logb), "listening") {
 		t.Errorf("log: %s", logb)
+	}
+	// Started again, it shows what was registered (not the forgotten one)
+	// at the same paths.
+	serveCmd(t, "-s", "srv1", "--no-open")
+	s3, _ := runningServe(sd)
+	var idx web.Index
+	if err := call(s3, http.MethodGet, "/api/boards", nil, &idx); err != nil || len(idx.Boards) != 1 || idx.Boards[0].ID != "srv1" || idx.Boards[0].Title != "題 srv1" {
+		t.Errorf("restored %+v %v", idx, err)
 	}
 }
 
 // A serve.json whose process is gone is not a server: a new one starts.
+// One an older pitboard left in the session's directory is deleted.
 func TestServeStaleState(t *testing.T) {
-	st := serveBoard(t)
+	st, sd := serveBoard(t)
 	dead := exec.Command("true")
 	dead.Run()
-	writeState(st, serveState{PID: dead.Process.Pid, Port: 1, Token: "old", Started: time.Now()})
+	writeState(sd, serveState{PID: dead.Process.Pid, Port: 1, Token: "old", Started: time.Now()})
+	old := filepath.Join(st.Dir, "serve.json")
+	os.WriteFile(old, []byte(`{"PID":1,"Port":1,"Token":"x"}`), 0o600)
 	url := serveCmd(t, "--no-open")
 	if strings.Contains(url, "t=old") {
 		t.Fatalf("stale state reused: %s", url)
 	}
-	if s, ok := runningServe(st); !ok || s.Token == "old" {
+	if s, ok := runningServe(sd); !ok || s.Token == "old" {
 		t.Errorf("state %+v", s)
+	}
+	if _, err := os.Stat(old); !os.IsNotExist(err) {
+		t.Errorf("old per-session serve.json left: %v", err)
+	}
+}
+
+// --stop also stops a per-session server of an older pitboard, if one
+// still runs (its serve.json in the session's directory).
+func TestServeStopsOldServer(t *testing.T) {
+	st, _ := serveBoard(t)
+	old := exec.Command("sleep", "30")
+	if err := old.Start(); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	go func() { old.Wait(); close(done) }()
+	writeStateFile(t, filepath.Join(st.Dir, "serve.json"), serveState{PID: old.Process.Pid, Start: board.ProcessStart(old.Process.Pid), Port: 1, Token: "x"})
+	serveCmd(t, "--stop")
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		old.Process.Kill()
+		t.Fatal("old server not stopped")
+	}
+	if _, err := os.Stat(filepath.Join(st.Dir, "serve.json")); !os.IsNotExist(err) {
+		t.Errorf("old serve.json left: %v", err)
+	}
+}
+
+func writeStateFile(t *testing.T, p string, s serveState) {
+	b, _ := json.Marshal(s)
+	if err := os.WriteFile(p, b, 0o600); err != nil {
+		t.Fatal(err)
 	}
 }
 
 // The background server stops by itself when no page is connected, but
 // not while one is.
 func TestServeIdles(t *testing.T) {
-	st := serveBoard(t)
+	_, sd := serveBoard(t)
 	t.Setenv("PITBOARD_SERVE_IDLE", "600ms")
 	serveCmd(t, "--no-open")
-	s, _ := runningServe(st)
+	s, _ := runningServe(sd)
 	// A page connected (its event stream) keeps it.
-	req, _ := http.NewRequest("GET", fmt.Sprintf("http://127.0.0.1:%d/api/events", s.Port), nil)
+	req, _ := http.NewRequest("GET", fmt.Sprintf("http://127.0.0.1:%d/s/srv1/api/events", s.Port), nil)
 	req.AddCookie(&http.Cookie{Name: "pitboard_" + strconv.Itoa(s.Port), Value: s.Token})
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil || resp.StatusCode != 200 {
@@ -170,11 +272,30 @@ func TestServeIdles(t *testing.T) {
 	if board.ProcessLive(s.PID, s.Start) {
 		t.Fatal("did not idle out")
 	}
-	if _, err := os.Stat(statePath(st)); !os.IsNotExist(err) {
+	if _, err := os.Stat(statePath(sd)); !os.IsNotExist(err) {
 		t.Errorf("serve.json left after idling out: %v", err)
 	}
-	if logb, _ := os.ReadFile(logPath(st)); !strings.Contains(string(logb), "stopped (idle)") {
+	if logb, _ := os.ReadFile(logPath(sd)); !strings.Contains(string(logb), "stopped (idle)") {
 		t.Errorf("log: %s", logb)
+	}
+}
+
+// The state directory is $XDG_STATE_HOME/pitboard, else
+// ~/.local/state/pitboard.
+func TestStateDir(t *testing.T) {
+	x := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", x)
+	if d, err := stateDir(); err != nil || d != filepath.Join(x, "pitboard") {
+		t.Errorf("xdg: %s %v", d, err)
+	}
+	home := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", "")
+	t.Setenv("HOME", home)
+	if d, err := stateDir(); err != nil || d != filepath.Join(home, ".local", "state", "pitboard") {
+		t.Errorf("home: %s %v", d, err)
+	}
+	if fi, err := os.Stat(filepath.Join(home, ".local", "state", "pitboard")); err != nil || fi.Mode().Perm() != 0o700 {
+		t.Errorf("made %v %v", fi, err)
 	}
 }
 

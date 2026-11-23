@@ -7,6 +7,9 @@
 // textContent and created elements, never as HTML.
 
 const $ = (id) => document.getElementById(id);
+// The board's own path (/s/<id>): its calls are under it. The files (this
+// one, the styles) are shared by every board.
+const BASE = (location.pathname.match(/^\/s\/[^/]+/) || [''])[0];
 const el = (tag, cls, text) => {
   const e = document.createElement(tag);
   if (cls) e.className = cls;
@@ -31,7 +34,6 @@ const S = {
   data: null,        // the page (GET /api/page)
   etag: '',
   open: new Map(),   // key -> open (what the person opened or closed)
-  copen: new Map(),  // comment row key -> open
   // The cursor, and the facts of how it came there (the server decides
   // what they mean): start (the person has not moved it since the page put
   // it there), how (person / app), at (when), sel (the line's token then).
@@ -42,12 +44,13 @@ const S = {
   sel: '',
   lastIndex: 0,
   going: '',         // the line the person's own act is taking away
-  reportCur: null,   // the cursor on the report while the comment list is shown
+  reportCur: null,   // the cursor on the report while the comment panel is open
   offer: null,       // the server's hint for the cursor's line: {key, sel, offer}
   hintSeq: 0,
   hintTimer: 0,
   showHidden: false,
-  list: false,       // the comment list instead of the report
+  panel: false,      // the comment panel is open (the cursor is in it)
+  panelReturn: null, // where the focus was when it opened
   editor: null,      // {kind, key, token, n, at, label}
   jumping: false,
   busy: false,
@@ -78,7 +81,7 @@ async function request(path, body, headers = {}) {
   }
   let r;
   try {
-    r = await fetch(path, opt);
+    r = await fetch(BASE + path, opt);
   } catch {
     setOffline(true);
     throw new Offline(words('offline'));
@@ -166,8 +169,19 @@ async function act(action, extra = {}) {
 let things = new Map(); // key -> the line one can point at (Stop)
 function index() {
   things = new Map();
-  const walk = (ts) => { for (const t of ts || []) { if (t.Stop) things.set(t.Key, t); walk(t.Kids); } };
-  if (S.data) { walk(S.data.Notices); walk(S.data.Things); }
+  parents = new Map();
+  byTarget = new Map();
+  const walk = (ts, up) => {
+    for (const t of ts || []) {
+      if (t.Stop) {
+        things.set(t.Key, t);
+        parents.set(t.Key, up);
+        if (t.Target && !byTarget.has(t.Target)) byTarget.set(t.Target, t.Key);
+      }
+      walk(t.Kids, t.Stop && t.CanOpen ? [...up, t.Key] : up);
+    }
+  };
+  if (S.data) { walk(S.data.Notices, []); walk(S.data.Things, []); }
 }
 const byKey = (k) => things.get(k);
 const comments = () => (S.data && S.data.Comments) || [];
@@ -175,6 +189,10 @@ const commentOf = (n) => comments().find((c) => c.N === n);
 const isOpen = (t) => (S.open.has(t.Key) ? S.open.get(t.Key) : !!t.Open);
 const canWrite = () => S.data && S.data.CanWrite;
 const plain = (spans) => (spans || []).map((s) => s.Text).join('');
+// The lines one can open that hold line k (outermost first), and the line
+// a comment's target is (by Target).
+let parents = new Map();
+let byTarget = new Map();
 const rowOf = (key) => rows.get(key);
 const navOf = (key) => { const r = rowOf(key); return r && r.querySelector(':scope > .rowbtn'); };
 
@@ -309,7 +327,7 @@ function drawRow(t, open, opts) {
   if (t.CanOpen) b.setAttribute('aria-expanded', String(open));
   b.appendChild(el('span', 'gut'));
   b.appendChild(markOf(t));
-  b.appendChild(el('span', 'sign', open ? t.OpenSign : t.Sign));
+  b.appendChild(signOf(open ? t.OpenSign : t.Sign));
   const title = el('span', 'title');
   if (S.jumping && t.JumpKey) title.appendChild(el('span', 'jumpkey', t.JumpKey));
   if (t.Jump) box.dataset.jump = String(t.Jump);
@@ -357,6 +375,20 @@ function drawRow(t, open, opts) {
     }
   }
   return { box, kids };
+}
+
+// signOf draws a line's sign. The signs of a line that opens (page's
+// SignClosed, SignOpen) are drawn as triangles, big enough to tell right
+// from down at a glance; the others are their glyph.
+function signOf(sign) {
+  const s = el('span', 'sign');
+  if (sign && (sign === words('signClosed') || sign === words('signOpen'))) {
+    s.classList.add('tri', sign === words('signOpen') ? 'is-open' : 'is-closed');
+    s.appendChild(el('i'));
+  } else {
+    s.textContent = sign || '';
+  }
+  return s;
 }
 
 function contents(t) {
@@ -414,7 +446,7 @@ function thumbs(ns) {
     b.type = 'button';
     b.setAttribute('aria-label', `画像 ${n} を大きく見る`);
     const img = el('img');
-    img.src = '/api/image/' + n;
+    img.src = BASE + '/api/image/' + n;
     img.alt = `[Image #${n}]`;
     b.appendChild(img);
     b.addEventListener('click', (e) => { e.stopPropagation(); showImage(n, b); });
@@ -503,16 +535,16 @@ function drawBar() {
   const items = [];
   const d = S.data;
   if (!d) return;
-  const c = S.cur.startsWith('#') ? commentOf(Number(S.cur.slice(3))) : null;
+  const c = S.panel && S.cur.startsWith('#') ? commentOf(Number(S.cur.slice(3))) : null;
   const t = byKey(S.cur);
   if (c) {
-    const open = !!S.copen.get(S.cur);
-    items.push(keyButton('enter', open ? '閉じる' : '開く', () => toggle(S.cur)));
+    if (c.Target && byTarget.has(c.Target)) items.push(keyButton('enter', '行へ', () => goToComment(c)));
     if (canWrite()) {
       items.push(keyButton('e', '直す', () => editComment(c, S.cur)));
       items.push(keyButton('x', '取り消す', () => retract(c)));
     }
-  } else if (t && !S.list) {
+    items.push(keyButton('esc', '閉じる', closePanel, '閉じる'));
+  } else if (t && !S.panel) {
     const o = S.offer && S.offer.key === S.cur && S.offer.sel === S.sel ? S.offer.offer : null;
     if (o && o.Message) items.push(el('span', 'faint', o.Message));
     for (const h of (o && o.Hints) || []) {
@@ -531,7 +563,7 @@ function drawBar() {
     }
   }
   for (const h of d.More || []) {
-    if (S.list && h.Do !== 'undo') continue;
+    if (S.panel && h.Do !== 'undo') continue;
     items.push(keyButton(h.Key, h.Word, () => barAct(h.Do)));
   }
   for (const h of d.Tail || []) {
@@ -540,7 +572,7 @@ function drawBar() {
     items.push(b);
   }
   box.replaceChildren(...items);
-  $('b-list').textContent = S.list ? '報告へ' : 'コメント一覧';
+  drawCommentsButton();
   if (had != null) {
     const b = box.querySelector(`[data-key="${CSS.escape(had)}"]`) || navOf(S.cur);
     if (b) b.focus({ preventScroll: true });
@@ -554,13 +586,31 @@ function barAct(what) {
     case 'next': jumpNext(); break;
     case 'jump': startJumping(); break;
     case 'send': send(); break;
-    case 'write': openEditor({ kind: 'comment', key: '', at: S.list ? '' : S.cur, label: '宛先なしのコメント' }); break;
+    case 'write': writeLoose(); break;
     case 'keys': openHelp(); break;
   }
 }
 
+// writeLoose opens the editor for a comment on no line, under the
+// cursor's line (from the panel: the panel closes first).
+function writeLoose() {
+  if (S.panel) closePanel();
+  openEditor({ kind: 'comment', key: '', at: S.cur, label: '宛先なしのコメント' });
+}
+
+// drawCommentsButton is the bar's way to the comments: how many the AI has
+// not settled, and, in yellow, how many are not sent.
+function drawCommentsButton() {
+  const b = $('b-comments');
+  const n = comments().filter((c) => !c.Finished).length;
+  const kids = [document.createTextNode('コメント ' + n)];
+  if (S.data && S.data.Unsent > 0) kids.push(' ', el('span', 'need', '未送信 ' + S.data.Unsent));
+  b.replaceChildren(...kids);
+  b.setAttribute('aria-expanded', String(S.panel));
+}
+
 function startJumping() {
-  if (S.list || !(S.data.JumpTo || []).length) return;
+  if (S.panel || !(S.data.JumpTo || []).length) return;
   S.jumping = true;
   say(words('jumping'));
   render();
@@ -570,7 +620,7 @@ function startJumping() {
 async function requestHint() {
   clearTimeout(S.hintTimer);
   const t = byKey(S.cur);
-  if (!t || S.list) { drawBar(); return; }
+  if (!t || S.panel) { drawBar(); return; }
   const seq = ++S.hintSeq;
   const key = S.cur;
   const sel = S.sel;
@@ -606,15 +656,12 @@ function render() {
 
   const nb = $('notices');
   const board = $('board');
-  const pane = $('pane');
   rows = new Map();
   const nbKids = [];
   const boardKids = [];
-  const paneKids = [];
+  const panelKids = [];
   const sink = (arr) => ({ appendChild: (x) => { arr.push(x); return x; } });
-  if (S.list) {
-    renderList(sink(boardKids));
-  } else {
+  {
     for (const t of d.Notices || []) nbKids.push(row(t));
     if (d.Message) boardKids.push(el('p', 'msg', d.Message));
     if (d.Err) boardKids.push(el('p', 'err', '読めませんでした: ' + d.Err));
@@ -626,11 +673,11 @@ function render() {
       boardKids.push(p);
     }
     things2(sink(boardKids), d.Things, true);
-    renderPane(sink(paneKids));
+    if (S.panel) renderPanel(sink(panelKids));
   }
   patch(nb, nbKids);
   patch(board, boardKids);
-  patch(pane, paneKids);
+  patch($('clist'), panelKids);
   // Rows of lines no longer there are forgotten.
   for (const k of cache.keys()) if (!rows.has(k)) cache.delete(k);
 
@@ -660,69 +707,114 @@ function placeEditor() {
   }
 }
 
-// commentRow draws one comment as a line of the comment area or list.
-function commentRow(c, key, numbered) {
-  const open = !!S.copen.get(key);
-  const box = el('div', 'row' + (open ? ' open' : '') + (c.Finished ? ' done' : ''));
+// commentRow draws one comment in the panel: its text and state, the line
+// it is on (enter or a click goes there), what the AI wrote, its images.
+function commentRow(c, key) {
+  const box = el('div', 'row crow' + (c.Finished ? ' done' : ''));
   box.dataset.key = key;
   const b = el('button', 'rowbtn');
   b.type = 'button';
   b.dataset.nav = key;
-  b.setAttribute('aria-expanded', String(open));
   b.appendChild(el('span', 'gut'));
   b.appendChild(el('span', 'dot'));
-  b.appendChild(el('span', 'sign', open ? '▾' : '▸'));
+  b.appendChild(el('span', 'sign'));
   const title = el('span', 'title');
-  let text = c.Text;
-  if (numbered) {
-    title.appendChild(el('span', 'faint', c.N + '  '));
-    text = text.split('\n')[0];
-  } else {
-    text = text.split(/\s+/).join(' ');
-  }
-  title.appendChild(commentText(text));
+  title.appendChild(el('span', 'faint', c.N + '  '));
+  title.appendChild(commentText(c.Text));
   b.appendChild(title);
   const r = el('span', 'right');
   r.appendChild(word(c.Word));
   b.appendChild(r);
   box.appendChild(b);
-  if (open) {
-    const d = el('div', 'cdetail');
-    if (c.About) {
-      const p = el('div');
-      p.appendChild(el('span', 'faint', '行: '));
-      p.appendChild(document.createTextNode(c.About));
-      d.appendChild(p);
-    }
-    d.appendChild(commentText(c.Text));
-    const s = el('div');
-    if (c.Settled) {
-      s.appendChild(el('span', 'faint', c.SettledHead));
-      s.appendChild(document.createTextNode(c.Settled));
+  const d = el('div', 'cdetail');
+  if (c.About) {
+    const p = el('div', 'target');
+    p.appendChild(el('span', 'faint', '行: '));
+    if (c.Target && byTarget.has(c.Target)) {
+      const go = el('button', 'golink', c.About);
+      go.type = 'button';
+      go.addEventListener('click', (e) => { e.stopPropagation(); goToComment(c); });
+      p.appendChild(go);
     } else {
-      s.className = 'faint';
-      s.textContent = c.Note;
+      p.appendChild(document.createTextNode(c.About));
     }
-    d.appendChild(s);
-    d.appendChild(thumbs(c.Images));
-    box.appendChild(d);
+    d.appendChild(p);
   }
+  if (c.TitleThen) d.appendChild(el('div', 'faint', '(書いたときは: ' + c.TitleThen + ')'));
+  const s = el('div');
+  if (c.Settled) {
+    s.appendChild(el('span', 'faint', c.SettledHead));
+    s.appendChild(document.createTextNode(c.Settled));
+  } else {
+    s.className = 'faint';
+    s.textContent = c.Note;
+  }
+  d.appendChild(s);
+  d.appendChild(thumbs(c.Images));
+  box.appendChild(d);
   rows.set(key, box);
   return box;
 }
 
-function renderPane(pane) {
-  const open = comments().filter((c) => !c.Finished);
-  if (!open.length) return;
-  pane.appendChild(el('h2', '', 'コメント'));
-  for (const c of open) pane.appendChild(commentRow(c, '#c:' + c.N, false));
+// panelOrder is the comments as the panel lists them: those the AI has not
+// settled first, then the settled; newest first in each.
+function panelOrder() {
+  const cs = [...comments()].sort((a, b) => b.N - a.N);
+  return [...cs.filter((c) => !c.Finished), ...cs.filter((c) => c.Finished)];
 }
 
-function renderList(board) {
-  board.appendChild(el('h2', 'listhead', 'コメント'));
-  const cs = [...comments()].sort((a, b) => b.N - a.N);
-  if (!cs.length) board.appendChild(el('p', 'msg', 'コメントはまだありません。m で書けます'));
-  for (const c of cs) board.appendChild(commentRow(c, '#l:' + c.N, true));
+function renderPanel(box) {
+  const cs = panelOrder();
+  if (!cs.length) box.appendChild(el('p', 'msg', 'コメントはまだありません。m で書けます'));
+  for (const c of cs) box.appendChild(commentRow(c, '#l:' + c.N));
+}
+
+// ---- the comment panel ----
+
+// The comments float over the page (a dialog, bottom right; a sheet on a
+// phone): the bar's コメント button opens it. While it is open the cursor
+// is in it, the focus stays in it, and esc or a click outside closes it.
+
+function openPanel() {
+  if (S.panel || !S.data) return;
+  S.panelReturn = document.activeElement;
+  S.reportCur = { cur: S.cur, how: S.how, at: S.at, sel: S.sel, start: S.start };
+  S.panel = true;
+  S.cur = '';
+  S.jumping = false;
+  if (S.editor) closeEditor();
+  $('cpanel').hidden = false;
+  render();
+  const b = navOf(S.cur) || $('cpanel');
+  b.focus({ preventScroll: true });
+}
+
+function closePanel(back = true) {
+  if (!S.panel) return;
+  if (S.editor && S.editor.at && S.editor.at.startsWith('#')) { S.editor = null; if (edBox) edBox.remove(); }
+  S.panel = false;
+  $('cpanel').hidden = true;
+  // Back to the report: the cursor is where it was, as it was.
+  if (S.reportCur) Object.assign(S, S.reportCur);
+  render();
+  if (!back) return;
+  const r = S.panelReturn;
+  if (r && r.isConnected && r !== document.body) r.focus({ preventScroll: true });
+  else focusCur();
+}
+
+// goToComment closes the panel and puts the cursor on the line comment c
+// is on (opening what holds it), in view.
+function goToComment(c) {
+  const key = byTarget.get(c.Target);
+  if (!key) return;
+  closePanel(false);
+  let opened = false;
+  for (const k of parents.get(key) || []) if (!isOpen(byKey(k))) { S.open.set(k, true); opened = true; }
+  if (opened) render();
+  setCursor(key, 'person');
+  const r = rowOf(key);
+  if (r) r.scrollIntoView({ block: 'center' });
 }
 
 // ---- the cursor ----
@@ -736,10 +828,7 @@ function navKeysOf() {
 }
 function walkNav() {
   const out = [];
-  if (S.list) {
-    for (const c of [...comments()].sort((a, b) => b.N - a.N)) out.push('#l:' + c.N);
-    return out;
-  }
+  if (S.panel) return panelOrder().map((c) => '#l:' + c.N);
   const walk = (ts) => {
     for (const t of ts || []) {
       if (t.Stop) out.push(t.Key);
@@ -747,7 +836,6 @@ function walkNav() {
     }
   };
   if (S.data) { walk(S.data.Notices); walk(S.data.Things); }
-  for (const c of comments()) if (!c.Finished) out.push('#c:' + c.N);
   return out;
 }
 
@@ -784,7 +872,7 @@ function checkCursor() {
 let curRow = null;
 // markCursor shows the cursor on its row (and only there): two rows change.
 function markCursor(prev) {
-  const now = S.list && !S.cur.startsWith('#') ? null : rowOf(S.cur);
+  const now = S.panel && !S.cur.startsWith('#') ? null : rowOf(S.cur);
   for (const r of [curRow, prev]) {
     if (r && r !== now) {
       r.classList.remove('cur');
@@ -831,12 +919,13 @@ function move(d) {
 
 function toggle(key) {
   if (key.startsWith('#')) {
-    S.copen.set(key, !S.copen.get(key));
-  } else {
-    const t = byKey(key);
-    if (!t || !t.CanOpen) return;
-    S.open.set(key, !isOpen(t));
+    const c = commentOf(Number(key.slice(3)));
+    if (c) goToComment(c);
+    return;
   }
+  const t = byKey(key);
+  if (!t || !t.CanOpen) return;
+  S.open.set(key, !isOpen(t));
   render();
   const b = navOf(key);
   if (b) b.focus({ preventScroll: true });
@@ -848,6 +937,7 @@ function toggle(key) {
 // of it): the focus is the cursor.
 function focusCur() {
   if (S.editor || !$('help').hidden || !$('viewer').hidden) return;
+  if (S.panel && !S.cur.startsWith('#')) { $('cpanel').focus({ preventScroll: true }); return; }
   const b = navOf(S.cur);
   if (b && document.activeElement !== b) b.focus({ preventScroll: true });
 }
@@ -977,7 +1067,7 @@ function closeEditor() {
   S.editor = null;
   if (edBox) edBox.remove();
   const b = (at && navOf(at)) || navOf(S.cur);
-  if (b) b.focus({ preventScroll: true }); else $('board').focus({ preventScroll: true });
+  if (b) b.focus({ preventScroll: true }); else (S.panel ? $('cpanel') : $('board')).focus({ preventScroll: true });
 }
 
 async function place() {
@@ -1056,7 +1146,7 @@ function trapFocus(e, dialog) {
 let viewerReturn = null;
 function showImage(n, from) {
   viewerReturn = from;
-  $('viewer-img').src = '/api/image/' + n;
+  $('viewer-img').src = BASE + '/api/image/' + n;
   $('viewer-img').alt = `[Image #${n}]`;
   $('viewer').hidden = false;
   $('viewer-close').focus();
@@ -1079,13 +1169,13 @@ const HELP = [
   ['A', 'いま報告にある行をすべて読んだことにする'],
   ['c', 'この行にコメントを書く'],
   ['m', '宛先なしでコメントを書く'],
-  ['e', 'コメントを直す (コメントの欄と一覧で)'],
+  ['e', 'コメントを直す (コメントの欄で)'],
   ['x', 'この行を隠す (隠した行の上では表示に戻す)。コメントの上では、そのコメントを取り消す'],
   ['H', '隠した行を表示する / しない'],
   ['u', '直前の操作を取り消す (このタブでした操作を、新しい順に 1 つずつ)'],
   ['s', 'AI に送る: 未送信のものをまとめて送る'],
   ['?', 'このキーの一覧'],
-  ['', '端末の tab (コメントの一覧) は、ブラウザでは「コメント一覧」のボタン。tab キーはボタンと行の間を動く'],
+  ['', '端末の tab (コメントの一覧) は、ブラウザでは下のバーの「コメント N」のボタン。浮いた欄に、AI がまだ済ませていないもの、済んだものの順 (それぞれ新しい順) に出る。enter かクリックで、そのコメントの行へ。esc か欄の外のクリックで閉じる。tab キーはボタンと行の間を動く'],
   ['書いているとき', null],
   ['enter', 'pitboard に置く (s で送るまで AI には届かない)'],
   ['shift+enter', '改行'],
@@ -1141,22 +1231,6 @@ function imeFree(k) {
   return k;
 }
 
-function toggleList() {
-  S.list = !S.list;
-  if (S.list) {
-    S.reportCur = { cur: S.cur, how: S.how, at: S.at, sel: S.sel, start: S.start };
-    S.cur = '';
-  } else if (S.reportCur) {
-    // Back to the report: the cursor is where it was, as it was.
-    Object.assign(S, S.reportCur);
-  }
-  S.editor = null;
-  if (edBox) edBox.remove();
-  render();
-  const b = navOf(S.cur);
-  if (b) b.focus({ preventScroll: true }); else $('board').focus({ preventScroll: true });
-}
-
 function onKey(e) {
   if (!$('viewer').hidden) {
     if (e.key === 'Escape') { e.preventDefault(); closeImage(); }
@@ -1167,6 +1241,10 @@ function onKey(e) {
     if (e.key === 'Escape' || e.key === '?' || e.key === 'q') { e.preventDefault(); closeHelp(); }
     trapFocus(e, $('help'));
     return;
+  }
+  if (S.panel) {
+    trapFocus(e, $('cpanel'));
+    if (e.key === 'Escape' && !(e.target && e.target.tagName === 'TEXTAREA')) { e.preventDefault(); closePanel(); return; }
   }
   const tg = e.target;
   if (tg && (tg.tagName === 'TEXTAREA' || tg.tagName === 'INPUT' || tg.isContentEditable)) return;
@@ -1183,7 +1261,7 @@ function onKey(e) {
     if (t) goTo(t.Jump - 1);
     return;
   }
-  const c = S.cur.startsWith('#') ? commentOf(Number(S.cur.slice(3))) : null;
+  const c = S.panel && S.cur.startsWith('#') ? commentOf(Number(S.cur.slice(3))) : null;
   const done = () => e.preventDefault();
   switch (k) {
     case 'j': case 'ArrowDown': done(); move(1); return;
@@ -1193,15 +1271,15 @@ function onKey(e) {
       done(); if (S.cur) toggle(S.cur); return;
     case ' ':
       if (onButton) return;
-      done(); if (!S.list) jumpNext(); return;
+      done(); if (!S.panel) jumpNext(); return;
     case '?': done(); openHelp(); return;
     case 'u': done(); undo(); return;
     case 's': done(); send(); return;
-    case 'm': done(); openEditor({ kind: 'comment', key: '', at: S.list ? '' : S.cur, label: '宛先なしのコメント' }); return;
-    case 'H': done(); S.showHidden = !S.showHidden; S.going = S.cur; S.etag = ''; refresh(); return;
-    case 'A': done(); readAll(); return;
+    case 'm': done(); writeLoose(); return;
+    case 'H': if (S.panel) return; done(); S.showHidden = !S.showHidden; S.going = S.cur; S.etag = ''; refresh(); return;
+    case 'A': if (S.panel) return; done(); readAll(); return;
     case 'g':
-      if (S.list || !(S.data.JumpTo || []).length) return;
+      if (S.panel || !(S.data.JumpTo || []).length) return;
       done(); startJumping(); return;
     case 'Escape': return;
   }
@@ -1210,7 +1288,7 @@ function onKey(e) {
     if (k === 'x') { done(); retract(c); }
     return;
   }
-  if (S.list || !byKey(S.cur) || k.length !== 1 || !/[a-zA-Z]/.test(k)) return;
+  if (S.panel || !byKey(S.cur) || k.length !== 1 || !/[a-zA-Z]/.test(k)) return;
   // Any other letter goes to the server's guard: it says what it does on
   // this line (or why it does nothing).
   done();
@@ -1234,12 +1312,13 @@ function syncPadding() {
   const h = $('foot').offsetHeight;
   document.body.style.paddingBottom = (h + 24) + 'px';
   document.documentElement.style.scrollPaddingBottom = (h + 8) + 'px';
+  document.documentElement.style.setProperty('--foot-h', h + 'px');
 }
 
 let es = null;
 let retry = 2000;
 function connect() {
-  es = new EventSource('/api/events');
+  es = new EventSource(BASE + '/api/events');
   es.addEventListener('changed', () => refresh());
   es.addEventListener('open', () => { retry = 2000; refresh(); });
   es.addEventListener('error', () => {
@@ -1263,18 +1342,27 @@ function start() {
     if (!b || !b.dataset || !b.dataset.nav || b.dataset.nav === S.cur) return;
     setCursor(b.dataset.nav, 'person', false);
   });
-  for (const id of ['board', 'notices', 'pane']) {
+  for (const id of ['board', 'notices', 'clist']) {
     $(id).addEventListener('click', (e) => {
       const b = e.target.closest && e.target.closest('.rowbtn');
       if (!b || e.target.closest('a')) return;
       const key = b.dataset.nav;
       if (key !== S.cur) setCursor(key, 'person', false);
       const t = byKey(key);
-      if (key.startsWith('#') || (t && t.CanOpen)) toggle(key);
+      // A comment goes to its line by enter (a click from the keyboard has
+      // no detail); clicked, it is only chosen (its line's title goes).
+      if (key.startsWith('#') ? e.detail === 0 : t && t.CanOpen) toggle(key);
       else b.focus({ preventScroll: true });
     });
   }
-  $('b-list').addEventListener('click', toggleList);
+  $('b-comments').addEventListener('click', (e) => { e.stopPropagation(); if (S.panel) closePanel(); else openPanel(); });
+  // A click outside the panel closes it (not one in a dialog over it).
+  document.addEventListener('pointerdown', (e) => {
+    if (!S.panel) return;
+    const tg = e.target;
+    if (!tg.closest || tg.closest('#cpanel, #b-comments, #help, #viewer')) return;
+    closePanel();
+  });
   $('help-close').addEventListener('click', closeHelp);
   $('viewer-close').addEventListener('click', closeImage);
   $('viewer').addEventListener('click', (e) => { if (e.target === $('viewer')) closeImage(); });

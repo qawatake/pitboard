@@ -51,35 +51,50 @@ const tabIdle = time.Hour
 
 // Options is how 'pitboard serve' runs.
 type Options struct {
-	Base  string       // where boards are looked for (as the viewer's)
-	Store *board.Store // the session; nil: the first one to appear under Base
-	Port  int          // 0: a free port chosen by the system; PortDefault: see Listen
-	Open  bool         // open the URL in the default browser
-	Out   io.Writer    // where the URL is printed (nil: nowhere; the token is never logged)
+	Port int       // 0: a free port chosen by the system; PortDefault: see Listen
+	Open bool      // open the URL in the default browser
+	Out  io.Writer // where the URL is printed (nil: nowhere; the token is never logged)
+	// Boards are registered at start (the foreground server's own board).
+	Boards []*board.Store
+	// Registry is the file the registered boards are kept in, restored at
+	// start ("": not kept).
+	Registry string
 	// Listening is called once the server listens, with its port and token
 	// (for the state file of a background server).
 	Listening func(port int, token string)
-	// Idle stops the server after this long with no page connected (its
-	// event stream); 0 never.
+	// Idle stops the server after this long with no page connected (an
+	// event stream of any board, or of the index); 0 never.
 	Idle time.Duration
 }
 
-// Server is the board in a browser.
+// Server is the boards in a browser: one server for every board
+// registered, each under /s/<id>/.
 type Server struct {
-	token string
-	port  int
-	base  string
+	token    string
+	port     int
+	registry string
 
-	mu   sync.Mutex
-	st   *board.Store
-	gen  int // counts up when st changes: tabs of an older one start anew
-	tabs map[string]*tab
-	subs map[chan struct{}]bool
+	mu     sync.Mutex
+	boards map[string]*hosted // by id
+	order  []*hosted          // as registered
+	// subs is the open event streams, each with its board's id ("" the
+	// index: told of every change).
+	subs map[chan struct{}]string
 	done chan struct{}
 	// lastSub is when a page last connected or left (or the start): what
 	// Idle counts from.
 	lastSub time.Time
-	watch   *page.Board // the board the watcher polls
+}
+
+// hosted is one board the server shows.
+type hosted struct {
+	id    string
+	st    *board.Store
+	added time.Time
+
+	mu    sync.Mutex // tabs
+	tabs  map[string]*tab
+	watch *page.Board // the board the watcher polls (its goroutine only)
 }
 
 // tab is one browser tab's board: its own undo history (page.Board.Hist),
@@ -87,7 +102,6 @@ type Server struct {
 type tab struct {
 	mu   sync.Mutex
 	b    *page.Board
-	gen  int
 	used time.Time
 	seen map[string]seenLine
 	// again is the press last dropped while the cursor's line settled
@@ -106,22 +120,29 @@ type seenLine struct {
 	node   *report.Node // the line then (to tell whether it was rewritten)
 }
 
-// New makes a server for o (not yet listening).
+// New makes a server for o (not yet listening): the boards of its
+// registry that are still there, then o.Boards.
 func New(o Options) (*Server, error) {
 	tok := make([]byte, 32)
 	if _, err := rand.Read(tok); err != nil {
 		return nil, err
 	}
-	return &Server{
-		token: hex.EncodeToString(tok), port: o.Port, base: o.Base, st: o.Store,
-		tabs: map[string]*tab{}, subs: map[chan struct{}]bool{}, done: make(chan struct{}),
+	s := &Server{
+		token: hex.EncodeToString(tok), port: o.Port, registry: o.Registry,
+		boards: map[string]*hosted{}, subs: map[chan struct{}]string{}, done: make(chan struct{}),
 		lastSub: time.Now(),
-	}, nil
+	}
+	s.restore()
+	for _, st := range o.Boards {
+		if _, err := s.Register(st.Base, st.Session); err != nil {
+			return nil, err
+		}
+	}
+	return s, nil
 }
 
 // The default port is "PITB" on a phone keypad (P=7 I=4 T=8 B=2), as mo's
-// 6275 is "MARK". Each session has a server of its own, so the next ones
-// are tried when it is taken.
+// 6275 is "MARK". When something else holds it, the next ones are tried.
 const (
 	DefaultPort  = 7482
 	DefaultTries = 10 // DefaultPort .. DefaultPort+9, then any free one
@@ -164,6 +185,9 @@ func Run(ctx context.Context, o Options) error {
 	}
 	s.port = ln.Addr().(*net.TCPAddr).Port
 	url := s.URL()
+	if len(o.Boards) == 1 {
+		url = s.BoardURL(s.idOf(o.Boards[0]))
+	}
 	if o.Out != nil {
 		fmt.Fprintln(o.Out, url)
 	}
@@ -208,9 +232,14 @@ func (s *Server) Close() {
 	}
 }
 
-// URL is the address to open, with the token.
+// URL is the address of the index, with the token.
 func (s *Server) URL() string {
 	return fmt.Sprintf("http://127.0.0.1:%d/?t=%s", s.port, s.token)
+}
+
+// BoardURL is the address of board id, with the token.
+func (s *Server) BoardURL(id string) string {
+	return fmt.Sprintf("http://127.0.0.1:%d/s/%s/?t=%s", s.port, id, s.token)
 }
 
 // SetPort is for tests that serve without Run.
@@ -257,7 +286,9 @@ func OpenBrowser(url string) {
 	}
 }
 
-// ServeHTTP checks every request, then routes it.
+// ServeHTTP checks every request, then routes it: the index and the
+// shared files at the top, each board under /s/<id>/, and the command
+// line's calls (register, forget) under /api/.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h := w.Header()
 	h.Set("Content-Security-Policy", CSP)
@@ -268,33 +299,74 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "pitboard: このアドレスでは開けません。pitboard serve が出した URL を使ってください", http.StatusForbidden)
 		return
 	}
-	if r.URL.Path == "/" && r.URL.Query().Has("t") {
+	if r.Method == http.MethodGet && r.URL.Query().Has("t") {
 		s.login(w, r)
 		return
 	}
-	if !s.authed(r) {
+	cookie, bearer := s.authed(r)
+	if !cookie && !bearer {
 		http.Error(w, "pitboard: 入れません。pitboard serve が出した URL (?t=… 付き) を開いてください", http.StatusForbidden)
 		return
 	}
-	if r.Method == http.MethodPost && !s.originOK(r.Header.Get("Origin")) {
+	// A POST from a page must come from this server's; the command line
+	// (the token in a header, which no other page can send) has no Origin.
+	if r.Method == http.MethodPost && !s.originOK(r.Header.Get("Origin")) && !(bearer && r.Header.Get("Origin") == "") {
 		http.Error(w, "pitboard: ほかのページからの操作は受けません", http.StatusForbidden)
 		return
 	}
+	p := r.URL.Path
+	if rest, ok := strings.CutPrefix(p, "/s/"); ok {
+		id, sub, _ := strings.Cut(rest, "/")
+		b := s.board(id)
+		if b == nil {
+			http.Error(w, "pitboard: このボードはありません (pitboard serve で開き直してください)", http.StatusNotFound)
+			return
+		}
+		if !strings.Contains(rest, "/") {
+			http.Redirect(w, r, "/s/"+id+"/", http.StatusSeeOther)
+			return
+		}
+		s.serveBoard(w, r, b, "/"+sub)
+		return
+	}
 	switch {
-	case r.URL.Path == "/api/page" && r.Method == http.MethodGet:
-		s.handlePage(w, r)
-	case r.URL.Path == "/api/events" && r.Method == http.MethodGet:
-		s.handleEvents(w, r)
-	case r.URL.Path == "/api/act" && r.Method == http.MethodPost:
-		s.post(w, r, s.handleAct)
-	case r.URL.Path == "/api/send" && r.Method == http.MethodPost:
-		s.post(w, r, s.handleSend)
-	case r.URL.Path == "/api/image" && r.Method == http.MethodPost:
-		s.post(w, r, s.handleImage)
-	case strings.HasPrefix(r.URL.Path, "/api/image/") && r.Method == http.MethodGet:
-		s.handleImageGet(w, r, r.URL.Path[len("/api/image/"):])
-	case (r.Method == http.MethodGet || r.Method == http.MethodHead) && !strings.HasPrefix(r.URL.Path, "/api/"):
-		s.handleStatic(w, r)
+	case p == "/api/boards" && r.Method == http.MethodGet:
+		s.handleBoards(w, r)
+	case p == "/api/events" && r.Method == http.MethodGet:
+		s.handleEvents(w, r, "")
+	case p == "/api/register" && r.Method == http.MethodPost && bearer:
+		s.post(w, r, s.handleRegister)
+	case p == "/api/forget" && r.Method == http.MethodPost && bearer:
+		s.post(w, r, s.handleForget)
+	case (r.Method == http.MethodGet || r.Method == http.MethodHead) && !strings.HasPrefix(p, "/api/"):
+		if p == "/" {
+			p = "/home.html"
+		}
+		s.handleStatic(w, r, p)
+	default:
+		http.Error(w, "pitboard: この操作は受けません", http.StatusMethodNotAllowed)
+	}
+}
+
+// serveBoard routes a request under /s/<id>/ (p is the rest, from /).
+func (s *Server) serveBoard(w http.ResponseWriter, r *http.Request, b *hosted, p string) {
+	switch {
+	case p == "/" && (r.Method == http.MethodGet || r.Method == http.MethodHead):
+		s.handleStatic(w, r, "/index.html")
+	case p == "/api/page" && r.Method == http.MethodGet:
+		b.handlePage(w, r)
+	case p == "/api/events" && r.Method == http.MethodGet:
+		s.handleEvents(w, r, b.id)
+	case p == "/api/act" && r.Method == http.MethodPost:
+		s.post(w, r, b.handleAct)
+	case p == "/api/send" && r.Method == http.MethodPost:
+		s.post(w, r, b.handleSend)
+	case p == "/api/image" && r.Method == http.MethodPost:
+		s.post(w, r, b.handleImage)
+	case strings.HasPrefix(p, "/api/image/") && r.Method == http.MethodGet:
+		b.handleImageGet(w, r, p[len("/api/image/"):])
+	case !strings.HasPrefix(p, "/api/") && (r.Method == http.MethodGet || r.Method == http.MethodHead):
+		http.NotFound(w, r)
 	default:
 		http.Error(w, "pitboard: この操作は受けません", http.StatusMethodNotAllowed)
 	}
@@ -310,6 +382,8 @@ func (s *Server) originOK(origin string) bool {
 	return origin == "http://127.0.0.1:"+p || origin == "http://localhost:"+p
 }
 
+// login takes the token from the URL into a cookie and goes to the same
+// page without it: a board's page, or else the index.
 func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	if subtle.ConstantTimeCompare([]byte(r.URL.Query().Get("t")), []byte(s.token)) != 1 {
 		http.Error(w, "pitboard: 入れません。pitboard serve が出した URL をそのまま開いてください (起動し直すと変わります)", http.StatusForbidden)
@@ -319,19 +393,28 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		Name: s.CookieName(), Value: s.token, Path: "/",
 		HttpOnly: true, SameSite: http.SameSiteStrictMode,
 	})
-	http.Redirect(w, r, "/", http.StatusSeeOther)
-}
-
-func (s *Server) authed(r *http.Request) bool {
-	c, err := r.Cookie(s.CookieName())
-	return err == nil && subtle.ConstantTimeCompare([]byte(c.Value), []byte(s.token)) == 1
-}
-
-func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
-	name := r.URL.Path
-	if name == "/" {
-		name = "/index.html"
+	to := "/"
+	if rest, ok := strings.CutPrefix(r.URL.Path, "/s/"); ok {
+		if id, _, _ := strings.Cut(rest, "/"); s.board(id) != nil {
+			to = "/s/" + id + "/"
+		}
 	}
+	http.Redirect(w, r, to, http.StatusSeeOther)
+}
+
+// authed says how the request carries the token: the browser's cookie, or
+// the command line's Authorization header (from the 0600 state file).
+func (s *Server) authed(r *http.Request) (cookie, bearer bool) {
+	if c, err := r.Cookie(s.CookieName()); err == nil {
+		cookie = subtle.ConstantTimeCompare([]byte(c.Value), []byte(s.token)) == 1
+	}
+	if v, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); ok {
+		bearer = subtle.ConstantTimeCompare([]byte(v), []byte(s.token)) == 1
+	}
+	return cookie, bearer
+}
+
+func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request, name string) {
 	sub, _ := fs.Sub(staticFS, "static")
 	b, err := fs.ReadFile(sub, name[1:])
 	if err != nil {
@@ -353,40 +436,23 @@ func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
 	w.Write(b)
 }
 
-// store is the session served now. Without one, the first session to
-// appear under base is taken (as the viewer does); a session given that
-// did not exist yet is opened anew once it does.
-func (s *Server) store() (*board.Store, int) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.st == nil && s.base != "" {
-		if ss := board.Sessions(s.base); len(ss) > 0 {
-			s.st = board.Open(s.base, ss[0])
-			s.gen++
-		}
-	}
-	return s.st, s.gen
-}
-
-// tabOf is the board of the browser tab id, made anew when the session
-// changed. Idle tabs are dropped.
-func (s *Server) tabOf(id string) *tab {
-	st, gen := s.store()
-	s.mu.Lock()
-	defer s.mu.Unlock()
+// tabOf is the board of the browser tab id. Idle tabs are dropped.
+func (b *hosted) tabOf(id string) *tab {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	now := time.Now()
-	for k, t := range s.tabs {
+	for k, t := range b.tabs {
 		if now.Sub(t.used) > tabIdle {
-			delete(s.tabs, k)
+			delete(b.tabs, k)
 		}
 	}
 	if len(id) == 0 || len(id) > 64 {
 		id = "-"
 	}
-	t := s.tabs[id]
-	if t == nil || t.gen != gen {
-		t = &tab{b: page.Open(st), gen: gen, seen: map[string]seenLine{}}
-		s.tabs[id] = t
+	t := b.tabs[id]
+	if t == nil {
+		t = &tab{b: page.Open(b.st), seen: map[string]seenLine{}}
+		b.tabs[id] = t
 	}
 	t.used = now
 	return t

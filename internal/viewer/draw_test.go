@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/qawatake/pitboard/internal/board"
+	"github.com/qawatake/pitboard/internal/page"
 	"github.com/qawatake/pitboard/internal/report"
 )
 
@@ -321,5 +322,21 @@ func TestEmptySectionSaysNone(t *testing.T) {
 	}
 	if i, j := strings.Index(s, "あなたへ"), strings.Index(s, "なし"); i < 0 || j < i || strings.Contains(s[i:j], "進行中") {
 		t.Errorf("なし is not under あなたへ:\n%q", s)
+	}
+}
+
+// WEB6 C: the open sign is the same glyph as ever (one cell in every
+// terminal) but bold, so open and closed tell apart at a glance.
+func TestOpenSignIsBold(t *testing.T) {
+	if got := markOf(report.KindTodo, true, true); got.plain() != page.SignOpen || got[0].st != bold {
+		t.Errorf("open mark %q %q", got.plain(), got[0].st)
+	}
+	if got := markOf(report.KindTodo, true, false); got.plain() != page.SignClosed || got[0].st != "" {
+		t.Errorf("closed mark %q %q", got.plain(), got[0].st)
+	}
+	for _, s := range []string{page.SignOpen, page.SignClosed} {
+		if w := width(s); w != 1 {
+			t.Errorf("%s is %d cells", s, w)
+		}
 	}
 }

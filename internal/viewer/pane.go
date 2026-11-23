@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/qawatake/pitboard/internal/board"
+	"github.com/qawatake/pitboard/internal/page"
 )
 
 // ---- the thoughts at the bottom of the report ----
@@ -115,9 +116,9 @@ func (a *app) paneAll(order []*board.Thought) ([]row, map[int]int) {
 			base = dim
 		}
 		sel := t.N == a.pcur
-		mark := plainText("▸", "")
+		mark := plainText(page.SignClosed, "")
 		if a.popen[t.N] {
-			mark = plainText("▾", "")
+			mark = plainText(page.SignOpen, bold)
 		}
 		body := withImages(strings.Join(strings.Fields(t.Text), " "), base).capped(4 * a.textWidth())
 		r := a.titled(sel, 0, 0, mark, body, plainText(word, color), paneRows)
@@ -183,9 +184,9 @@ func (a *app) listRows() []row {
 		word, color := a.statusOf(t)
 		first, _, _ := strings.Cut(strings.TrimSpace(t.Text), "\n")
 		body := append(plainText(fmt.Sprintf("%d  ", t.N), dim), withImages(first, "")...)
-		mark := plainText("▸", "")
+		mark := plainText(page.SignClosed, "")
 		if open {
-			mark = plainText("▾", "")
+			mark = plainText(page.SignOpen, bold)
 		}
 		// The first line of the thought wraps; its state is never cut.
 		st := plainText(word, color).capped(2 * a.textWidth())

@@ -3,6 +3,7 @@ package viewer
 import (
 	"fmt"
 
+	"github.com/qawatake/pitboard/internal/page"
 	"github.com/qawatake/pitboard/internal/report"
 )
 
@@ -31,9 +32,9 @@ func (a *app) noticeHead(pv *view, n *report.Node, most int) []row {
 	case pv.isHidden(n):
 		mark, base = plainText("⌀", dim), dim
 	case a.canOpen(pv, n) && pv.open[n.Key]:
-		mark = plainText("▾", yellow)
+		mark = plainText(page.SignOpen, yellow+bold)
 	case a.canOpen(pv, n):
-		mark = plainText("▸", yellow)
+		mark = plainText(page.SignClosed, yellow)
 	}
 	body := inline(n.Text, base).capped(titleCap)
 	lns := a.titled(sel, 0, 0, mark, body, a.right(pv, n), most)
