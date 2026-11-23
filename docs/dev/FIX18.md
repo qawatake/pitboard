@@ -16,6 +16,15 @@ Today the only way to move the view is `j`/`k` (FEAT21: reads forward through ta
 - Web: nothing to do (the document scrolls natively) — but verify that with the inline editor open under a tall body you can scroll up with wheel/keys and the textarea keeps its text and focus.
 - e2e tests: tall body, scroll up/down in normal mode and during editing, text preserved, comment placed on the right row.
 
+## A2. Mouse wheel / trackpad scrolling in the terminal
+
+User: 「あとマウス？とかでのスクロールも効くようにしてほしい」
+
+Constraint: the person copies paths/URLs out of the viewer, so native text selection must keep working without a modifier. That rules out plain mouse reporting (`?1000h`/`?1006h` capture drags). Preferred design, verify it before building:
+- Alternate scroll mode (`CSI ? 1007 h` on entry, restore on exit): in the alternate screen the terminal turns wheel/trackpad into ↑/↓ key presses, with no mouse capture. Check what Ghostty, iTerm2, kitty, WezTerm, Terminal.app and tmux do (default on? honoured?).
+- Then make ↑/↓ scroll the VIEW by one line (3 per wheel notch is the terminal's business) instead of moving the cursor; `j`/`k` remain the cursor keys. Update hints (`j k` only), `?`, SPEC, e2e. In the editor ↑/↓ keep moving in the text, except ↑ on the first line / ↓ on the last line scroll the view.
+- If 1007 is not viable in the user's terminal class (Ghostty first), say so in the result with what you found and fall back to: mouse reporting for wheel only is impossible to separate from clicks, so instead offer it behind `PITBOARD_MOUSE=1` and do not enable by default.
+
 ## B. Removed-row warning: make it smaller
 
 User's concern about FIX16: 「運用方法の問題がツールに染み出しすぎていないか。汎用的なものとしてクリアできるならいい」. Keep only the generic contract — "what the person has not dealt with must not vanish silently" — and drop the operational surface:
