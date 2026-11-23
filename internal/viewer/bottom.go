@@ -25,7 +25,7 @@ func (a *app) bottomLines(n int) []string {
 	}
 	hints := a.bottom()
 	if a.jumping && !a.list && !a.inPane {
-		hints = a.jumpLines(a.jumpTargets(a.top()))
+		hints = a.jumpLines(a.jumpTo)
 	}
 	if a.list {
 		return hints
@@ -57,7 +57,7 @@ func (a *app) msgRows(msg string, right text) []string {
 func (a *app) helpRows() []row {
 	rows := []row{{}, {line: a.compose(false, 0, nil, plainText("キー", bold+blue), nil)}, {}}
 	for _, k := range [][2]string{
-		{"j k ↑↓", "上下に動く (ctrl+n / ctrl+p も)。止まる行がその先になければ 1 行スクロール。カーソルの行が画面の外にあれば、まずそこまで戻す"},
+		{"j k ↑↓", "上下に動く (ctrl+n / ctrl+p も)。止まる行がその先になければ半画面スクロール。カーソルの行が画面の外にあれば、まずそこまで戻す"},
 		{"pgup pgdn", "半画面ずつスクロール"},
 		{"", "報告の終わりからさらに j で、報告の下のコメントへ (欄が広がる)。コメントの 1 件目で k で報告へ"},
 		{"", "報告のいちばん上からさらに k で、上に固定されたお知らせへ"},
@@ -209,14 +209,16 @@ func (a *app) bottom() []string {
 		if pv.Err == "" && !pv.Missing {
 			keys = append(keys, hint{k: "j k ↑↓", d: "スクロール", rank: rankEnter})
 		}
-		// Where the cursor's line went (reacting brings it back first).
+		// Where the cursor's line went (reacting brings it back first): it
+		// outranks every key.
+		var where text
 		switch pv.offScreen() {
 		case -1:
-			right = join(plainText("↑ カーソルは上", dim), right)
+			where = plainText("↑ カーソルは上", dim)
 		case 1:
-			right = join(plainText("↓ カーソルは下", dim), right)
+			where = plainText("↓ カーソルは下", dim)
 		}
-		return a.oneLine(keys, right)
+		return a.oneLineKeep(keys, where, right)
 	}
 	var enter, read, answer, yn, write, hide []hint
 	switch {
@@ -305,6 +307,13 @@ const (
 // keys by rank (x, enter, n, y, c); "m 書く", "? キー" and a hint with a
 // short form stay to the end.
 func (a *app) oneLine(keys []hint, right text) []string {
+	return a.oneLineKeep(keys, nil, right)
+}
+
+// oneLineKeep is oneLine with keep on the right (before right) outranking
+// every key: the keys, "m 書く" and "? キー" included, are left out before
+// it is.
+func (a *app) oneLineKeep(keys []hint, keep, right text) []string {
 	q := hint{k: "?", d: "キー"}
 	var tail []hint
 	if a.canWrite() && a.b.Unsent > 0 {
@@ -357,12 +366,24 @@ func (a *app) oneLine(keys []hint, right text) []string {
 		}
 		for _, cand := range [][]hint{ks, alt(ks), shorten(alt(ks))} {
 			cand = append(cand, tail...)
-			for _, r := range []text{right, nil} { // right goes before any key
+			for _, r := range []text{join(keep, right), keep} { // right goes before any key
 				if fits(cand, r) {
 					return []string{a.compose(false, 0, nil, keyHints(cand), r)}
 				}
 			}
 		}
+	}
+	if len(keep) > 0 {
+		// keep stays: the keys that work everywhere go, the last ("? キー")
+		// last.
+		for i := range tail {
+			if cand := tail[i+1:]; len(cand) > 0 && fits(cand, keep) {
+				return []string{a.compose(false, 0, nil, keyHints(cand), keep)}
+			}
+		}
+		// Alone: as the body, where it has the most room (cut only on the
+		// narrowest screens, the arrow first).
+		return []string{a.compose(false, 0, nil, keep, nil)}
 	}
 	// Too narrow for all: what the person must know to react (the short
 	// form of a kept hint) comes first, then "? キー".

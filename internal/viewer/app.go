@@ -103,8 +103,10 @@ type app struct {
 	// (line, column; 0-based), set when they are laid out.
 	inAt [2]int
 	help bool // the list of all keys
-	// jumping is set while g waits for the letter of where to go.
+	// jumping is set while g waits for the letter of where to go; jumpTo
+	// is the places, lettered when g was pressed.
 	jumping bool
+	jumpTo  []*report.Node
 	// kbd is set when the terminal answered that it tells keys apart
 	// (kitty keyboard protocol): shift+enter is then a key of its own.
 	kbd  bool
@@ -222,9 +224,7 @@ func (a *app) loop() os.Signal {
 				}
 				break
 			}
-			if pv := a.top(); pv.Stale() {
-				a.reload(pv)
-			}
+			a.tickReload()
 			a.b.Poll()
 		}
 		a.render()
@@ -240,6 +240,20 @@ func (a *app) render() {
 }
 
 // ---- reloading ----
+
+// tickReload reads the report again when it was rewritten. A rewrite
+// while g waits leaves it: the letters were given to the report as it was.
+func (a *app) tickReload() {
+	pv := a.top()
+	if !pv.Stale() {
+		return
+	}
+	a.reload(pv)
+	if a.jumping {
+		a.stopJump()
+		a.msg = msgMoved
+	}
+}
 
 // reload reads the file again and keeps the cursor on the same id. When the
 // id is gone, the cursor goes to the nearest stop and reactions are locked

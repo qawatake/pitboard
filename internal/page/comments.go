@@ -53,13 +53,14 @@ func (b *Board) About(t *board.Thought) string {
 
 // Jumps is where the person can go straight to: each notice (first, as
 // they are shown above the page), each Section, each top-level Fold, in
-// the order of the report, 26 at most. Hidden ones only with showHidden,
+// the order of the report, 25 at most (a viewer letters them a to z
+// but g, which leaves goto mode). Hidden ones only with showHidden,
 // and not a Section whose lines are all hidden.
 func (b *Board) Jumps(showHidden bool) []*report.Node {
 	var out []*report.Node
 	for _, notices := range []bool{true, false} {
 		for _, n := range b.Report.Nodes {
-			if (n.Kind == report.KindNotice) != notices || len(out) == 26 {
+			if (n.Kind == report.KindNotice) != notices || len(out) == 25 {
 				continue
 			}
 			if !showHidden && (b.IsHidden(n) || (n.Kind == report.KindSection && b.allHidden(n.Kids))) {

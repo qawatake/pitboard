@@ -44,9 +44,8 @@ func (a *app) draw() {
 		pins = a.pin(pv, a.t.h, "")
 		rows = a.rows(pv)
 		if a.jumping {
-			ts := a.jumpTargets(pv)
-			a.markJumps(pins.rows, ts)
-			a.markJumps(rows, ts)
+			a.markJumps(pins.rows, a.jumpTo)
+			a.markJumps(rows, a.jumpTo)
 		}
 		top, follow, shown, cur = &pv.top, &pv.follow, &pv.curShown, &pv.curRow
 	}
@@ -382,12 +381,22 @@ func (a *app) rightRows(right text) []row {
 // leaves its column free, so the right parts read as one column. The rows
 // after the first start where the title's text starts (extra: how far a
 // list number reaches past the mark field). most > 0 keeps that many rows
-// of the title at most, the last ending in …. The cursor and the marks go
+// of the title at most, the last ending in …, the right part included
+// (on one row of its own, or left out). The cursor and the marks go
 // on the first row only.
 func (a *app) titled(sel bool, indent, extra int, mark, body, right text, most int) []row {
 	var below []row
 	if len(right) > 0 && !a.rightFits(indent, right) {
 		below, right = a.rightRows(right), nil
+		if most > 0 {
+			// Cut to fit a low screen: the right part takes one row of its
+			// own out of most, or is left out when that cannot be.
+			if len(below) == 1 && most >= 2 {
+				most--
+			} else {
+				below = nil
+			}
+		}
 	}
 	w := a.room(indent, right) - extra
 	lns := body.wrap(w)

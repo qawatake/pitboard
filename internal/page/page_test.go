@@ -3,7 +3,6 @@ package page
 import (
 	"errors"
 	"os"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -166,8 +165,7 @@ func TestHideAndUndo(t *testing.T) {
 	}
 }
 
-// Comments: on a line (it is then read), quoted by an answer (re), edited,
-// retracted, and sent.
+// Comments: on a line (it is then read), edited, retracted, and sent.
 func TestCommentsAndSend(t *testing.T) {
 	t.Setenv("PITBOARD_SEND", "true")
 	b := open(t, src)
@@ -184,11 +182,6 @@ func TestCommentsAndSend(t *testing.T) {
 	if c.About != "実装する" || c.Note != "まだ送っていません (s で送る)" || len(c.Images) != 1 || c.Images[0] != 2 || len(p.Comments) != 1 {
 		t.Errorf("comment %+v", c)
 	}
-	write(t, b.Store, src+"<Item id=\"a1\" re=\""+strconv.Itoa(c.N)+"\">まだです</Item>\n")
-	b.Report.Load()
-	if a1 := find(b.Page(false).Things, "a1"); a1.Quote == nil || a1.Quote.Text != "まだ？ [Image #2]" {
-		t.Errorf("quote %+v", a1.Quote)
-	}
 	if _, err := b.Edit(c.N, "まだですか"); err != nil {
 		t.Fatal(err)
 	}
@@ -203,9 +196,6 @@ func TestCommentsAndSend(t *testing.T) {
 	}
 	if msg, err := b.Retract(c.N); err != nil || msg != "取り消しました" || len(b.Page(false).Comments) != 0 {
 		t.Errorf("retract: %q %v", msg, err)
-	}
-	if a1 := find(b.Page(false).Things, "a1"); a1.Quote != nil {
-		t.Error("a retracted comment is still quoted")
 	}
 }
 

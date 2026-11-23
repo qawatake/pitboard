@@ -259,8 +259,6 @@ func (a *app) rows(pv *view) []row {
 					mark = nil // the list's own mark
 				}
 				lns = a.listItem(sel, ind, n, base, mark, right)
-			} else if q := a.b.Quote(n); q != nil {
-				lns = a.quoted(sel, ind, mark, page.QuoteText(q.Text), base, body, right)
 			} else {
 				lns = a.line(sel, ind, mark, body, right)
 			}
@@ -299,35 +297,6 @@ func (a *app) rows(pv *view) []row {
 		}
 	})
 	return rows
-}
-
-// quoted is an Item that answers a comment (re="N"), as page.QuoteText
-// says: its first row (the cursor's, with the mark and the right part) is
-// > and the comment, in the color of the title, wrapped and page.QuoteRows
-// rows at most (the last ending in …); the title follows on rows of its
-// own, starting where the comment's text starts, wrapped.
-func (a *app) quoted(sel bool, ind int, mark text, q, base string, title, right text) []row {
-	head := plainText("> ", base)
-	var below []row
-	if len(right) > 0 && !a.rightFits(ind, right) {
-		below, right = a.rightRows(right), nil
-	}
-	w := max(a.room(ind, right)-head.width(), 4)
-	lns := withImages(q, base).capped(titleCap).wrap(w)
-	if len(lns) > page.QuoteRows {
-		last := append(append(text{}, lns[page.QuoteRows-1]...), plainText(" ", base)...)
-		last = append(last, lns[page.QuoteRows]...)
-		lns = append(lns[:page.QuoteRows-1:page.QuoteRows-1], last.trunc(w))
-	}
-	out := []row{{line: a.compose(sel, ind, mark, append(append(text{}, head...), lns[0]...), right), isCur: sel}}
-	for _, l := range lns[1:] {
-		out = append(out, row{line: a.compose(false, ind+head.width(), nil, l, nil), cont: true})
-	}
-	out = append(out, below...)
-	for _, l := range title.wrap(a.room(ind+head.width(), nil)) {
-		out = append(out, row{line: a.compose(false, ind+head.width(), nil, l, nil), cont: true})
-	}
-	return out
 }
 
 // paraText is a paragraph as drawn: a small heading is bold in the color of

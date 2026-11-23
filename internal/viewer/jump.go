@@ -1,6 +1,7 @@
 package viewer
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -8,11 +9,14 @@ import (
 )
 
 // g goes to a place in the report: each notice, each Section, each
-// top-level Fold gets a letter (a to z, from the top of the report, on
-// screen or not). The letter is drawn at the head of its row (the cursor's
-// column) when it is on screen, and the hints line lists them all.
+// top-level Fold gets a letter (a to z but g, from the top of the report,
+// on screen or not). The letter is drawn at the head of its row (the
+// cursor's column) when it is on screen, and the hints line lists them.
+// The letters are given when g is pressed and stay until it is left: a
+// rewrite of the report meanwhile leaves it (msgMoved), so a letter never
+// comes to mean another place.
 
-// jumpTargets is where g can go, in the order of the report, 26 at most.
+// jumpTargets is where g can go, in the order of the report, 25 at most.
 func (a *app) jumpTargets(pv *view) []*report.Node {
 	if pv == nil || a.st == nil || a.b.NoSession || pv.Missing {
 		return nil
@@ -20,8 +24,39 @@ func (a *app) jumpTargets(pv *view) []*report.Node {
 	return a.b.Jumps(pv.showHidden)
 }
 
-// jumpLetter is the letter of the i-th place.
-func jumpLetter(i int) string { return string(rune('a' + i)) }
+// jumpLetter is the letter of the i-th place: a to z, skipping g (g in
+// goto mode always leaves it).
+func jumpLetter(i int) string {
+	if i >= 'g'-'a' {
+		i++
+	}
+	return string(rune('a' + i))
+}
+
+// jumpIndex is which place letter r goes to (-1: none).
+func jumpIndex(r rune, n int) int {
+	if r < 'a' || r > 'z' || r == 'g' {
+		return -1
+	}
+	i := int(r - 'a')
+	if r > 'g' {
+		i--
+	}
+	if i >= n {
+		return -1
+	}
+	return i
+}
+
+// startJump enters goto mode with the letters given now.
+func (a *app) startJump(pv *view) {
+	if ts := a.jumpTargets(pv); len(ts) > 0 {
+		a.jumping, a.jumpTo = true, ts
+	}
+}
+
+// stopJump leaves goto mode.
+func (a *app) stopJump() { a.jumping, a.jumpTo = false, nil }
 
 // markJumps puts the letters at the head of the rows they go to.
 func (a *app) markJumps(rows []row, ts []*report.Node) {
@@ -40,51 +75,83 @@ func (a *app) markJumps(rows []row, ts []*report.Node) {
 // jumpTitle is what the hints call a place.
 func jumpTitle(n *report.Node) string { return report.PlainOf(n.Text) }
 
-// jumpLines replaces the hints while g waits: every place with its letter,
-// then "esc やめる"; wrapped, and the titles cut shorter until it fits in
-// three lines.
+// minJumpTitle is how short the titles in the list of places may be cut
+// before places are left out of it.
+const minJumpTitle = 6
+
+// jumpLines replaces the hints while g waits: "esc やめる" first, then
+// every place with its letter, wrapped on at most a third of the screen
+// (three lines at most, one at least). When they do not fit, the titles are
+// cut evenly (none shorter than minJumpTitle), then the places at the end
+// are left out for "… +N" (their letters still work).
 func (a *app) jumpLines(ts []*report.Node) []string {
 	room := a.room(0, nil)
-	lay := func(cut int) []string {
-		var hs []hint
-		for i, n := range ts {
-			t := jumpTitle(n)
-			if cut > 0 {
-				t = plainText(t, "").trunc(cut).plain()
+	most := max(min(3, a.t.h/3), 1)
+	titles := make([]text, len(ts))
+	long := 0
+	for i, n := range ts {
+		titles[i] = plainText(jumpTitle(n), "").capped(titleCap)
+		long = max(long, titles[i].width())
+	}
+	// lay wraps the first k places, titles cut to cut cells (0: whole).
+	lay := func(k, cut int) [][]hint {
+		hs := []hint{{k: "esc", d: "やめる"}}
+		for i := range k {
+			t := titles[i]
+			if cut > 0 && t.width() > cut {
+				t = t.trunc(cut)
 			}
-			hs = append(hs, hint{k: jumpLetter(i), d: t})
+			hs = append(hs, hint{k: jumpLetter(i), d: t.plain()})
 		}
-		hs = append(hs, hint{k: "esc", d: "やめる"})
-		var out []string
+		if k < len(ts) {
+			hs = append(hs, hint{k: "…", d: fmt.Sprintf("+%d", len(ts)-k)})
+		}
+		var out [][]hint
 		var line []hint
 		for _, h := range hs {
 			if len(line) > 0 && keyHints(append(line, h)).width() > room {
-				out = append(out, a.compose(false, 0, nil, keyHints(line), nil))
-				line = nil
+				out, line = append(out, line), nil
 			}
 			line = append(line, h)
 		}
-		return append(out, a.compose(false, 0, nil, keyHints(line), nil))
+		return append(out, line)
 	}
-	var out []string
-	for _, cut := range []int{0, 16, 10, 6, 3} {
-		if out = lay(cut); len(out) <= 3 {
-			break
+	draw := func(ls [][]hint) []string {
+		out := make([]string, len(ls))
+		for i, l := range ls {
+			out[i] = a.compose(false, 0, nil, keyHints(l), nil)
+		}
+		return out
+	}
+	if ls := lay(len(ts), 0); len(ls) <= most {
+		return draw(ls)
+	}
+	for cut := long - 1; cut >= minJumpTitle; cut-- {
+		if ls := lay(len(ts), cut); len(ls) <= most {
+			return draw(ls)
 		}
 	}
-	return out
+	for k := len(ts) - 1; k > 0; k-- {
+		if ls := lay(k, minJumpTitle); len(ls) <= most {
+			return draw(ls)
+		}
+	}
+	// Too narrow for even one place: esc and how many there are.
+	ls := lay(0, minJumpTitle)
+	return draw(ls[:min(most, len(ls))])
 }
 
-// handleJump takes the key after g: a letter goes there; anything else
-// leaves without doing anything.
+// handleJump takes the key after g: a letter goes there; anything else (g,
+// esc, a letter no place has) leaves without doing anything.
 func (a *app) handleJump(k key) {
-	a.jumping = false
-	pv := a.top()
-	ts := a.jumpTargets(pv)
-	if k.name != "" || k.r < 'a' || int(k.r-'a') >= len(ts) {
+	ts := a.jumpTo
+	a.stopJump()
+	if k.name != "" {
 		return
 	}
-	a.goTo(pv, ts[k.r-'a'])
+	if i := jumpIndex(k.r, len(ts)); i >= 0 {
+		a.goTo(a.top(), ts[i])
+	}
 }
 
 // goTo puts the cursor on the first stop of n (a notice or Fold: n

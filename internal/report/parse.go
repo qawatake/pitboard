@@ -42,7 +42,7 @@ type partSpec struct {
 var parts = map[string]partSpec{
 	"Title":   {attrs: map[string]bool{}, parents: []string{""}, oneLine: true},
 	"Section": {attrs: map[string]bool{"title": true}, parents: []string{""}, holdsAny: true},
-	"Item":    {attrs: map[string]bool{"id": true, "state": false, "status": false, "note": false, "ask": false, "wait": false, "look": false, "re": false}, parents: []string{"", "Section", "Fold"}},
+	"Item":    {attrs: map[string]bool{"id": true, "state": false, "status": false, "note": false, "ask": false, "wait": false, "look": false}, parents: []string{"", "Section", "Fold"}},
 	"Ask":     {attrs: map[string]bool{"id": true, "look": false}, parents: []string{"", "Section", "Fold"}},
 	"Option":  {attrs: map[string]bool{"key": true}, parents: []string{"Ask"}, oneLine: true},
 	"Link":    {attrs: map[string]bool{"id": true, "path": false, "url": false, "ask": false, "look": false}, parents: []string{"", "Section", "Fold"}, oneLine: true},
@@ -70,7 +70,6 @@ var (
 	reNumbered = regexp.MustCompile(`^([0-9]{1,3}\.)\s+(.*)$`)
 	reSubHead  = regexp.MustCompile(`^\*\*[^*]+\*\*$`)
 	reHeadWord = regexp.MustCompile(`^\*\*[^*]+\*\*[:：]`)
-	reNumber   = regexp.MustCompile(`^[0-9]{1,9}$`)
 )
 
 // maxNotices is how many Notice parts a report may have.
@@ -315,7 +314,8 @@ func (p *reportParser) open(no int, raw, trim string) {
 		n.Kind = KindNotice
 		if v, ok := attrs["at"]; ok {
 			t, err := time.ParseInLocation(AtLayout, v, time.Local)
-			if err != nil {
+			if err != nil || t.Format(AtLayout) != v {
+				// Strict: zero-padded (time.Parse takes 9:05 for 09:05).
 				p.errf(no, "at %q: write the local time as YYYY-MM-DD HH:MM (date '+%%Y-%%m-%%d %%H:%%M')", v)
 			} else {
 				n.At = t
@@ -364,13 +364,6 @@ func (p *reportParser) open(no int, raw, trim string) {
 			p.errf(no, "look %q: the only value is \"y\" (asking the person to read the line)", v)
 		} else {
 			n.Look = v
-		}
-	}
-	if v, ok := attrs["re"]; ok {
-		if reNumber.MatchString(v) {
-			n.Re = v
-		} else {
-			p.errf(no, "re %q: the number of the person's thought (thought N in 'changes'), digits only", v)
 		}
 	}
 	if id := attrs["id"]; id != "" {

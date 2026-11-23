@@ -100,7 +100,8 @@ Writing report.md:
         Installing it touches ~/.claude/settings.json.
       </Item>
 
-      <Item id="a-cwd" re="7" look="y">Each project gets its own board.
+      <Item id="a-cwd" look="y">> Is there one board per project?
+        Yes: each project gets its own board.
         The data lives in the working directory, so boards never mix.
       </Item>
     </Section>
@@ -125,7 +126,7 @@ Writing report.md:
 
   Parts (anything else is an error):
     Notice    id (required), at="YYYY-MM-DD HH:MM" (local time it was put
-              up; shown at its right end). Like an Item: the first line is
+              up, zero-padded; shown at its right end). Like an Item: the first line is
               the title, the lines after it (text and Code) what opening it
               shows. At the top level only, 3 at most. The board shows it
               above the page, in yellow, however far the person scrolls; the
@@ -139,12 +140,7 @@ Writing report.md:
               ask="y" (you want a y / n on it; not on a done Item),
               wait="you" (it cannot move on until the person does
               something; not on a done Item),
-              look="y" (you want the person to read it: see Marks),
-              re="N" (it answers the person's thought N, the number
-              'changes' gives; digits only): the board shows that
-              thought as the line itself ("> " and its words, 3 rows at
-              most), with the title on the rows under it (the thought
-              taken back: just the title).
+              look="y" (you want the person to read it: see Marks).
               The status is colored by attributes, not by its words:
               yellow with wait="you" (needs the person), green when
               state="doing" (moving), faint otherwise (queued, on hold).
@@ -194,10 +190,10 @@ A layout to start from:
     2. Notices, only when there is one (see Manners).
     3. "For you": first what the person is to answer or do (Ask, Item with
        ask="y" or wait="you"); under them, your answers to what they asked,
-       each <Item id="a-..." re="N" look="y">the answer in one sentence,
-       with the details as its contents (the board quotes their thought
-       above it; they hide it with x once read). (When it is empty, they
-       know they need do nothing.)
+       each <Item id="a-..." look="y"> titled "> " and their question,
+       its contents starting with the conclusion in one sentence, details
+       after it (they hide it with x once read; see Manners). (When the
+       section is empty, they know they need do nothing.)
     4. "In progress": what you are doing now (state="doing"; the board
        says 作業中 itself) and next, with a status only for something else:
        waiting on you, queued, on hold. (They see what moves without
@@ -266,11 +262,15 @@ Manners:
     report, with ask="y" (or an Ask) or wait="you". Never only in the chat.
   - Questions and answers: when the person asks you something on the board
     (a thought), answer in the report, so that the board alone tells them
-    where things stand when they come back. Put one Item per question at
-    the bottom of "For you", with re="N" (N: the thought's number) and
-    look="y". The board shows their words as the line, title under them, so do not restate the
-    question: the title is the conclusion of your answer in one sentence,
-    the contents the full answer. The person hides
+    where things stand when they come back. Put an answer Item at the
+    bottom of "For you", with look="y". Its title is "> " and the
+    person's question in their words; shorten or summarize it when it is
+    long (one line is best). When shortening, never stop mid-sentence
+    (a title ending in "...the PR to" reads as cut off): cut at a clause
+    boundary so it reads complete, or summarize. The first line of the
+    contents is your conclusion in one sentence; the details follow. One
+    answer Item may cover several thoughts asking the same thing. The
+    person hides
     it with x once read; when "hide" for it arrives, drop that Item from
     report.md (always; see the next manner). You may
     also drop an answer the person replied to, once you judge it settled.

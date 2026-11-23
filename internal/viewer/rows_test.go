@@ -402,3 +402,31 @@ func TestNoticeAt(t *testing.T) {
 		t.Errorf("shown again by a new time:\n%s", strings.Join(ls, "\n"))
 	}
 }
+
+// On a low screen, the notice the cursor is on is cut with its right part
+// on one row of its own (or left out), so the sum of the others still
+// shows.
+func TestLowNoticeRightOneRow(t *testing.T) {
+	prev := clock
+	clock = func() time.Time { return time.Date(2026, 11, 23, 23, 0, 0, 0, time.Local) }
+	t.Cleanup(func() { clock = prev })
+	st := testStore(t)
+	os.WriteFile(st.ReportPath(), []byte("<Notice id=\"n\" at=\"2026-11-23 21:46\">"+strings.Repeat("とても長いお知らせ", 4)+"\n  中身\n</Notice>\n<Notice id=\"m\">二つ目</Notice>\n<Notice id=\"o\">三つ目</Notice>\n<Item id=\"a\">項目</Item>\n"), 0o644)
+	st.Append(board.Event{Op: "thought", ID: "n", Title: strings.Repeat("とても長いお知らせ", 4), Text: "了解"})
+	for _, sz := range [][2]int{{30, 9}, {30, 5}, {20, 9}, {40, 12}} {
+		a := testApp(t, st)
+		a.t.w, a.t.h = sz[0], sz[1]
+		pv := a.top()
+		ls, _ := screen(t, a)
+		pins := a.pin(pv, sz[1], "")
+		if room := max(sz[1]/3, 1); len(pins.rows) > room {
+			t.Errorf("%v: notices take %d rows:\n%s", sz, len(pins.rows), strings.Join(ls, "\n"))
+		}
+		if sz[1]/3 >= 3 && rowOf(ls, "ほか") < 0 {
+			t.Errorf("%v: no sum:\n%s", sz, strings.Join(ls, "\n"))
+		}
+		if i := rowOf(ls, "21:46"); i >= 0 && !strings.Contains(ls[i], "未送信") && sz[1]/3 >= 3 {
+			t.Errorf("%v: right part split:\n%s", sz, strings.Join(ls, "\n"))
+		}
+	}
+}

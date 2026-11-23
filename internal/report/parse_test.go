@@ -44,6 +44,9 @@ func TestNoticeParse(t *testing.T) {
 		{"<Notice id=\"a\">a</Notice>\n<Notice id=\"b\">b</Notice>\n<Notice id=\"c\">c</Notice>\n<Notice id=\"d\">d</Notice>", "at most 3"},
 		{"<Notice id=\"n\" at=\"21:46\">x</Notice>", "YYYY-MM-DD HH:MM"},
 		{"<Notice id=\"n\" at=\"2026/11/23 21:46\">x</Notice>", "YYYY-MM-DD HH:MM"},
+		{"<Notice id=\"n\" at=\"2026-11-23 9:05\">x</Notice>", "YYYY-MM-DD HH:MM"},
+		{"<Notice id=\"n\" at=\"2026-1-23 09:05\">x</Notice>", "YYYY-MM-DD HH:MM"},
+		{"<Notice id=\"n\" at=\"2026-02-30 09:05\">x</Notice>", "YYYY-MM-DD HH:MM"},
 		{"<Item id=\"i\" at=\"2026-11-23 21:46\">x</Item>", "at"},
 	}
 	for _, c := range cases {
@@ -454,28 +457,16 @@ func TestPartNamesListEveryPart(t *testing.T) {
 	}
 }
 
-// re is the number of the thought an Item answers: digits only, on an Item
-// only, and part of what the line is for hiding.
-func TestReAttribute(t *testing.T) {
-	for _, c := range []struct{ src, want string }{
-		{`<Item id="a" re="12">x</Item>`, ""},
-		{`<Item id="a" re="t12">x</Item>`, `re "t12"`},
-		{`<Item id="a" re="">x</Item>`, `re ""`},
-		{`<Link id="a" path="p" re="1">x</Link>`, "no attribute"},
-	} {
-		_, probs, _ := Parse(c.src)
-		got := ""
-		for _, p := range probs {
-			got += p.Msg
-		}
-		if (c.want == "") != (got == "") || !strings.Contains(got, c.want) {
-			t.Errorf("%s: %q (want %q)", c.src, got, c.want)
-		}
+// re is gone: the person's question is quoted by the AI in the title.
+func TestReAttributeGone(t *testing.T) {
+	_, probs, _ := Parse(`<Item id="a" re="12">x</Item>`)
+	if len(probs) == 0 || !strings.Contains(probs[0].Msg, "no attribute") {
+		t.Errorf("problems %v", probs)
 	}
-	a, _, _ := Parse(`<Item id="a" re="1">x</Item>`)
-	b, _, _ := Parse(`<Item id="a" re="2">x</Item>`)
-	c, _, _ := Parse(`<Item id="a">x</Item>`)
-	if a[0].Re != "1" || HideKey(a[0]) == HideKey(b[0]) || HideKey(c[0]) != "Item|a|x|todo|" {
-		t.Errorf("keys %q %q %q", HideKey(a[0]), HideKey(b[0]), HideKey(c[0]))
+	n, probs, _ := Parse(`<Item id="a">> まだ？
+まだです。
+</Item>`)
+	if len(probs) != 0 || n[0].Text != "> まだ？" {
+		t.Errorf("%q %v", n[0].Text, probs)
 	}
 }

@@ -105,7 +105,6 @@ type Thing struct {
 	Path   string    // a Link's file path, as written
 	URL    string    // a Link's URL
 	At     time.Time // a Notice's: when the AI put it up
-	Quote  *Comment  // the comment an Item answers (re="N"); drawn as QuoteText says
 	// Comments are the comments written on it, oldest first.
 	Comments []*Comment
 	// Body is what opening an Item or Notice shows (paragraphs, list
@@ -253,9 +252,6 @@ func (b *Board) thing(n *report.Node, comments map[int]*Comment) *Thing {
 	t.Mark = b.MarkOf(n)
 	t.You = n.Wait == "you" && !t.Hidden
 	t.Right = b.RightOf(n)
-	if q := b.Quote(n); q != nil {
-		t.Quote = comments[q.N]
-	}
 	if t.Target != "" {
 		for _, th := range b.State.On(t.Target) {
 			if c := comments[th.N]; c != nil {

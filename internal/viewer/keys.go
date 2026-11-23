@@ -55,9 +55,7 @@ func (a *app) handle(k key) (quit bool) {
 	case k.r == 'q':
 		return true
 	case k.r == 'g':
-		if len(a.jumpTargets(pv)) > 0 {
-			a.jumping = true
-		}
+		a.startJump(pv)
 	case (k.r == 'j' || k.name == "down") && pv.offScreen() > 0,
 		(k.r == 'k' || k.name == "up") && pv.offScreen() < 0:
 		// The cursor's line is off the screen in this direction: bring it

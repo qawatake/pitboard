@@ -37,9 +37,6 @@ type Node struct {
 	Ask    string // Item / Link: "y" when the AI asks for y / n on it
 	Wait   string // Item: "you" when it cannot move on without the person
 	Look   string // Item / Link / Fold (/ Ask): "y" when the AI wants it read
-	// Re is the number of the person's thought an Item answers (digits;
-	// "" when none): the viewer quotes that thought above its title.
-	Re string
 	// At is when the AI put up a Notice (local time; zero when not given).
 	// Not part of what the line is: it never shows a hidden notice again.
 	At    time.Time
@@ -151,13 +148,7 @@ func HideKey(n *Node) string {
 		if n.ID == "" {
 			return ""
 		}
-		k := strings.Join([]string{n.Part(), n.ID, n.Text, n.state(), n.Status}, "|")
-		if n.Re != "" {
-			// An answer to another thought is another line (keys of lines
-			// without re stay as they were).
-			k += "|re=" + n.Re
-		}
-		return k
+		return strings.Join([]string{n.Part(), n.ID, n.Text, n.state(), n.Status}, "|")
 	case n.Kind == KindDetails:
 		if n.ID != "" {
 			return "Fold|id=" + n.ID

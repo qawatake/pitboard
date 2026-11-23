@@ -36,7 +36,7 @@ func TestGoTo(t *testing.T) {
 	a.handle(key{r: 'g'})
 	ls, _ := screen(t, a)
 	hints := plainLines(a.bottomLines(0))
-	if !strings.Contains(hints, "a お知らせ  b あなたへ  c 進行中  d 文だけ  e 決まったこと  esc やめる") {
+	if !strings.Contains(hints, "esc やめる  a お知らせ  b あなたへ  c 進行中  d 文だけ  e 決まったこと") {
 		t.Errorf("hints %q", hints)
 	}
 	if i := rowOf(ls, "あなたへ"); i < 0 || !strings.HasPrefix(ls[i], "b ") {
@@ -161,5 +161,142 @@ func TestReadTallContents(t *testing.T) {
 	}
 	if pv.cur != "a" || presses < 4 {
 		t.Errorf("k: cur %q after %d presses", pv.cur, presses)
+	}
+}
+
+func manyPlaces(n int) string {
+	var b strings.Builder
+	for i := range n {
+		title := fmt.Sprintf("節 %d", i+1)
+		if i%3 == 0 {
+			title = fmt.Sprintf("とても長い題の節その %d で、見分けは終わりに付く", i+1)
+		}
+		fmt.Fprintf(&b, "<Section title=\"%s\">\n<Item id=\"i%d\">項目 %d</Item>\n</Section>\n\n", title, i, i)
+	}
+	return b.String()
+}
+
+// g is never a place's letter: with 7 places or more, g g still leaves,
+// and h goes to the 7th.
+func TestJumpSkipsG(t *testing.T) {
+	st := testStore(t)
+	os.WriteFile(st.ReportPath(), []byte(manyPlaces(30)), 0o644)
+	a := testApp(t, st)
+	a.t.w, a.t.h = 80, 24
+	pv := a.top()
+	a.render()
+	if n := len(a.jumpTargets(pv)); n != 25 {
+		t.Fatalf("%d places", n)
+	}
+	before := pv.cur
+	a.handle(key{r: 'g'})
+	a.handle(key{r: 'g'})
+	if a.jumping || pv.cur != before {
+		t.Fatalf("g g: jumping %v cur %q", a.jumping, pv.cur)
+	}
+	a.handle(key{r: 'g'})
+	a.handle(key{r: 'h'})
+	if pv.cur != "i6" {
+		t.Errorf("h: cur %q", pv.cur)
+	}
+	a.handle(key{r: 'g'})
+	a.handle(key{r: 'z'})
+	if pv.cur != "i24" {
+		t.Errorf("z: cur %q", pv.cur)
+	}
+}
+
+// The list of places takes at most a third of the screen (three lines),
+// esc first, titles cut evenly but not below 6 cells, then "… +N"; the
+// letters of the places left out still work.
+func TestJumpListFits(t *testing.T) {
+	st := testStore(t)
+	os.WriteFile(st.ReportPath(), []byte(manyPlaces(25)), 0o644)
+	for _, sz := range [][2]int{{80, 24}, {40, 24}, {20, 10}, {20, 5}, {30, 2}} {
+		a := testApp(t, st)
+		a.t.w, a.t.h = sz[0], sz[1]
+		pv := a.top()
+		a.render()
+		a.handle(key{r: 'g'})
+		ls := a.bottomLines(0)
+		hints := plainLines(ls)
+		most := max(min(3, sz[1]/3), 1)
+		if len(a.jumpLines(a.jumpTo)) > most {
+			t.Errorf("%v: %d lines:\n%s", sz, len(a.jumpLines(a.jumpTo)), plainLines(a.jumpLines(a.jumpTo)))
+		}
+		if !strings.HasPrefix(strings.TrimSpace(hints), "esc やめる") && !strings.Contains(strings.Split(hints, "\n")[len(strings.Split(hints, "\n"))-len(a.jumpLines(a.jumpTo))], "esc やめる") {
+			t.Errorf("%v: esc is not first:\n%s", sz, hints)
+		}
+		for _, l := range ls {
+			if w := width(reEsc.ReplaceAllString(l, "")); w > sz[0] {
+				t.Errorf("%v: %d cells: %q", sz, w, l)
+			}
+		}
+		if sz == [2]int{80, 24} && !strings.Contains(hints, "b 節 2") {
+			t.Errorf("short titles cut:\n%s", hints)
+		}
+		if sz == [2]int{20, 10} && !strings.Contains(hints, "… +") {
+			t.Errorf("no … +N:\n%s", hints)
+		}
+		a.handle(key{r: 'z'})
+		if pv.cur != "i24" {
+			t.Errorf("%v: z: cur %q", sz, pv.cur)
+		}
+	}
+}
+
+// A rewrite of the report while g waits leaves goto mode: the letters
+// were given to the report as it was.
+func TestJumpRewriteLeaves(t *testing.T) {
+	st := testStore(t)
+	os.WriteFile(st.ReportPath(), []byte(manyPlaces(4)), 0o644)
+	a := testApp(t, st)
+	pv := a.top()
+	a.render()
+	a.handle(key{r: 'g'})
+	time.Sleep(10 * time.Millisecond)
+	os.WriteFile(st.ReportPath(), []byte("<Section title=\"零\">\n<Item id=\"z\">z</Item>\n</Section>\n\n"+manyPlaces(4)), 0o644)
+	future := time.Now().Add(time.Second)
+	os.Chtimes(st.ReportPath(), future, future)
+	if !pv.Stale() {
+		t.Skip("the rewrite is not seen as one")
+	}
+	a.tickReload()
+	if a.jumping || a.msg != msgMoved {
+		t.Errorf("jumping %v msg %q", a.jumping, a.msg)
+	}
+}
+
+// The cursor's line off the screen: the arrow outranks every key, even
+// with "s 送る" on a narrow line.
+func TestOffScreenArrowKept(t *testing.T) {
+	st := testStore(t)
+	var b strings.Builder
+	b.WriteString("<Item id=\"a\">長い項目\n")
+	for i := range 60 {
+		fmt.Fprintf(&b, "  中身の %d 行目\n\n", i)
+	}
+	b.WriteString("</Item>\n<Item id=\"b\">次の項目</Item>\n")
+	os.WriteFile(st.ReportPath(), []byte(b.String()), 0o644)
+	for _, w := range []int{80, 40, 20} {
+		a := testApp(t, st)
+		a.t.w, a.t.h = w, 24
+		pv := a.top()
+		a.render()
+		a.handle(key{r: 'j'})
+		a.handle(key{r: 'k'})
+		a.handle(key{name: "enter"})
+		a.render()
+		a.handle(key{r: 'j'})
+		a.render()
+		a.handle(key{r: 'j'})
+		a.render()
+		if pv.curShown {
+			t.Fatalf("%d: the cursor is on screen", w)
+		}
+		a.b.Unsent = 2
+		if s := hintLine(a); !strings.Contains(s, "↑ カーソルは上") && (w > 20 || !strings.Contains(s, "↑ カーソル")) {
+			t.Errorf("%d: %q", w, s)
+		}
 	}
 }
