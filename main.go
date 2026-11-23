@@ -26,7 +26,7 @@ Usage:
   pitboard [-s SESSION] [view]     the viewer (without -s: the most recently updated session)
                                    (-s may also come after the command)
   pitboard -s SESSION path         print the path of the session's report.md (write the report there)
-  pitboard -s SESSION changes      print what the person did since the last call, one per line
+  pitboard -s SESSION changes      print what the person has sent since the last call, one per line
   pitboard -s SESSION settle N TEXT   say where thought N went
   pitboard -s SESSION check        check report.md; prints problems with line numbers, exit 1 if any
   pitboard -h                      this help
@@ -140,9 +140,21 @@ Manners:
   - Tags start at the beginning of a line and part names start with a
     capital letter (<Item>, not <item>).
   - Run 'pitboard check' after every rewrite and fix what it reports.
-  - Read 'pitboard changes' at the start of each turn and before you stop
-    (hooks, below, deliver them too; calling it yourself does no harm:
-    nothing is delivered twice).
+  - Questions and answers: when the person asks you something (in the chat
+    or in a thought on the board), answer in the chat and also in the
+    report, so that the board alone tells them where things stand when they
+    come back. Keep a section like "Answers" with one Item per question:
+    its title is the question (short, close to their words), its contents
+    the answer. The person hides it with x once read; when "hide:" for it
+    arrives, drop that Item the next time you rewrite the report. When a
+    thought was a question, settle it with "answered (in Answers)".
+  - Nothing that matters lives only in the chat: decisions, answers and
+    requests to the person go in the report too.
+  - The person answers on the board at their own pace (y / n, answers,
+    thoughts, hides) and then sends them all at once (Send, below). When a
+    line starting with "pitboard:" arrives in the chat, run 'changes'. You
+    need not call it often yourself: it prints only what was sent, and
+    nothing twice.
 
 'changes' prints lines like:
     y hook (Decide whether to install the hook)
@@ -183,10 +195,9 @@ Thoughts:
   destination.
 
 Hooks:
-  With hooks, what the person does on the board reaches you while you work
-  (after your next tool call) and just before you stop, not only when they
-  type in the chat. Without them, call 'changes' yourself at the start of
-  each turn and before you stop. In ~/.claude/settings.json:
+  With hooks, what the person has sent reaches you while you work (after
+  your next tool call) and just before you stop, without waiting for the
+  line in the chat. In ~/.claude/settings.json:
 
     "hooks": {
       "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "pitboard hook prompt-submit" }] }],
@@ -200,20 +211,24 @@ Hooks:
     deliver is hide / unhide (they go with the next delivery).
   - You cannot tell whether the hooks are installed.
 
-Sending (the person wakes you):
-  Hooks deliver only while you are working. When you have stopped, the person
-  can press s on the board (or ctrl+s while writing a thought), and this line
-  is typed into your terminal:
+Send:
+  Nothing the person does on the board reaches you until they send it: s on
+  the board (or ctrl+s while writing a thought) marks everything so far as
+  sent (a "send" in events.jsonl) and wakes you by typing this line into
+  your terminal:
 
     pitboard: the person sent N item(s) from the board. Run "pitboard -s SESSION changes" and act on them.
 
-  Do what it says: run 'changes' and act on what it prints. Sending does not
-  mark anything as delivered; 'changes' does.
-  The viewer sends through $PITBOARD_SEND if set (run with sh -c, given
-  $PITBOARD_SESSION and $PITBOARD_MESSAGE), or else, inside herdr
-  (HERDR_ENV=1), with 'herdr agent prompt' to the agent whose session is
-  SESSION. Each try is cut off after 5 seconds. An example for tmux (keep
-  "$PITBOARD_MESSAGE" in double quotes, or it is split into words):
+  Do what it says: run 'changes' and act on what it prints. 'changes' (and
+  the hooks) deliver only what comes before the latest send; what the person
+  does after it waits for the next send. If waking you fails, the send is
+  still recorded, and the person is asked to tell you in the chat.
+  To wake you, the viewer runs $PITBOARD_SEND if set (with sh -c, given
+  $PITBOARD_SESSION and $PITBOARD_MESSAGE), or else, when herdr is on PATH,
+  'herdr agent prompt' to the agent whose session is SESSION (found with
+  'herdr agent list'; the viewer itself need not run inside herdr). Each try
+  is cut off after 5 seconds. An example for tmux (keep "$PITBOARD_MESSAGE"
+  in double quotes, or it is split into words):
 
     export PITBOARD_SEND='tmux send-keys -t work:0.1 "$PITBOARD_MESSAGE" Enter'
 `

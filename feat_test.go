@@ -69,6 +69,11 @@ func TestHookOutputs(t *testing.T) {
 	}
 
 	st.Append(Event{Op: "react", ID: "hook", Value: "y", Title: "hook を入れるか決める"})
+	// Not sent yet: nothing is delivered.
+	if got := runHook(t, "prompt-submit", in); got != "" {
+		t.Errorf("delivered before send: %q", got)
+	}
+	sendAll(st)
 	got := runHook(t, "prompt-submit", in)
 	want := "pitboard (the person acted on the board):\ny hook (hook を入れるか決める)\n" + settleLine + "\n"
 	if got != want {
@@ -79,6 +84,7 @@ func TestHookOutputs(t *testing.T) {
 	}
 
 	st.Append(Event{Op: "thought", Text: "経過は要らないかも"})
+	sendAll(st)
 	var post struct {
 		HookSpecificOutput struct {
 			HookEventName     string `json:"hookEventName"`
@@ -89,11 +95,12 @@ func TestHookOutputs(t *testing.T) {
 		t.Fatal(err)
 	}
 	if post.HookSpecificOutput.HookEventName != "PostToolUse" ||
-		!strings.Contains(post.HookSpecificOutput.AdditionalContext, "thought 2: 経過は要らないかも\n"+settleLine) {
+		!strings.Contains(post.HookSpecificOutput.AdditionalContext, "thought 3: 経過は要らないかも\n"+settleLine) {
 		t.Errorf("post-tool: %+v", post)
 	}
 
 	st.Append(Event{Op: "thought", Text: "止まる前に"})
+	sendAll(st)
 	// Already kept from stopping once: no block, and nothing is used up.
 	if got := runHook(t, "stop", hookInput(st.base, "s1", `"stop_hook_active":true`)); got != "" {
 		t.Errorf("stop with stop_hook_active: %q", got)
@@ -105,7 +112,7 @@ func TestHookOutputs(t *testing.T) {
 	if err := json.Unmarshal([]byte(runHook(t, "stop", in)), &stop); err != nil {
 		t.Fatal(err)
 	}
-	if stop.Decision != "block" || !strings.Contains(stop.Reason, "thought 3: 止まる前に") {
+	if stop.Decision != "block" || !strings.Contains(stop.Reason, "thought 5: 止まる前に") {
 		t.Errorf("stop: %+v", stop)
 	}
 	if got := runHook(t, "stop", in); got != "" {
@@ -247,6 +254,7 @@ func TestHideAndUnhide(t *testing.T) {
 		t.Errorf("a changed line must show again:\n%s", s)
 	}
 
+	sendAll(st)
 	got, _ := st.Changes()
 	want := []string{"hide: 板はセッションごと", "hide: 題 A", "unhide: 題 A"}
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
@@ -293,9 +301,10 @@ func TestThoughtsPane(t *testing.T) {
 		}
 		st.Append(e)
 	}
+	sendAll(st)
 	st.Changes() // thoughts 1-6 received
 	st.Settle(2, "todo にした")
-	st.Append(Event{Op: "thought", Text: "new"}) // 8, unread
+	st.Append(Event{Op: "thought", Text: "new"}) // 9, not sent
 	a.loadEvents()
 	var p []string
 	for _, l := range a.pane(30) {
@@ -323,7 +332,7 @@ func TestThoughtsPane(t *testing.T) {
 	// The settled one comes after those waiting, with its destination.
 	a.t.h = 40
 	order := a.paneOrder()
-	if order[0].N != 8 || order[len(order)-1].N != 2 {
+	if order[0].N != 9 || order[len(order)-1].N != 2 {
 		t.Errorf("order: first %d last %d", order[0].N, order[len(order)-1].N)
 	}
 	if w, _ := a.state.statusOf(order[len(order)-1]); w != "済" {
@@ -401,7 +410,7 @@ func TestHelpScrolls(t *testing.T) {
 	if !a.help {
 		t.Fatal("y closed the list of keys")
 	}
-	for range 30 {
+	for range 80 {
 		a.handle(key{r: 'j'})
 		a.render()
 	}

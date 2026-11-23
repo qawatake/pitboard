@@ -17,6 +17,7 @@ func noSendTarget(t *testing.T) {
 	t.Helper()
 	t.Setenv("PITBOARD_SEND", "")
 	t.Setenv("HERDR_ENV", "")
+	t.Setenv("PATH", "/usr/bin:/bin") // no herdr (sh is still there)
 }
 
 // fakeHerdr puts a stand-in for herdr first on PATH: 'agent list' prints
@@ -34,7 +35,8 @@ echo "unexpected: $*" >&2; exit 2
 `, filepath.Join(dir, "list.json"), prompted)
 	os.WriteFile(filepath.Join(dir, "herdr"), []byte(script), 0o755)
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
-	t.Setenv("HERDR_ENV", "1")
+	// HERDR_ENV is left unset: herdr on PATH is enough (the viewer may run
+	// outside herdr).
 	return prompted
 }
 
@@ -71,6 +73,9 @@ func TestSendThroughHerdr(t *testing.T) {
 	if st.Seen() != 0 {
 		t.Error("sending must not mark anything as delivered")
 	}
+	if evs := st.Events(); evs[len(evs)-1].Op != "send" {
+		t.Errorf("s must record a send: %+v", evs[len(evs)-1])
+	}
 }
 
 func TestSendHerdrWithoutTheSession(t *testing.T) {
@@ -79,7 +84,7 @@ func TestSendHerdrWithoutTheSession(t *testing.T) {
 	st.Append(Event{Op: "thought", Text: "a"})
 	a := testApp(t, st)
 	a.handle(key{r: 's'})
-	if !strings.Contains(a.msg, "herdr にこのセッションの AI がいません") {
+	if !strings.Contains(a.msg, "送る印は付けました") || !strings.Contains(a.msg, "herdr にこのセッション (s1) の AI がいません。AI を herdr の中で動かすか、PITBOARD_SEND を設定してください") {
 		t.Errorf("msg %q", a.msg)
 	}
 	if _, err := os.Stat(prompted); err == nil {
@@ -93,8 +98,17 @@ func TestSendNowhere(t *testing.T) {
 	st.Append(Event{Op: "thought", Text: "a"})
 	a := testApp(t, st)
 	a.handle(key{r: 's'})
-	if a.msg != "送り先がありません" {
+	if a.msg != "送る印は付けました。AI を起こせなかったので、チャットで一言伝えてください。\n"+`AI を起こす方法がありません。PITBOARD_SEND を設定してください (pitboard -h の "Send")` {
 		t.Errorf("msg %q", a.msg)
+	}
+	// The mark stays: the AI gets the thought from changes.
+	if lines, _ := st.Changes(); strings.Join(lines, "\n") != "thought 1: a" {
+		t.Errorf("changes after a failed wake: %q", lines)
+	}
+	// Two lines for this message, at most.
+	a.t.w = 50
+	if b := a.bottom(); len(b) != 2 {
+		t.Errorf("failure message lines: %q", plainLines(b))
 	}
 }
 
@@ -111,7 +125,7 @@ func TestSendCommand(t *testing.T) {
 		a.handle(key{r: r})
 	}
 	a.handle(key{name: "ctrl+s"})
-	if a.in != nil || len(st.Events()) != 1 || st.Events()[0].Text != "思いつき" {
+	if a.in != nil || len(st.Events()) != 2 || st.Events()[0].Text != "思いつき" || st.Events()[1].Op != "send" {
 		t.Fatalf("ctrl+s must write the thought: %+v", st.Events())
 	}
 	b, _ := os.ReadFile(out)
@@ -126,7 +140,7 @@ func TestSendCommand(t *testing.T) {
 	a.handle(key{r: 'm'})
 	a.handle(key{r: 'x'})
 	a.handle(key{name: "enter"})
-	if _, err := os.Stat(out); err == nil || len(st.Events()) != 2 {
+	if _, err := os.Stat(out); err == nil || len(st.Events()) != 3 {
 		t.Error("enter must write without sending")
 	}
 }
@@ -138,13 +152,14 @@ func TestSendFailsAndTimesOut(t *testing.T) {
 	a := testApp(t, st)
 	t.Setenv("PITBOARD_SEND", "echo first line >&2; echo second >&2; exit 3")
 	a.handle(key{r: 's'})
-	if !strings.HasPrefix(a.msg, "送れませんでした") || !strings.Contains(a.msg, "first line") || strings.Contains(a.msg, "second") {
+	if !strings.Contains(a.msg, "送れませんでした") || !strings.Contains(a.msg, "first line") || strings.Contains(a.msg, "second") {
 		t.Errorf("failure: %q", a.msg)
 	}
 	prev := sendTimeout
 	sendTimeout = 200 * time.Millisecond
 	t.Cleanup(func() { sendTimeout = prev })
 	t.Setenv("PITBOARD_SEND", "sleep 5")
+	st.Append(Event{Op: "thought", Text: "b"})
 	start := time.Now()
 	a.handle(key{r: 's'})
 	if d := time.Since(start); d > 2*time.Second || !strings.Contains(a.msg, "打ち切りました") {
@@ -211,16 +226,22 @@ func TestUnsentMark(t *testing.T) {
 		t.Errorf("list: %q", ls[0])
 	}
 	a.in, a.list = nil, false
-	// Sending alone does not clear it; changes does.
+	// s clears it: what was sent waits, faint, until the AI reads it.
 	t.Setenv("PITBOARD_SEND", "true")
 	a.handle(key{r: 's'})
 	ls, _ = screen(t, a)
-	if !strings.HasSuffix(ls[0], "● 未送信 3") {
+	if strings.Contains(ls[0], "未送信") || !strings.HasSuffix(ls[0], "送信済み 3") {
 		t.Errorf("after s: %q", ls[0])
+	}
+	// Something new after the send: both.
+	st.Append(Event{Op: "thought", Text: "b"})
+	a.loadEvents()
+	if ls, _ := screen(t, a); !strings.HasSuffix(ls[0], "送信済み 3  ● 未送信 1") {
+		t.Errorf("sent and unsent: %q", ls[0])
 	}
 	st.Changes()
 	a.loadEvents()
-	if ls, _ := screen(t, a); strings.Contains(ls[0], "未送信") {
+	if ls, _ := screen(t, a); strings.Contains(ls[0], "送信済み") || !strings.HasSuffix(ls[0], "● 未送信 1") {
 		t.Errorf("after changes: %q", ls[0])
 	}
 }

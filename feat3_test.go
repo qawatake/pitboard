@@ -53,7 +53,7 @@ func TestPaneByJK(t *testing.T) {
 	a.handle(key{name: "enter"})
 	a.render()
 	p = plainLines(a.pane(30))
-	if a.pcur != 3 || !strings.Contains(p, "▾ 思いつき3 二行目") || !strings.Contains(p, "まだ AI に届いていません") {
+	if a.pcur != 3 || !strings.Contains(p, "▾ 思いつき3 二行目") || !strings.Contains(p, "まだ送っていません (s で送る)") {
 		t.Errorf("enter opens the thought:\n%s", p)
 	}
 	if s := hintLine(a); s != "    enter 閉じる  x 取り消す  m 書く  ? キー" {

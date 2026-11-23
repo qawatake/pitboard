@@ -8,4 +8,6 @@ description: Keeps a pitboard board for the current session — a report the AI 
 Before using pitboard, run `pitboard -h` and read all of it.
 It is the manual of the version installed now: how to start a board, the report format,
 the manners, how to read what the person did, hooks, and sending.
+In short: the person answers on the board and then sends it all at once;
+when a line starting with "pitboard:" arrives in the chat, run `pitboard -s SESSION changes`.
 This skill does not repeat it, so it never goes out of date when pitboard is updated.

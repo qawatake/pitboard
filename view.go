@@ -368,6 +368,9 @@ func (a *app) handle(k key) (quit bool) {
 	if k.name == "ctrl+c" {
 		return true
 	}
+	if a.in == nil {
+		k = imeFree(k)
+	}
 	// u right after taking a thought back undoes it; any other key ends
 	// the chance.
 	if undo := a.undo; undo != 0 {
@@ -422,6 +425,12 @@ func (a *app) handle(k key) (quit bool) {
 		if !pv.step(-1) {
 			pv.top = max(pv.top-1, 0)
 		}
+	case k.name == "pgup":
+		pv.top = max(pv.top-max(a.t.h/2, 1), 0)
+	case k.name == "pgdn":
+		if !pv.atEnd {
+			pv.top += max(a.t.h/2, 1) // draw keeps it within the page
+		}
 	case k.name == "tab":
 		a.list, a.lfollow = true, true
 	case k.r == 'm' && a.canWrite():
@@ -440,6 +449,24 @@ func (a *app) handle(k key) (quit bool) {
 		a.react(pv, k.r)
 	}
 	return false
+}
+
+// imeFree makes the keys work with a Japanese input method left on, outside
+// the editor: full-width letters and symbols (and the full-width space)
+// become their ASCII keys, and ctrl+n / ctrl+p are down / up (keys that do
+// not go through the input method).
+func imeFree(k key) key {
+	switch {
+	case k.r >= 0xff01 && k.r <= 0xff5e:
+		k.r -= 0xfee0
+	case k.r == 0x3000:
+		k.r = ' '
+	case k.name == "ctrl+n":
+		k.name = "down"
+	case k.name == "ctrl+p":
+		k.name = "up"
+	}
+	return k
 }
 
 // target is the line keys act on: the cursor's line, only while it is on
@@ -808,7 +835,7 @@ func (a *app) wake() {
 	err := deliver(a.st.session, wakeMessage(a.st.session, n))
 	a.dropBefore = time.Now()
 	if err != nil {
-		a.msg, a.msgLines = "送る印は付けました。AI を起こせなかったので、チャットで一言伝えてください。"+err.Error(), 2
+		a.msg, a.msgLines = "送る印は付けました。AI を起こせなかったので、チャットで一言伝えてください。\n"+err.Error(), 2
 		return
 	}
 	a.msg = "AI に送りました"
@@ -890,6 +917,10 @@ func (a *app) handleList(k key) (quit bool) {
 		} else {
 			a.ltop = max(a.ltop-1, 0)
 		}
+	case k.name == "pgup":
+		a.ltop = max(a.ltop-max(a.t.h/2, 1), 0)
+	case k.name == "pgdn":
+		a.ltop += max(a.t.h/2, 1)
 	case k.name == "enter" && len(ts) > 0 && a.lcurShown:
 		a.lopen[ts[i].N] = !a.lopen[ts[i].N]
 	case k.r == 'x' && len(ts) > 0 && a.lcurShown:
@@ -1236,7 +1267,7 @@ func (a *app) bottomLines(n int) []string {
 	case a.help:
 		hs := []hint{{k: "q", d: "閉じる"}}
 		if n > a.t.h-1 {
-			hs = []hint{{k: "j k", d: "送る"}, {k: "q", d: "閉じる"}}
+			hs = []hint{{k: "j k ↑↓", d: "送る"}, {k: "q", d: "閉じる"}}
 		}
 		return a.packKeys(hs, nil, false)
 	case a.in != nil:
@@ -1253,8 +1284,10 @@ func (a *app) bottomLines(n int) []string {
 func (a *app) helpRows() []row {
 	rows := []row{{}, {line: a.compose(false, 0, nil, plainText("キー", bold+blue), nil)}, {}}
 	for _, k := range [][2]string{
-		{"j / k", "上下に動く。止まる行がその先になければ 1 行送る。カーソルの行が画面の外にあれば、まずそこまで戻す"},
+		{"j k ↑↓", "上下に動く (ctrl+n / ctrl+p も)。止まる行がその先になければ 1 行送る。カーソルの行が画面の外にあれば、まずそこまで戻す"},
+		{"pgup pgdn", "半画面ずつ送る"},
 		{"", "報告の終わりからさらに j で、報告の下の思いつきへ (欄が広がる)。思いつきの 1 件目で k で報告へ戻る"},
+		{"", "日本語入力のままでも、↑↓ ctrl+n ctrl+p と全角の英字 (ｊ ｙ など) が効く"},
 		{"enter", "開く・閉じる (思いつきの欄でも)"},
 		{"x (思いつき)", "思いつきの欄と一覧では、その思いつきを取り消す。直後の u で戻す"},
 		{"y", "よし (項目・リンク)"},
@@ -1355,21 +1388,19 @@ func (a *app) bottom() []string {
 	// A message is one line, cut with … when long (the hints are always
 	// one line too).
 	say := func(msg string) []string {
-		t := plainText(strings.Join(strings.Fields(msg), " "), magenta)
+		one := func(s string) text { return plainText(strings.Join(strings.Fields(s), " "), magenta) }
+		t := one(msg)
 		r := right
 		if t.width() > a.room(0, r) {
 			r = nil // the message before the count of hidden lines
 		}
-		if a.msgLines < 2 || t.width() <= a.room(0, r) {
+		head, rest, two := strings.Cut(msg, "\n")
+		if a.msgLines < 2 || !two || t.width() <= a.room(0, r) {
 			return []string{a.compose(false, 0, nil, t, r)}
 		}
-		// Two lines at most; the second is cut with … if need be.
-		ls := t.wrap(a.room(0, nil))
-		second := ls[1]
-		for _, l := range ls[2:] {
-			second = append(second, l...)
-		}
-		return []string{a.compose(false, 0, nil, ls[0], nil), a.compose(false, 0, nil, second, nil)}
+		// Two lines: what happened, and why (with how to fix it); each is
+		// cut with … if need be.
+		return []string{a.compose(false, 0, nil, one(head), nil), a.compose(false, 0, nil, one(rest), nil)}
 	}
 	switch {
 	case a.msg != "":
@@ -1409,7 +1440,7 @@ func (a *app) bottom() []string {
 	n := pv.nodeAt(pv.cur)
 	if n == nil || !pv.curShown {
 		if pv.err == "" && !pv.missing {
-			keys = append(keys, hint{k: "j k", d: "送る", rank: rankEnter})
+			keys = append(keys, hint{k: "j k ↑↓", d: "送る", rank: rankEnter})
 		}
 		return a.oneLine(keys, right)
 	}
@@ -1432,9 +1463,9 @@ func (a *app) bottom() []string {
 			// Placed by the viewer, not by the person: say how to react.
 			switch {
 			case askOpen:
-				answer = []hint{{k: "j k", d: "動かすと答えられる", short: "→ 答える"}}
+				answer = []hint{{k: "j k ↑↓", d: "動かすと答えられる", short: "→ 答える"}}
 			case y:
-				answer = []hint{{k: "j k", d: "動かすと y n が効く", short: "→ y n"}}
+				answer = []hint{{k: "j k ↑↓", d: "動かすと y n が効く", short: "→ y n"}}
 			}
 			y, choices = false, nil
 		}
@@ -1450,7 +1481,7 @@ func (a *app) bottom() []string {
 	}
 	if pv.placed && len(answer) == 0 && hideKey(n) != "" && !pv.lock && a.canWrite() {
 		// A plain line, a Fold or a closed Ask the viewer put the cursor on.
-		answer = []hint{{k: "j k", d: "動かすと x が効く", short: "→ x"}}
+		answer = []hint{{k: "j k ↑↓", d: "動かすと x が効く", short: "→ x"}}
 	}
 	if a.hideTarget(pv) != nil {
 		if pv.isHidden(n) {
@@ -2152,17 +2183,23 @@ func (a *app) code(n *node, ind int) []row {
 // status, its indented lines, and the thoughts written on it.
 func (a *app) contents(pv *view, n *node, ind int) []row {
 	var rows []row
+	// What an item holds is read, so it is in the normal color; only a done
+	// item's is faint, like the item.
+	base := ""
+	if n.kind == kDone {
+		base = dim
+	}
 	if n.reason != "" {
-		rows = append(rows, a.para(ind, inline(n.reason, magenta))...)
+		rows = append(rows, a.para(ind, append(plainText("理由: ", dim), inline(n.reason, base)...))...)
 	}
 	for _, b := range n.body {
 		switch b.kind {
 		case kPara:
-			rows = append(rows, a.para(ind, inline(b.text, dim))...)
+			rows = append(rows, a.para(ind, inline(b.text, base))...)
 		case kCode:
 			rows = append(rows, a.code(b, ind+markW)...)
 		default: // list lines (in Markdown, maybe with a checkbox)
-			rows = append(rows, a.line(false, ind+markW, markOf(b.kind, false, false), inline(b.text, dim), nil, true)...)
+			rows = append(rows, a.line(false, ind+markW, markOf(b.kind, false, false), inline(b.text, base), nil, true)...)
 		}
 	}
 	if n.id != "" {
@@ -2177,6 +2214,9 @@ func (a *app) contents(pv *view, n *node, ind int) []row {
 			}
 			if t.Title != "" && t.Title != n.title() {
 				rows = append(rows, a.line(false, ind+markW, nil, plainText("(書いたときの題: "+t.Title+")", dim).capped(8*a.textWidth()), nil, true)...)
+			}
+			if t.settled != "" {
+				rows = append(rows, a.line(false, ind+markW, nil, headed("行き先: ", t.settled).capped(8*a.textWidth()), nil, true)...)
 			}
 		}
 	}

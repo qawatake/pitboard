@@ -8,6 +8,11 @@ import (
 	"testing"
 )
 
+// sendAll marks everything so far as sent (what s does on the board).
+func sendAll(st *Store) {
+	st.Append(Event{Op: "send"})
+}
+
 func testStore(t *testing.T) *Store {
 	t.Helper()
 	st := newStore(t.TempDir(), "s1")
@@ -66,6 +71,7 @@ func TestChangesAndSettle(t *testing.T) {
 	t1 := mustAppend(Event{Op: "thought", ID: "hook", Text: "post-tool だけ入れたい"})
 	t2 := mustAppend(Event{Op: "thought", Text: "経過は要らないかも\n2 行目"})
 	mustAppend(Event{Op: "react", ID: "gone", Value: "n"})
+	sendAll(st)
 
 	got, err := st.Changes()
 	if err != nil {
@@ -86,9 +92,8 @@ func TestChangesAndSettle(t *testing.T) {
 	}
 
 	// Thought states: received, then settled.
-	s := replayEvents(st.Events(), st.Seen())
-	if s.unread() != 0 {
-		t.Errorf("unread = %d after changes", s.unread())
+	if n := sentUnread(st.Events(), st.Seen()); n != 0 {
+		t.Errorf("unread = %d after changes", n)
 	}
 	if err := st.Settle(t1.N, "todo にした"); err != nil {
 		t.Fatal(err)
@@ -99,7 +104,7 @@ func TestChangesAndSettle(t *testing.T) {
 	if err := st.Settle(1, "x"); err == nil {
 		t.Error("settling a reaction (not a thought) must fail")
 	}
-	s = replayEvents(st.Events(), st.Seen())
+	s := replayEvents(st.Events(), st.Seen())
 	if w, _ := s.statusOf(s.thoughts[0]); w != "済" {
 		t.Errorf("settled thought status = %q", w)
 	}
@@ -110,10 +115,10 @@ func TestChangesAndSettle(t *testing.T) {
 	if again, _ := st.Changes(); len(again) != 0 {
 		t.Errorf("changes after settle = %q", again)
 	}
-	// A new thought is unread until changes delivers it.
+	// A new thought is not sent until the person sends it.
 	mustAppend(Event{Op: "thought", Text: "new"})
-	if s := replayEvents(st.Events(), st.Seen()); s.unread() != 1 {
-		t.Errorf("unread = %d", s.unread())
+	if n := unsent(st.Events()); n != 1 {
+		t.Errorf("unsent = %d", n)
 	}
 	_ = t2
 }
@@ -176,6 +181,7 @@ func TestChangesTellsTheTitleSeen(t *testing.T) {
 <Option key="b">プロジェクトごと</Option>
 </Ask>
 <Item id="hook">hook は入れない (決定)</Item>`), 0o644)
+	sendAll(st)
 	got, _ := st.Changes()
 	want := []string{
 		"y hook (hook を入れるか決める → いまは: hook は入れない (決定))",

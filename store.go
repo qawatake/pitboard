@@ -481,7 +481,7 @@ type thought struct {
 // the lines the person hid.
 type state struct {
 	react    map[string]Event
-	thoughts []*thought // oldest first
+	thoughts []*thought      // oldest first
 	seen     int             // what the AI has read ('changes')
 	sent     int             // the latest send: what the person has sent
 	hidden   map[string]bool // hideKey of each hidden line

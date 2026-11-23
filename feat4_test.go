@@ -15,10 +15,10 @@ func TestRetractBeforeDelivery(t *testing.T) {
 	st.Append(Event{Op: "thought", Text: "keep"})
 	th, _ := st.Append(Event{Op: "thought", Text: "mistake"})
 	st.Append(Event{Op: "retract", Thought: th.N})
-	if n := unsent(st.Events(), st.Seen()); n != 1 {
+	if n := unsent(st.Events()); n != 1 {
 		t.Errorf("unsent = %d, want 1 (the taken-back thought is not counted)", n)
 	}
-	lines, _ := st.Changes()
+	lines, _ := sendChanges(st)
 	if strings.Join(lines, "\n") != "thought 1: keep" {
 		t.Errorf("changes: %q", lines)
 	}
@@ -30,13 +30,13 @@ func TestRetractBeforeDelivery(t *testing.T) {
 func TestRetractAfterDelivery(t *testing.T) {
 	st := testStore(t)
 	th, _ := st.Append(Event{Op: "thought", ID: "hook", Text: "とり下げる思いつき\n二行目"})
-	st.Changes()
+	sendChanges(st)
 	st.Settle(th.N, "todo にした") // given a destination, then taken back
 	st.Append(Event{Op: "retract", Thought: th.N})
-	if n := unsent(st.Events(), st.Seen()); n != 1 {
+	if n := unsent(st.Events()); n != 1 {
 		t.Errorf("unsent = %d", n)
 	}
-	lines, _ := st.Changes()
+	lines, _ := sendChanges(st)
 	if strings.Join(lines, "\n") != "retract thought 1: とり下げる思いつき 二行目" {
 		t.Errorf("changes: %q", lines)
 	}
@@ -46,27 +46,27 @@ func TestRetractAfterDelivery(t *testing.T) {
 	}
 	// Taken back and undone before changes: nothing to tell.
 	th2, _ := st.Append(Event{Op: "thought", Text: "two"})
-	st.Changes()
+	sendChanges(st)
 	st.Append(Event{Op: "retract", Thought: th2.N})
 	st.Append(Event{Op: "unretract", Thought: th2.N})
-	if n := unsent(st.Events(), st.Seen()); n != 0 {
+	if n := unsent(st.Events()); n != 0 {
 		t.Errorf("unsent after undo = %d", n)
 	}
-	if lines, _ := st.Changes(); len(lines) != 0 {
+	if lines, _ := sendChanges(st); len(lines) != 0 {
 		t.Errorf("changes after undo: %q", lines)
 	}
 	// A retract delivered, then undone: the AI is told it stands again.
 	st.Append(Event{Op: "retract", Thought: th2.N})
-	st.Changes()
+	sendChanges(st)
 	st.Append(Event{Op: "unretract", Thought: th2.N})
-	if lines, _ := st.Changes(); strings.Join(lines, "\n") != fmt.Sprintf("unretract thought %d: two", th2.N) {
+	if lines, _ := sendChanges(st); strings.Join(lines, "\n") != fmt.Sprintf("unretract thought %d: two", th2.N) {
 		t.Errorf("changes after a delivered retract was undone: %q", lines)
 	}
 	// Undone before delivery: the thought goes as usual.
 	th3, _ := st.Append(Event{Op: "thought", Text: "three"})
 	st.Append(Event{Op: "retract", Thought: th3.N})
 	st.Append(Event{Op: "unretract", Thought: th3.N})
-	if lines, _ := st.Changes(); strings.Join(lines, "\n") != fmt.Sprintf("thought %d: three", th3.N) {
+	if lines, _ := sendChanges(st); strings.Join(lines, "\n") != fmt.Sprintf("thought %d: three", th3.N) {
 		t.Errorf("changes: %q", lines)
 	}
 }
@@ -189,5 +189,30 @@ func TestNoBoardMessages(t *testing.T) {
 		if got := homeTilde(home + "z"); got != home+"z" {
 			t.Errorf("homeTilde on a sibling = %q", got)
 		}
+	}
+}
+
+// sendChanges sends what is on the board, then delivers it.
+func sendChanges(st *Store) ([]string, error) {
+	sendAll(st)
+	return st.Changes()
+}
+
+// A thought sent but not read yet, then taken back: the retract goes with
+// the next send.
+func TestRetractAfterSendBeforeRead(t *testing.T) {
+	st := testStore(t)
+	th, _ := st.Append(Event{Op: "thought", Text: "sent"})
+	sendAll(st)
+	st.Append(Event{Op: "retract", Thought: th.N})
+	if n := unsent(st.Events()); n != 1 {
+		t.Errorf("unsent = %d, want 1 (the retract)", n)
+	}
+	// Read now: only what was sent, the thought.
+	if lines, _ := st.Changes(); strings.Join(lines, "\n") != "thought 1: sent" {
+		t.Errorf("changes: %q", lines)
+	}
+	if lines, _ := sendChanges(st); strings.Join(lines, "\n") != "retract thought 1: sent" {
+		t.Errorf("changes after the next send: %q", lines)
 	}
 }

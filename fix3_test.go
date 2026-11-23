@@ -14,18 +14,20 @@ func TestBoardFoundFromBelow(t *testing.T) {
 	sub := filepath.Join(st.base, "a", "b")
 	os.MkdirAll(sub, 0o755)
 	st.Append(Event{Op: "thought", Text: "下から"})
+	sendAll(st)
 
 	if got := runHook(t, "post-tool", hookInput(sub, "s1", "")); !strings.Contains(got, "thought 1: 下から") {
 		t.Errorf("hook from a subdirectory: %q", got)
 	}
 	st.Append(Event{Op: "thought", Text: "もう一つ"})
+	sendAll(st)
 	t.Chdir(sub)
 	var out strings.Builder
-	if err := run([]string{"-s", "s1", "changes"}, &out); err != nil || !strings.Contains(out.String(), "thought 2: もう一つ") {
+	if err := run([]string{"-s", "s1", "changes"}, &out); err != nil || !strings.Contains(out.String(), "thought 3: もう一つ") {
 		t.Errorf("changes from a subdirectory: %v %q", err, out.String())
 	}
 	out.Reset()
-	if err := run([]string{"-s", "s", "settle", "2", "見送った"}, &out); err != nil {
+	if err := run([]string{"-s", "s", "settle", "3", "見送った"}, &out); err != nil {
 		t.Errorf("settle by prefix from a subdirectory: %v", err)
 	}
 	out.Reset()
@@ -68,6 +70,7 @@ func TestAncestorsStopAtHome(t *testing.T) {
 func TestHookInputLimit(t *testing.T) {
 	st := testStore(t)
 	st.Append(Event{Op: "thought", Text: "x"})
+	sendAll(st)
 	in := hookInput(st.base, "s1", `"tool_response":"`+strings.Repeat("a", hookInputLimit)+`"`)
 	if got := runHook(t, "post-tool", in); got != "" {
 		t.Errorf("input over the limit was read: %q", got[:min(len(got), 80)])
@@ -106,6 +109,7 @@ func TestStopDoesNotBlockForHides(t *testing.T) {
 	st := testStore(t)
 	in := hookInput(st.base, "s1", "")
 	st.Append(Event{Op: "hide", Key: "-|x", Title: "x"})
+	sendAll(st)
 	if got := runHook(t, "stop", in); got != "" {
 		t.Errorf("stop blocked for a hide: %q", got)
 	}
@@ -114,6 +118,7 @@ func TestStopDoesNotBlockForHides(t *testing.T) {
 	}
 	st.Append(Event{Op: "hide", Key: "-|y", Title: "y"})
 	st.Append(Event{Op: "react", ID: "hook", Value: "y"})
+	sendAll(st)
 	if got := runHook(t, "stop", in); !strings.Contains(got, "block") || !strings.Contains(got, "hide: y") {
 		t.Errorf("stop with a reaction: %q", got)
 	}
@@ -182,18 +187,19 @@ func TestSmallDisplayFixes(t *testing.T) {
 	if pv.cur != "unit" || !pv.placed {
 		t.Fatalf("cursor %q placed %v", pv.cur, pv.placed)
 	}
-	if s := reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), ""); !strings.Contains(s, "j k → x") && !strings.Contains(s, "動かすと x が効く") {
+	if s := reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), ""); !strings.Contains(s, "j k ↑↓ → x") && !strings.Contains(s, "動かすと x が効く") {
 		t.Errorf("placed on a closed Ask: %q", s)
 	}
 	a.handle(key{name: "enter"})
 	a.render()
-	if s := reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), ""); !strings.Contains(s, "j k → 答える") && !strings.Contains(s, "動かすと答えられる") {
+	if s := reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), ""); !strings.Contains(s, "j k ↑↓ → 答える") && !strings.Contains(s, "動かすと答えられる") {
 		t.Errorf("placed on an open Ask: %q", s)
 	}
 	// 9a: at width 40 the pane says there is more, and where.
 	for i := 0; i < 7; i++ {
 		st.Append(Event{Op: "thought", Text: "t"})
 	}
+	sendAll(st)
 	st.Changes()
 	st.Settle(1, "x")
 	st.Append(Event{Op: "thought", Text: "u"})
