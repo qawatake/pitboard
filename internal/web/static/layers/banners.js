@@ -9,6 +9,7 @@ import { el } from '../dom.js';
 export function connection(cx, banner) {
   const on = cx.ui.conn !== 'live';
   banner.hidden = !on;
+  banner.dataset.conn = cx.ui.conn;
   banner.textContent = on ? (cx.ui.connMsg || cx.words(cx.ui.conn === 'gone' ? 'gone' : 'offline')) : '';
 }
 
@@ -28,7 +29,7 @@ export function head(cx) {
   return out;
 }
 
-export const covers = {"conn": ["live", "offline", "gone"]};
+export const covers = {"conn": {"live": ["live"], "offline": ["offline: banner, page and bar dimmed"], "gone": ["gone: the board was dropped"]}};
 
 export const variants = [
   { name: 'live', ui: { cur: 'hook' } },

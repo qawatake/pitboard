@@ -13,8 +13,11 @@ export function draw(cx, viewer) {
   }
 }
 
-export const covers = {"mode": ["image"]};
+export const covers = {"mode": {"image": ["a small image"]}};
+
+export const differences = {"image-large": ["a large image, scaled to the screen"]};
 
 export const variants = [
-  { name: 'an image, large', fixture: 'comments', ui: { cur: 'c1', open: { c1: true }, mode: 'image', image: 1 } },
+  { name: 'a small image', fixture: 'comments', ui: { cur: 'c1', open: { c1: true }, mode: 'image', image: 1 } },
+  { name: 'a large image, scaled to the screen', fixture: 'comments', ui: { cur: 'c1', open: { c1: true }, mode: 'image', image: 2 } },
 ];

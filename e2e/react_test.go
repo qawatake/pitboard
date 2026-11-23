@@ -286,7 +286,7 @@ func TestCommentOnLine(t *testing.T) {
 	// On the row's right end; in the comments pane (newlines as spaces);
 	// counted at the top right; under the line when it is opened, one row
 	// per line.
-	v.WaitFor("● 未送信 1", "コメント", "一行目 二行目 三行目 四行目")
+	v.WaitFor("未送信 1", "コメント", "一行目 二行目 三行目 四行目")
 	v.Keys("enter")
 	v.WaitFor("✎ 一行目")
 	if r := rowOf(t, v, "二行目"); r != rowOf(t, v, "✎ 一行目")+1 {
@@ -295,7 +295,7 @@ func TestCommentOnLine(t *testing.T) {
 	if !strings.HasSuffix(v.Line(row), "未送信") {
 		t.Errorf("row's right end: %q", v.Line(row))
 	}
-	wantColor(t, v, "● 未送信 1", "yellow")
+	wantColor(t, v, "未送信 1", "yellow")
 	v.WaitBottom("s 送る  m 書く")
 }
 
@@ -554,13 +554,13 @@ func TestUndo(t *testing.T) {
 	v.Keys("u")
 	v.WaitFor("y を取り消しました: hook を入れるか決める")
 	v.Until("back to n", func() bool { return strings.HasSuffix(v.Line(row), "n 未送信") })
-	// Sent: the undo is new input, shown as 取消 未送信 until sent.
+	// Sent: the undo is new input, shown as 取り消し 未送信 until sent.
 	v.Keys("s")
 	v.WaitFor("送りました")
 	v.Until("n 送信済", func() bool { return strings.HasSuffix(v.Line(row), "n 送信済") })
 	v.Keys("u")
 	v.WaitFor("n を取り消しました")
-	v.Until("取消 未送信", func() bool { return strings.HasSuffix(v.Line(row), "取消 未送信") })
+	v.Until("取り消し 未送信", func() bool { return strings.HasSuffix(v.Line(row), "取り消し 未送信") })
 	v.Keys("s")
 	v.WaitFor("送りました")
 	ss.waitRecords(t, "send", 2)
@@ -608,7 +608,7 @@ func TestSend(t *testing.T) {
 		v.WaitFor("送りました。ただ AI が待っていないので、チャットで一言伝えてください。")
 		v.WaitFor("PITBOARD_SEND")
 		ss.waitRecords(t, "send", 1)
-		v.WaitGone("● 未送信")
+		v.WaitGone("未送信")
 		v.WaitFor("送信済 1")
 		wantColor(t, v, "送信済 1", "dim")
 	})
@@ -704,7 +704,7 @@ func TestCommentStates(t *testing.T) {
 	ss.mustRun("changes")
 	state("既読", "dim")
 	ss.mustRun("settle", "1", "--doing", "見ています")
-	state("対応中", "dim")
+	state("対応中", "green") // the AI works on it: move
 	ss.mustRun("settle", "1", "--hold", "あとで")
 	state("保留", "dim")
 	ss.mustRun("settle", "1", "--done", "やりました")

@@ -84,7 +84,7 @@ func (s Seen) Token() string {
 func StartsOpen(n *report.Node) bool { return false }
 
 // Summary is the counts at the top right of the page, in order: 反応待ち N
-// (need), 未読 N (move), AI 待機中, 送信済 N (quiet), ● 未送信 N (need).
+// (need), 未読 N (move), AI 待機中, 送信済 N (quiet), 未送信 N (need).
 // Only what is there is listed.
 func (b *Board) Summary(showHidden bool) []Word {
 	var out []Word
@@ -102,7 +102,7 @@ func (b *Board) Summary(showHidden bool) []Word {
 		out = append(out, Word{fmt.Sprintf("送信済 %d", b.Unread), ToneQuiet})
 	}
 	if b.Unsent > 0 {
-		out = append(out, Word{fmt.Sprintf("● 未送信 %d", b.Unsent), ToneNeed})
+		out = append(out, Word{fmt.Sprintf("未送信 %d", b.Unsent), ToneNeed})
 	}
 	return out
 }

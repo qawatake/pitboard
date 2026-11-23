@@ -1,27 +1,22 @@
-// The index: the boards this server shows, one row each (title, where,
-// the same counts as each board's top right). j k move, enter opens. It is
-// redrawn whenever any board changes. Text is data: textContent only.
+// The index, live: layers/home.js draws it; this file fetches it, moves
+// the cursor (j k), opens a board (enter) and redraws it whenever any
+// board changes.
 
-const $ = (id) => document.getElementById(id);
-const el = (tag, cls, text) => {
-  const e = document.createElement(tag);
-  if (cls) e.className = cls;
-  if (text != null) e.textContent = text;
-  return e;
-};
+import { createHome, draw } from './layers/home.js';
 
+const app = createHome();
+document.body.appendChild(app);
 let data = null;
 let cur = '';
+let offline = false;
 let offlineTimer = 0;
 
 function setOffline(on) {
-  const b = $('offline');
-  if (on === !b.hidden) return;
-  b.textContent = on ? ((data && data.Words.offline) || 'つながっていません') : '';
-  b.hidden = !on;
-  $('app').classList.toggle('offline', on);
+  if (on === offline) return;
+  offline = on;
   clearInterval(offlineTimer);
   if (on) offlineTimer = setInterval(refresh, 3000);
+  if (data) render();
 }
 
 async function refresh() {
@@ -36,31 +31,9 @@ async function refresh() {
 }
 
 function render() {
-  const box = $('boards');
   const had = document.activeElement && document.activeElement.dataset && document.activeElement.dataset.nav;
-  const rows = [];
-  if (!data.Boards.length) rows.push(el('p', 'msg', data.Words.none));
   if (!data.Boards.some((b) => b.ID === cur)) cur = data.Boards.length ? data.Boards[0].ID : '';
-  for (const b of data.Boards) {
-    const row = el('div', 'row boardrow' + (b.ID === cur ? ' cur' : ''));
-    const a = el('a', 'rowbtn');
-    a.href = '/s/' + encodeURIComponent(b.ID) + '/';
-    a.dataset.nav = b.ID;
-    if (b.ID === cur) a.setAttribute('aria-current', 'true');
-    a.appendChild(el('span', 'gut'));
-    a.appendChild(el('span', 'dot'));
-    a.appendChild(el('span', 'sign'));
-    const t = el('span', 'title');
-    t.appendChild(el('span', 'btitle', b.Title || b.Message || b.Session));
-    t.appendChild(el('span', 'faint bdir', b.Where || b.Dir));
-    a.appendChild(t);
-    const right = el('span', 'right');
-    for (const w of b.Summary || []) right.appendChild(el('span', w.Tone, w.Text));
-    a.appendChild(right);
-    row.appendChild(a);
-    rows.push(row);
-  }
-  box.replaceChildren(...rows);
+  draw(app, data, cur, offline);
   if (had) focusCur();
 }
 

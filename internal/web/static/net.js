@@ -51,6 +51,8 @@ export function connect(base, tabId) {
       });
     };
     open();
+    // reopen opens it again (the board came back after gone).
+    return { reopen: () => { if (es) es.close(); stopped = false; retry = 2000; open(); } };
   }
   return { request, api, events };
 }

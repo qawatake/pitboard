@@ -15,7 +15,8 @@
 //              (under an editor, the keys or an image opened from it)
 //   editor     {kind: comment|edit, key, token, n, at, label, text}
 //   image      the image shown large (mode image)
-//   status, statusSeq   the message on the bottom line (seq: said again)
+//   status, statusTone, statusSeq   the message on the bottom line (tone:
+//              need for a refusal; seq: said again)
 //   conn, connMsg   one of CONNS, and what the banner says
 //   showHidden H shows hidden lines
 //   offer      the server's offer for the cursor's line {key, sel, offer}
@@ -34,7 +35,7 @@ export function initial() {
   return {
     cur: '', start: true, how: 'start', at: 0, sel: '', lastIndex: 0, open: {},
     mode: 'normal', panel: false, editor: null, image: 0,
-    status: '', statusSeq: 0, conn: 'live', connMsg: '', showHidden: false,
+    status: '', statusTone: '', statusSeq: 0, conn: 'live', connMsg: '', showHidden: false,
     offer: null, busy: false, unpinned: {}, reportCur: null, going: '',
   };
 }
@@ -158,7 +159,7 @@ export function next(ui, page) {
 
 // The message on the bottom line. clear takes it off when page's rule
 // (page.MsgClears, as Clears) says event ev does.
-export const say = (ui, msg) => ({ ...ui, status: msg || '', statusSeq: ui.statusSeq + 1 });
+export const say = (ui, msg, tone) => ({ ...ui, status: msg || '', statusTone: tone || '', statusSeq: ui.statusSeq + 1 });
 export function clear(ui, page, ev) {
   const cl = (page && page.Clears) || ['key', 'editor', 'panel', 'pointer'];
   return cl.includes(ev) && ui.status ? { ...ui, status: '' } : ui;

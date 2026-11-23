@@ -13,7 +13,7 @@ export function contents(cx, t) {
   const box = el('div', 'body');
   if (t.Note) {
     const p = el('div', 'para');
-    p.appendChild(el('span', 'faint', '理由: '));
+    p.appendChild(el('span', 'quiet', '理由: '));
     spans(p, [{ Text: t.Note, Style: 'plain' }]);
     box.appendChild(p);
   }
@@ -28,7 +28,9 @@ export function draw(cx, t, opts) {
   });
 }
 
-export const covers = {"kind": ["item"], "mark": ["none", "new", "waiting"], "state": ["todo", "doing", "done"], "tone": ["quiet", "need", "move"]};
+export const covers = {"kind": {"item": ["openable, closed; waiting ●; 未送信"]}, "mark": {"none": ["nothing to open; doing (作業中)"], "new": ["unread ● (a reply: title starts \"> \")"], "waiting": ["openable, closed; waiting ●; 未送信"]}, "state": {"todo": ["openable, closed; waiting ●; 未送信"], "doing": ["nothing to open; doing (作業中)"], "done": ["done"]}, "tone": {"quiet": ["既読 (quiet)"], "need": ["openable, closed; waiting ●; 未送信"], "move": ["nothing to open; doing (作業中)"]}};
+
+export const differences = {"rights-below": ["narrow: right words on a line of their own"]};
 
 export const variants = [
   { name: 'openable, closed; waiting ●; 未送信', pick: 'hook' },
@@ -42,9 +44,10 @@ export const variants = [
   { name: 'waits on the person (yellow status)', pick: 'parts' },
   { name: 'reacted y', pick: 'merge' },
   { name: '既読 (quiet)', fixture: 'comments', pick: 'c3' },
-  { name: 'y sent, taken back: 取消 未送信', fixture: 'comments', pick: 'u1' },
+  { name: 'y sent, taken back: 取り消し 未送信', fixture: 'comments', pick: 'u1' },
   { name: '2 comments (count)', fixture: 'comments', pick: 'c1' },
   { name: 'hidden (H)', fixture: 'hidden', pick: 'h1' },
   { name: 'long title, long right word', fixture: 'long', pick: 'url' },
   { name: 'long, open: URL, letters, list, code', fixture: 'long', pick: 'url', open: true },
+  { name: 'narrow: right words on a line of their own', fixture: 'long', pick: 'url', w: 390 },
 ];

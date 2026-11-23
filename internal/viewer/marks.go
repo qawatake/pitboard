@@ -45,9 +45,9 @@ func gutterMark(line string, m page.Mark) string {
 	if m == markNone || len(line) < lgutter || line[markCol:lgutter] != strings.Repeat(" ", lgutter-markCol) {
 		return line
 	}
-	color := green
+	color := cMove
 	if m == markWaiting {
-		color = yellow
+		color = cNeed
 	}
 	return line[:markCol] + plainText("●", color).String() + line[markCol+1:]
 }

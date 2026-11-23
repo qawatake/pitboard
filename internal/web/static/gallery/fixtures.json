@@ -60,6 +60,19 @@
    "comments",
    "image"
   ],
+  "refusal": [
+   "back",
+   "changed",
+   "emptyComment",
+   "moved",
+   "noMarked",
+   "placedAnswer",
+   "placedYN",
+   "settlingHide",
+   "settlingReact",
+   "settlingShow",
+   "tooLong"
+  ],
   "settle": [
    "doing",
    "hold",
@@ -356,7 +369,7 @@
          "Count": 0,
          "Input": {
           "Text": "対応中",
-          "Tone": "quiet"
+          "Tone": "move"
          },
          "Status": {
           "Text": "",
@@ -375,7 +388,7 @@
           "TitleThen": "",
           "Word": {
            "Text": "対応中",
-           "Tone": "quiet"
+           "Tone": "move"
           },
           "Settled": "直しています",
           "SettledHead": "対応中: ",
@@ -591,7 +604,7 @@
          "OptionHead": "",
          "Count": 0,
          "Input": {
-          "Text": "取消 未送信",
+          "Text": "取り消し 未送信",
           "Tone": "need"
          },
          "Status": {
@@ -700,7 +713,7 @@
     "AIWaiting": false,
     "Hidden": 0,
     "CanWrite": true,
-    "CanUndo": true,
+    "CanUndo": false,
     "CanSend": true,
     "JumpTo": [
      "c1"
@@ -721,7 +734,7 @@
       "Tone": "quiet"
      },
      {
-      "Text": "● 未送信 6",
+      "Text": "未送信 6",
       "Tone": "need"
      }
     ],
@@ -848,7 +861,7 @@
       "TitleThen": "",
       "Word": {
        "Text": "対応中",
-       "Tone": "quiet"
+       "Tone": "move"
       },
       "Settled": "直しています",
       "SettledHead": "対応中: ",
@@ -911,21 +924,17 @@
     "Words": {
      "close": "閉じる",
      "go": "行へ",
-     "gone": "この pitboard は見つからなくなりました",
+     "gone": "この pitboard は見つからなくなりました。そのディレクトリで pitboard serve をもう一度動かすと戻ります",
      "imageTooLarge": "画像が大きすぎるので貼りませんでした (20 MiB まで)",
      "jumping": "飛ぶ先の字を押してください (esc やめる)",
      "noComments": "コメントはまだありません。m で書けます",
      "noMarked": "印のある行はありません",
+     "notSent": "まだ送っていません (s で送る)",
      "offline": "つながっていません。pitboard serve が出した URL を開き直してください",
      "signClosed": "▸",
      "signOpen": "▾"
     },
     "More": [
-     {
-      "Do": "undo",
-      "Key": "u",
-      "Word": "元に戻す"
-     },
      {
       "Do": "next",
       "Key": "space",
@@ -989,18 +998,46 @@
      "panel",
      "pointer"
     ],
+    "Palette": [
+     {
+      "Name": "need",
+      "Label": "黄: あなたの手が要る (人待ちの ●・未送信・断り)"
+     },
+     {
+      "Name": "move",
+      "Label": "緑: 動いている (作業中・対応中)・未読の ●・y・足した行"
+     },
+     {
+      "Name": "quiet",
+      "Label": "薄い: 済んだ・AI 待ち・添え書き"
+     },
+     {
+      "Name": "structure",
+      "Label": "青: 見出し・リンク・カーソル・g の字"
+     },
+     {
+      "Name": "yours",
+      "Label": "青緑: あなたが入れたもの (答えのキー・選んだ答え)"
+     },
+     {
+      "Name": "bad",
+      "Label": "赤: 誤り・n・消した行"
+     }
+    ],
     "Drop": {
-     "answer": 6,
-     "close": 4,
-     "comment": 7,
+     "answer": 7,
+     "close": 5,
+     "comment": 8,
      "hide": 2,
-     "jump": 3,
-     "n": 5,
+     "jump": 4,
+     "keys": 3,
+     "n": 6,
      "next": 2,
-     "open": 4,
-     "read": 6,
+     "open": 5,
+     "read": 7,
      "undo": 1,
-     "y": 6
+     "write": 3,
+     "y": 7
     }
    },
    "Offers": {
@@ -1624,7 +1661,24 @@
       "Locked": false
      }
     }
-   }
+   },
+   "UndoMore": [
+    {
+     "Do": "undo",
+     "Key": "u",
+     "Word": "元に戻す"
+    },
+    {
+     "Do": "next",
+     "Key": "space",
+     "Word": "次へ"
+    },
+    {
+     "Do": "jump",
+     "Key": "g",
+     "Word": "飛ぶ"
+    }
+   ]
   },
   "dense": {
    "Note": "a whole report: every part, reactions, something to send and to take back",
@@ -2707,7 +2761,7 @@
     "AIWaiting": false,
     "Hidden": 0,
     "CanWrite": true,
-    "CanUndo": true,
+    "CanUndo": false,
     "CanSend": true,
     "JumpTo": [
      "restart",
@@ -2746,7 +2800,7 @@
       "Tone": "move"
      },
      {
-      "Text": "● 未送信 4",
+      "Text": "未送信 4",
       "Tone": "need"
      }
     ],
@@ -2774,21 +2828,17 @@
     "Words": {
      "close": "閉じる",
      "go": "行へ",
-     "gone": "この pitboard は見つからなくなりました",
+     "gone": "この pitboard は見つからなくなりました。そのディレクトリで pitboard serve をもう一度動かすと戻ります",
      "imageTooLarge": "画像が大きすぎるので貼りませんでした (20 MiB まで)",
      "jumping": "飛ぶ先の字を押してください (esc やめる)",
      "noComments": "コメントはまだありません。m で書けます",
      "noMarked": "印のある行はありません",
+     "notSent": "まだ送っていません (s で送る)",
      "offline": "つながっていません。pitboard serve が出した URL を開き直してください",
      "signClosed": "▸",
      "signOpen": "▾"
     },
     "More": [
-     {
-      "Do": "undo",
-      "Key": "u",
-      "Word": "元に戻す"
-     },
      {
       "Do": "next",
       "Key": "space",
@@ -2852,18 +2902,46 @@
      "panel",
      "pointer"
     ],
+    "Palette": [
+     {
+      "Name": "need",
+      "Label": "黄: あなたの手が要る (人待ちの ●・未送信・断り)"
+     },
+     {
+      "Name": "move",
+      "Label": "緑: 動いている (作業中・対応中)・未読の ●・y・足した行"
+     },
+     {
+      "Name": "quiet",
+      "Label": "薄い: 済んだ・AI 待ち・添え書き"
+     },
+     {
+      "Name": "structure",
+      "Label": "青: 見出し・リンク・カーソル・g の字"
+     },
+     {
+      "Name": "yours",
+      "Label": "青緑: あなたが入れたもの (答えのキー・選んだ答え)"
+     },
+     {
+      "Name": "bad",
+      "Label": "赤: 誤り・n・消した行"
+     }
+    ],
     "Drop": {
-     "answer": 6,
-     "close": 4,
-     "comment": 7,
+     "answer": 7,
+     "close": 5,
+     "comment": 8,
      "hide": 2,
-     "jump": 3,
-     "n": 5,
+     "jump": 4,
+     "keys": 3,
+     "n": 6,
      "next": 2,
-     "open": 4,
-     "read": 6,
+     "open": 5,
+     "read": 7,
      "undo": 1,
-     "y": 6
+     "write": 3,
+     "y": 7
     }
    },
    "Offers": {
@@ -4576,12 +4654,29 @@
      "Recheck": 0,
      "Locked": false
     }
-   }
+   },
+   "UndoMore": [
+    {
+     "Do": "undo",
+     "Key": "u",
+     "Word": "元に戻す"
+    },
+    {
+     "Do": "next",
+     "Key": "space",
+     "Word": "次へ"
+    },
+    {
+     "Do": "jump",
+     "Key": "g",
+     "Word": "飛ぶ"
+    }
+   ]
   },
   "empty": {
    "Note": "an empty report",
    "Page": {
-    "Message": "報告はまだ空です。AI が書くと、ここに出ます。",
+    "Message": "報告はまだ空です。AI が書くと、ここに出ます",
     "Err": "",
     "ReadErr": "",
     "Notices": null,
@@ -4605,11 +4700,12 @@
     "Words": {
      "close": "閉じる",
      "go": "行へ",
-     "gone": "この pitboard は見つからなくなりました",
+     "gone": "この pitboard は見つからなくなりました。そのディレクトリで pitboard serve をもう一度動かすと戻ります",
      "imageTooLarge": "画像が大きすぎるので貼りませんでした (20 MiB まで)",
      "jumping": "飛ぶ先の字を押してください (esc やめる)",
      "noComments": "コメントはまだありません。m で書けます",
      "noMarked": "印のある行はありません",
+     "notSent": "まだ送っていません (s で送る)",
      "offline": "つながっていません。pitboard serve が出した URL を開き直してください",
      "signClosed": "▸",
      "signOpen": "▾"
@@ -4662,18 +4758,46 @@
      "panel",
      "pointer"
     ],
+    "Palette": [
+     {
+      "Name": "need",
+      "Label": "黄: あなたの手が要る (人待ちの ●・未送信・断り)"
+     },
+     {
+      "Name": "move",
+      "Label": "緑: 動いている (作業中・対応中)・未読の ●・y・足した行"
+     },
+     {
+      "Name": "quiet",
+      "Label": "薄い: 済んだ・AI 待ち・添え書き"
+     },
+     {
+      "Name": "structure",
+      "Label": "青: 見出し・リンク・カーソル・g の字"
+     },
+     {
+      "Name": "yours",
+      "Label": "青緑: あなたが入れたもの (答えのキー・選んだ答え)"
+     },
+     {
+      "Name": "bad",
+      "Label": "赤: 誤り・n・消した行"
+     }
+    ],
     "Drop": {
-     "answer": 6,
-     "close": 4,
-     "comment": 7,
+     "answer": 7,
+     "close": 5,
+     "comment": 8,
      "hide": 2,
-     "jump": 3,
-     "n": 5,
+     "jump": 4,
+     "keys": 3,
+     "n": 6,
      "next": 2,
-     "open": 4,
-     "read": 6,
+     "open": 5,
+     "read": 7,
      "undo": 1,
-     "y": 6
+     "write": 3,
+     "y": 7
     }
    }
   },
@@ -4992,7 +5116,7 @@
     "AIWaiting": false,
     "Hidden": 6,
     "CanWrite": true,
-    "CanUndo": true,
+    "CanUndo": false,
     "CanSend": true,
     "JumpTo": [
      "n1",
@@ -5002,7 +5126,7 @@
     "Next": null,
     "Summary": [
      {
-      "Text": "● 未送信 6",
+      "Text": "未送信 6",
       "Tone": "need"
      }
     ],
@@ -5013,21 +5137,17 @@
     "Words": {
      "close": "閉じる",
      "go": "行へ",
-     "gone": "この pitboard は見つからなくなりました",
+     "gone": "この pitboard は見つからなくなりました。そのディレクトリで pitboard serve をもう一度動かすと戻ります",
      "imageTooLarge": "画像が大きすぎるので貼りませんでした (20 MiB まで)",
      "jumping": "飛ぶ先の字を押してください (esc やめる)",
      "noComments": "コメントはまだありません。m で書けます",
      "noMarked": "印のある行はありません",
+     "notSent": "まだ送っていません (s で送る)",
      "offline": "つながっていません。pitboard serve が出した URL を開き直してください",
      "signClosed": "▸",
      "signOpen": "▾"
     },
     "More": [
-     {
-      "Do": "undo",
-      "Key": "u",
-      "Word": "元に戻す"
-     },
      {
       "Do": "jump",
       "Key": "g",
@@ -5086,18 +5206,46 @@
      "panel",
      "pointer"
     ],
+    "Palette": [
+     {
+      "Name": "need",
+      "Label": "黄: あなたの手が要る (人待ちの ●・未送信・断り)"
+     },
+     {
+      "Name": "move",
+      "Label": "緑: 動いている (作業中・対応中)・未読の ●・y・足した行"
+     },
+     {
+      "Name": "quiet",
+      "Label": "薄い: 済んだ・AI 待ち・添え書き"
+     },
+     {
+      "Name": "structure",
+      "Label": "青: 見出し・リンク・カーソル・g の字"
+     },
+     {
+      "Name": "yours",
+      "Label": "青緑: あなたが入れたもの (答えのキー・選んだ答え)"
+     },
+     {
+      "Name": "bad",
+      "Label": "赤: 誤り・n・消した行"
+     }
+    ],
     "Drop": {
-     "answer": 6,
-     "close": 4,
-     "comment": 7,
+     "answer": 7,
+     "close": 5,
+     "comment": 8,
      "hide": 2,
-     "jump": 3,
-     "n": 5,
+     "jump": 4,
+     "keys": 3,
+     "n": 6,
      "next": 2,
-     "open": 4,
-     "read": 6,
+     "open": 5,
+     "read": 7,
      "undo": 1,
-     "y": 6
+     "write": 3,
+     "y": 7
     }
    },
    "Offers": {
@@ -5559,7 +5707,19 @@
       "Locked": false
      }
     }
-   }
+   },
+   "UndoMore": [
+    {
+     "Do": "undo",
+     "Key": "u",
+     "Word": "元に戻す"
+    },
+    {
+     "Do": "jump",
+     "Key": "g",
+     "Word": "飛ぶ"
+    }
+   ]
   },
   "long": {
    "Note": "long unbroken strings everywhere",
@@ -5838,7 +5998,7 @@
     "AIWaiting": false,
     "Hidden": 0,
     "CanWrite": true,
-    "CanUndo": true,
+    "CanUndo": false,
     "CanSend": true,
     "JumpTo": [
      "long",
@@ -5856,7 +6016,7 @@
       "Tone": "need"
      },
      {
-      "Text": "● 未送信 1",
+      "Text": "未送信 1",
       "Tone": "need"
      }
     ],
@@ -5884,21 +6044,17 @@
     "Words": {
      "close": "閉じる",
      "go": "行へ",
-     "gone": "この pitboard は見つからなくなりました",
+     "gone": "この pitboard は見つからなくなりました。そのディレクトリで pitboard serve をもう一度動かすと戻ります",
      "imageTooLarge": "画像が大きすぎるので貼りませんでした (20 MiB まで)",
      "jumping": "飛ぶ先の字を押してください (esc やめる)",
      "noComments": "コメントはまだありません。m で書けます",
      "noMarked": "印のある行はありません",
+     "notSent": "まだ送っていません (s で送る)",
      "offline": "つながっていません。pitboard serve が出した URL を開き直してください",
      "signClosed": "▸",
      "signOpen": "▾"
     },
     "More": [
-     {
-      "Do": "undo",
-      "Key": "u",
-      "Word": "元に戻す"
-     },
      {
       "Do": "next",
       "Key": "space",
@@ -5962,18 +6118,46 @@
      "panel",
      "pointer"
     ],
+    "Palette": [
+     {
+      "Name": "need",
+      "Label": "黄: あなたの手が要る (人待ちの ●・未送信・断り)"
+     },
+     {
+      "Name": "move",
+      "Label": "緑: 動いている (作業中・対応中)・未読の ●・y・足した行"
+     },
+     {
+      "Name": "quiet",
+      "Label": "薄い: 済んだ・AI 待ち・添え書き"
+     },
+     {
+      "Name": "structure",
+      "Label": "青: 見出し・リンク・カーソル・g の字"
+     },
+     {
+      "Name": "yours",
+      "Label": "青緑: あなたが入れたもの (答えのキー・選んだ答え)"
+     },
+     {
+      "Name": "bad",
+      "Label": "赤: 誤り・n・消した行"
+     }
+    ],
     "Drop": {
-     "answer": 6,
-     "close": 4,
-     "comment": 7,
+     "answer": 7,
+     "close": 5,
+     "comment": 8,
      "hide": 2,
-     "jump": 3,
-     "n": 5,
+     "jump": 4,
+     "keys": 3,
+     "n": 6,
      "next": 2,
-     "open": 4,
-     "read": 6,
+     "open": 5,
+     "read": 7,
      "undo": 1,
-     "y": 6
+     "write": 3,
+     "y": 7
     }
    },
    "Offers": {
@@ -6245,7 +6429,24 @@
       "Locked": false
      }
     }
-   }
+   },
+   "UndoMore": [
+    {
+     "Do": "undo",
+     "Key": "u",
+     "Word": "元に戻す"
+    },
+    {
+     "Do": "next",
+     "Key": "space",
+     "Word": "次へ"
+    },
+    {
+     "Do": "jump",
+     "Key": "g",
+     "Word": "飛ぶ"
+    }
+   ]
   },
   "noreport": {
    "Note": "no report written yet",
@@ -6274,11 +6475,12 @@
     "Words": {
      "close": "閉じる",
      "go": "行へ",
-     "gone": "この pitboard は見つからなくなりました",
+     "gone": "この pitboard は見つからなくなりました。そのディレクトリで pitboard serve をもう一度動かすと戻ります",
      "imageTooLarge": "画像が大きすぎるので貼りませんでした (20 MiB まで)",
      "jumping": "飛ぶ先の字を押してください (esc やめる)",
      "noComments": "コメントはまだありません。m で書けます",
      "noMarked": "印のある行はありません",
+     "notSent": "まだ送っていません (s で送る)",
      "offline": "つながっていません。pitboard serve が出した URL を開き直してください",
      "signClosed": "▸",
      "signOpen": "▾"
@@ -6331,18 +6533,46 @@
      "panel",
      "pointer"
     ],
+    "Palette": [
+     {
+      "Name": "need",
+      "Label": "黄: あなたの手が要る (人待ちの ●・未送信・断り)"
+     },
+     {
+      "Name": "move",
+      "Label": "緑: 動いている (作業中・対応中)・未読の ●・y・足した行"
+     },
+     {
+      "Name": "quiet",
+      "Label": "薄い: 済んだ・AI 待ち・添え書き"
+     },
+     {
+      "Name": "structure",
+      "Label": "青: 見出し・リンク・カーソル・g の字"
+     },
+     {
+      "Name": "yours",
+      "Label": "青緑: あなたが入れたもの (答えのキー・選んだ答え)"
+     },
+     {
+      "Name": "bad",
+      "Label": "赤: 誤り・n・消した行"
+     }
+    ],
     "Drop": {
-     "answer": 6,
-     "close": 4,
-     "comment": 7,
+     "answer": 7,
+     "close": 5,
+     "comment": 8,
      "hide": 2,
-     "jump": 3,
-     "n": 5,
+     "jump": 4,
+     "keys": 3,
+     "n": 6,
      "next": 2,
-     "open": 4,
-     "read": 6,
+     "open": 5,
+     "read": 7,
      "undo": 1,
-     "y": 6
+     "write": 3,
+     "y": 7
     }
    }
   },
@@ -6373,11 +6603,12 @@
     "Words": {
      "close": "閉じる",
      "go": "行へ",
-     "gone": "この pitboard は見つからなくなりました",
+     "gone": "この pitboard は見つからなくなりました。そのディレクトリで pitboard serve をもう一度動かすと戻ります",
      "imageTooLarge": "画像が大きすぎるので貼りませんでした (20 MiB まで)",
      "jumping": "飛ぶ先の字を押してください (esc やめる)",
      "noComments": "コメントはまだありません。m で書けます",
      "noMarked": "印のある行はありません",
+     "notSent": "まだ送っていません (s で送る)",
      "offline": "つながっていません。pitboard serve が出した URL を開き直してください",
      "signClosed": "▸",
      "signOpen": "▾"
@@ -6414,18 +6645,46 @@
      "panel",
      "pointer"
     ],
+    "Palette": [
+     {
+      "Name": "need",
+      "Label": "黄: あなたの手が要る (人待ちの ●・未送信・断り)"
+     },
+     {
+      "Name": "move",
+      "Label": "緑: 動いている (作業中・対応中)・未読の ●・y・足した行"
+     },
+     {
+      "Name": "quiet",
+      "Label": "薄い: 済んだ・AI 待ち・添え書き"
+     },
+     {
+      "Name": "structure",
+      "Label": "青: 見出し・リンク・カーソル・g の字"
+     },
+     {
+      "Name": "yours",
+      "Label": "青緑: あなたが入れたもの (答えのキー・選んだ答え)"
+     },
+     {
+      "Name": "bad",
+      "Label": "赤: 誤り・n・消した行"
+     }
+    ],
     "Drop": {
-     "answer": 6,
-     "close": 4,
-     "comment": 7,
+     "answer": 7,
+     "close": 5,
+     "comment": 8,
      "hide": 2,
-     "jump": 3,
-     "n": 5,
+     "jump": 4,
+     "keys": 3,
+     "n": 6,
      "next": 2,
-     "open": 4,
-     "read": 6,
+     "open": 5,
+     "read": 7,
      "undo": 1,
-     "y": 6
+     "write": 3,
+     "y": 7
     }
    }
   },
@@ -6535,11 +6794,12 @@
     "Words": {
      "close": "閉じる",
      "go": "行へ",
-     "gone": "この pitboard は見つからなくなりました",
+     "gone": "この pitboard は見つからなくなりました。そのディレクトリで pitboard serve をもう一度動かすと戻ります",
      "imageTooLarge": "画像が大きすぎるので貼りませんでした (20 MiB まで)",
      "jumping": "飛ぶ先の字を押してください (esc やめる)",
      "noComments": "コメントはまだありません。m で書けます",
      "noMarked": "印のある行はありません",
+     "notSent": "まだ送っていません (s で送る)",
      "offline": "つながっていません。pitboard serve が出した URL を開き直してください",
      "signClosed": "▸",
      "signOpen": "▾"
@@ -6598,18 +6858,46 @@
      "panel",
      "pointer"
     ],
+    "Palette": [
+     {
+      "Name": "need",
+      "Label": "黄: あなたの手が要る (人待ちの ●・未送信・断り)"
+     },
+     {
+      "Name": "move",
+      "Label": "緑: 動いている (作業中・対応中)・未読の ●・y・足した行"
+     },
+     {
+      "Name": "quiet",
+      "Label": "薄い: 済んだ・AI 待ち・添え書き"
+     },
+     {
+      "Name": "structure",
+      "Label": "青: 見出し・リンク・カーソル・g の字"
+     },
+     {
+      "Name": "yours",
+      "Label": "青緑: あなたが入れたもの (答えのキー・選んだ答え)"
+     },
+     {
+      "Name": "bad",
+      "Label": "赤: 誤り・n・消した行"
+     }
+    ],
     "Drop": {
-     "answer": 6,
-     "close": 4,
-     "comment": 7,
+     "answer": 7,
+     "close": 5,
+     "comment": 8,
      "hide": 2,
-     "jump": 3,
-     "n": 5,
+     "jump": 4,
+     "keys": 3,
+     "n": 6,
      "next": 2,
-     "open": 4,
-     "read": 6,
+     "open": 5,
+     "read": 7,
      "undo": 1,
-     "y": 6
+     "write": 3,
+     "y": 7
     }
    },
    "Offers": {
@@ -6672,6 +6960,119 @@
    }
   }
  },
+ "Index": {
+  "gone": {
+   "Boards": [
+    {
+     "ID": "board1",
+     "Dir": "",
+     "Session": "s8",
+     "Where": "~/dev/pitboard",
+     "Title": "pitboard を作る",
+     "Summary": [
+      {
+       "Text": "反応待ち 4",
+       "Tone": "need"
+      },
+      {
+       "Text": "未読 1",
+       "Tone": "move"
+      },
+      {
+       "Text": "未送信 2",
+       "Tone": "need"
+      }
+     ]
+    },
+    {
+     "ID": "board2",
+     "Dir": "",
+     "Session": "s10",
+     "Where": "~/dev/moved-away",
+     "Title": "",
+     "Summary": null,
+     "Message": "この pitboard は見つからなくなりました。そのディレクトリで pitboard serve をもう一度動かすと戻ります",
+     "Gone": true
+    }
+   ],
+   "Words": {
+    "none": "ボードはまだありません。報告のあるディレクトリで pitboard serve を実行すると、ここに並びます",
+    "offline": "つながっていません。pitboard serve が出した URL を開き直してください"
+   }
+  },
+  "none": {
+   "Boards": [],
+   "Words": {
+    "none": "ボードはまだありません。報告のあるディレクトリで pitboard serve を実行すると、ここに並びます",
+    "offline": "つながっていません。pitboard serve が出した URL を開き直してください"
+   }
+  },
+  "several": {
+   "Boards": [
+    {
+     "ID": "board1",
+     "Dir": "",
+     "Session": "s8",
+     "Where": "~/dev/pitboard",
+     "Title": "pitboard を作る",
+     "Summary": [
+      {
+       "Text": "反応待ち 4",
+       "Tone": "need"
+      },
+      {
+       "Text": "未読 1",
+       "Tone": "move"
+      },
+      {
+       "Text": "未送信 2",
+       "Tone": "need"
+      }
+     ]
+    },
+    {
+     "ID": "board2",
+     "Dir": "",
+     "Session": "s5",
+     "Where": "~/dev/notes",
+     "Title": "",
+     "Summary": null,
+     "Message": "AI はまだ報告を書いていません"
+    },
+    {
+     "ID": "board3",
+     "Dir": "",
+     "Session": "s54",
+     "Where": "~/dev/a-project-with-a-rather-long-directory-name-that-wraps",
+     "Title": "長い場所",
+     "Summary": [
+      {
+       "Text": "未読 1",
+       "Tone": "move"
+      }
+     ]
+    }
+   ],
+   "Words": {
+    "none": "ボードはまだありません。報告のあるディレクトリで pitboard serve を実行すると、ここに並びます",
+    "offline": "つながっていません。pitboard serve が出した URL を開き直してください"
+   }
+  }
+ },
+ "Refusals": {
+  "back": "カーソルの行に戻りました",
+  "changed": "報告が書き換わりました。もう一度押してください",
+  "emptyComment": "空だったので書きませんでした",
+  "moved": "報告が書き換わりました。カーソルの行を確かめてください",
+  "noMarked": "印のある行はありません",
+  "placedAnswer": "j k で動かすと答えられます",
+  "placedYN": "j k で動かすと y n が効きます",
+  "settlingHide": "いま移った行です。もう一度押すと隠れます",
+  "settlingReact": "いま移った行です。もう一度押すと付きます",
+  "settlingShow": "いま移った行です。もう一度押すと表示に戻ります",
+  "tooLong": "長すぎるので受け取れませんでした"
+ },
+ "Sent": "送りました",
  "Locked": {
   "Hints": null,
   "Options": null,

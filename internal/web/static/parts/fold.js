@@ -19,12 +19,12 @@ export function draw(cx, t, opts) {
 
 const top = (p) => p.Things.find((t) => t.Kind === 'fold');
 
-export const covers = {"kind": ["fold"]};
+export const covers = {"kind": {"fold": ["top level, closed (a heading)"]}};
 
 export const variants = [
-  { name: 'top level, closed (a heading)', pick: top, heading: true },
-  { name: 'top level, open: nested Fold open', pick: top, heading: true, open: true, openAlso: ['中の折りたたみ'] },
+  { name: 'top level, closed (a heading)', pick: top },
+  { name: 'top level, open: nested Fold open', pick: top, open: true, openAlso: ['中の折りたたみ'] },
   { name: 'inside, closed', pick: '中の折りたたみ' },
   { name: 'with a comment, open', fixture: 'comments', pick: 'f1', open: true },
-  { name: 'hidden (H)', fixture: 'hidden', pick: 'h4', heading: true },
+  { name: 'hidden (H)', fixture: 'hidden', pick: 'h4' },
 ];

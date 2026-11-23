@@ -41,7 +41,7 @@ export function thumbs(cx, ns) {
 function reply(c) {
   if (!c.Settled) return null;
   const p = el('div', 'creply');
-  p.appendChild(el('span', 'faint', c.SettledHead));
+  p.appendChild(el('span', 'quiet', c.SettledHead));
   p.appendChild(document.createTextNode(c.Settled));
   return p;
 }
@@ -56,7 +56,7 @@ export function on(cx, t, cls) {
     d.appendChild(word(c.Word, 'cstate') || el('span'));
     const under = el('div', 'cunder');
     if (c.Images && c.Images.length) under.appendChild(thumbs(cx, c.Images));
-    if (c.TitleThen) under.appendChild(el('div', 'faint', '(書いたときは: ' + c.TitleThen + ')'));
+    if (c.TitleThen) under.appendChild(el('div', 'quiet', '(書いたときは: ' + c.TitleThen + ')'));
     const r = reply(c);
     if (r) under.appendChild(r);
     if (under.firstChild) d.appendChild(under);
@@ -78,7 +78,7 @@ export function panelRow(cx, c, key, canGo) {
   b.appendChild(el('span', 'dot'));
   b.appendChild(el('span', 'sign'));
   const title = el('span', 'title ctitle');
-  title.appendChild(el('span', 'cnum faint', String(c.N)));
+  title.appendChild(el('span', 'cnum quiet', String(c.N)));
   title.appendChild(text(c.Text));
   b.appendChild(title);
   const r = el('span', 'right');
@@ -89,7 +89,7 @@ export function panelRow(cx, c, key, canGo) {
   if (c.Images && c.Images.length) d.appendChild(thumbs(cx, c.Images));
   if (c.About) {
     const p = el('div', 'target');
-    p.appendChild(el('span', 'faint', '行: '));
+    p.appendChild(el('span', 'quiet', '行: '));
     if (canGo) {
       const go = el('button', 'golink', c.About);
       go.type = 'button';
@@ -101,15 +101,20 @@ export function panelRow(cx, c, key, canGo) {
     d.appendChild(p);
   }
   // About already says the title it was written on, when that differs.
-  if (c.TitleThen && !c.About) d.appendChild(el('div', 'faint', '(書いたときは: ' + c.TitleThen + ')'));
-  d.appendChild(reply(c) || el('div', 'faint', c.Note));
+  if (c.TitleThen && !c.About) d.appendChild(el('div', 'quiet', '(書いたときは: ' + c.TitleThen + ')'));
+  // Not sent: the panel says so once, over every comment (comments.js).
+  const rep = reply(c);
+  if (rep) d.appendChild(rep);
+  else if (c.Note && c.Note !== cx.words('notSent')) d.appendChild(el('div', 'quiet', c.Note));
   box.appendChild(d);
   return box;
 }
 
 const onLine = (id) => ({ fixture: 'comments', pick: id, open: true });
 
-export const covers = {"status": ["未送信", "送信済", "既読", "対応中", "保留", "対応済"], "settle": ["doing", "hold", "done"]};
+export const covers = {"status": {"未送信": ["未送信, 3 lines, an image, a second one"], "送信済": ["送信済"], "既読": ["既読"], "対応中": ["対応中 (reply)"], "保留": ["保留 (reply)"], "対応済": ["対応済 (2-line reply)"]}, "settle": {"doing": ["対応中 (reply)"], "hold": ["保留 (reply)"], "done": ["対応済 (2-line reply)"]}};
+
+export const differences = {"rights-below": ["narrow: the state word below, as its list"]};
 
 export const variants = [
   { name: '未送信, 3 lines, an image, a second one', ...onLine('c1') },
@@ -121,4 +126,5 @@ export const variants = [
   { name: 'written on another title', ...onLine('c7') },
   { name: 'on a Fold', ...onLine('f1') },
   { name: 'long unbroken', fixture: 'long', pick: 'url', open: true },
+  { name: 'narrow: the state word below, as its list', fixture: 'long', pick: 'url', open: true, w: 390 },
 ];

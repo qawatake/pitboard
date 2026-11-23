@@ -62,7 +62,7 @@ func (a *app) pane(avail int) []string {
 	}
 	// Quiet: how many are not sent is said at the top right (未送信), and
 	// how to send them in the hints (s 送る).
-	head := a.compose(false, 0, nil, plainText("コメント", bold+blue), nil)
+	head := a.compose(false, 0, nil, plainText("コメント", bold+cStructure), nil)
 	if n == 0 {
 		return []string{head}
 	}
@@ -76,7 +76,7 @@ func (a *app) pane(avail int) []string {
 // openPane is the pane while the cursor is in it: up to half the screen,
 // every thought in the pane's order, scrolled to keep the cursor's in view.
 func (a *app) openPane(order []*board.Thought) []string {
-	head := a.compose(false, 0, nil, plainText("コメント", bold+blue), nil)
+	head := a.compose(false, 0, nil, plainText("コメント", bold+cStructure), nil)
 	rows, _ := a.paneAll(order)
 	room := max(a.t.h/2-3, 1) // less the heading and the blank above and below
 	// Keep the cursor's thought in view, and its opened lines as far as
@@ -171,7 +171,7 @@ func (a *app) listCur() *board.Thought {
 }
 
 func (a *app) listRows() []row {
-	rows := []row{{}, {line: a.compose(false, 0, nil, plainText("コメント", bold+blue), nil)}}
+	rows := []row{{}, {line: a.compose(false, 0, nil, plainText("コメント", bold+cStructure), nil)}}
 	ts := a.listed()
 	if len(ts) == 0 {
 		return append(rows, a.para(0, plainText("コメントはまだありません。m で書けます", dim))...)

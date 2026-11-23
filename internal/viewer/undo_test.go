@@ -54,7 +54,7 @@ func TestUndoReactionSent(t *testing.T) {
 	if a.b.Unsent != 1 {
 		t.Errorf("unsent %d", a.b.Unsent)
 	}
-	if r := rightOf(a, "hook"); r != "取消 未送信" {
+	if r := rightOf(a, "hook"); r != "取り消し 未送信" {
 		t.Errorf("right %q", r)
 	}
 	if got := changes(t, st); got != "retract y hook (hook を入れるか決める)" {

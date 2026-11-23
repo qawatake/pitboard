@@ -20,7 +20,7 @@ export function draw(cx, t, opts) {
   });
 }
 
-export const covers = {"kind": ["link"]};
+export const covers = {"kind": {"link": ["path"]}};
 
 export const variants = [
   { name: 'path', pick: 'spec' },

@@ -19,7 +19,7 @@ type Board struct {
 	State     *board.State
 	// Viewed is the hashes of what the person has looked at (see marks.go).
 	Viewed map[string]bool
-	Unsent int  // what the person has not sent yet
+	Unsent int  // what the person has not sent yet, as they see it (PendingCount)
 	Unread int  // what was sent and the AI has not read yet
 	Waiter bool // a 'pitboard wait' is waiting: sending reaches the AI
 	// Hist is what the person did since the screen opened, oldest first:
@@ -56,7 +56,7 @@ func (b *Board) Load() {
 	b.evMod, b.seenMod = ModTime(b.Store.EventsPath()), ModTime(b.Store.SeenPath())
 	evs, seen := b.Store.Events(), b.Store.Seen()
 	b.State = board.Replay(evs, seen)
-	b.Unsent, b.Unread = board.Unsent(evs), board.SentUnread(evs, seen)
+	b.Unsent, b.Unread = PendingCount(board.UnsentEvents(evs)), board.SentUnread(evs, seen)
 }
 
 // LoadViewed reads again what the person has looked at (another screen of

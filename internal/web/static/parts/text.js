@@ -47,7 +47,7 @@ export function listRow(cx, t, opts) {
 
 const firstOf = (kind) => (p) => p.Things.find((t) => t.Kind === kind);
 
-export const covers = {"kind": ["title", "para", "list"], "style": ["plain", "bold", "code", "link"]};
+export const covers = {"kind": {"title": ["title"], "para": ["paragraph: bold, code, link"], "list": ["list line"]}, "style": {"plain": ["paragraph: bold, code, link"], "bold": ["paragraph: bold, code, link"], "code": ["paragraph: bold, code, link"], "link": ["paragraph: bold, code, link"]}};
 
 export const variants = [
   { name: 'title', pick: firstOf('title') },

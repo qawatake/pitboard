@@ -36,7 +36,7 @@ const HELP = [
 function desc(text) {
   const dd = el('dd');
   let s = text;
-  if (s.startsWith('{note}')) { dd.className = 'faint'; s = s.slice(6); }
+  if (s.startsWith('{note}')) { dd.className = 'quiet'; s = s.slice(6); }
   for (const part of s.split(/(\{need\}|\{move\})/)) {
     if (part === '{need}') dd.append(el('span', 'need', '黄の ●'));
     else if (part === '{move}') dd.append(el('span', 'move', '緑の ●'));
@@ -53,11 +53,27 @@ export function draw(cx, help) {
       if (d === null) { dl.appendChild(el('h3', '', k)); continue; }
       dl.append(el('dt', '', k), desc(d));
     }
+    // The colors, each with its one meaning (page.Palette), each in its
+    // own color: the same words as SPEC and the terminal's list.
+    const pal = (cx.page && cx.page.Palette) || [];
+    if (pal.length) {
+      dl.appendChild(el('h3', '', '色'));
+      for (const c of pal) {
+        const [hue, meaning] = c.Label.split(': ');
+        const dt = el('dt', c.Name, '● ' + hue);
+        dt.dataset.color = c.Name;
+        dl.append(dt, el('dd', '', meaning));
+      }
+    }
   }
 }
 
-export const covers = {"mode": ["help"]};
+export const covers = {"mode": {"help": ["the keys, over the pinned band and the bar"]}};
+
+export const differences = {"help-scrolled": ["scrolled to its end"]};
 
 export const variants = [
   { name: 'the keys, over the pinned band and the bar', ui: { cur: 'restart', mode: 'help' }, responsive: true },
+  { name: 'scrolled to its end', ui: { cur: 'restart', mode: 'help' }, sheetScroll: 'bottom' },
+  { name: 'a tall screen: all of it', ui: { cur: 'restart', mode: 'help' }, h: 1500 },
 ];

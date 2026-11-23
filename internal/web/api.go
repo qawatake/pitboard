@@ -53,6 +53,11 @@ type PageJSON struct {
 	// Clears is when the message on the bottom line goes (page.MsgClears):
 	// key, editor, panel, pointer.
 	Clears []string
+	// Gallery: the server serves the gallery's check, and the page may be
+	// put in a state by ?ui= (Options.Gallery). Never on a plain serve.
+	Gallery bool `json:",omitempty"`
+	// Palette is the colors' meanings, for the keys list (page.Palette).
+	Palette []PaletteWord
 	// Drop is, for each key's Do, the order the bar leaves it out in when
 	// there is no room (page.DropRank: lowest first; absent, never).
 	Drop map[string]int
@@ -62,8 +67,23 @@ var words = map[string]string{
 	"offline": page.MsgOffline, "jumping": page.MsgJumpLetter, "noMarked": page.MsgNoMarked,
 	"imageTooLarge": board.ErrTooLarge.Error(),
 	"signClosed":    page.SignClosed, "signOpen": page.SignOpen,
-	"gone": MsgGone, "go": page.WordGo, "close": page.WordClose, "noComments": MsgNoComments,
+	"gone": MsgGone, "notSent": page.MsgNotSent, "go": page.WordGo, "close": page.WordClose, "noComments": MsgNoComments,
 }
+
+// PaletteWord is a color of the palette, as the keys list says it.
+type PaletteWord struct{ Name, Label string }
+
+var palette = func() []PaletteWord {
+	var out []PaletteWord
+	for _, c := range page.Palette {
+		out = append(out, PaletteWord{c.Name, c.Label})
+	}
+	return out
+}()
+
+// GalleryNow is the clock of a server for the gallery (Options.Gallery),
+// and the time the gallery's fixtures are made at.
+var GalleryNow = time.Date(2026, 11, 24, 12, 0, 0, 0, time.FixedZone("JST", 9*3600))
 
 // MsgNoComments is what the comment panel says with no comment.
 const MsgNoComments = "コメントはまだありません。m で書けます"
@@ -79,6 +99,7 @@ func (b *hosted) handlePage(w http.ResponseWriter, r *http.Request) {
 	defer t.mu.Unlock()
 	t.fresh()
 	out := t.pageJSON(b.st, r.URL.Query().Get("hidden") == "1")
+	out.Gallery = b.gallery
 	t.say = ""
 	body, err := json.Marshal(out)
 	if err != nil {
@@ -106,6 +127,7 @@ func (t *tab) pageJSON(st *board.Store, showHidden bool) PageJSON {
 	out := PageJSON{Page: p, ImageMax: board.ImageMax, Say: t.say, Words: words, Clears: clears}
 	out.More, out.Tail = t.b.Bar(showHidden)
 	out.Drop = page.DropRanks()
+	out.Palette = palette
 	out.Comment = page.CommentHints(p.CanWrite)
 	out.Editor = page.EditorHints("shift+enter")
 	out.Session, out.Dir = board.ShortSession(st), st.Base

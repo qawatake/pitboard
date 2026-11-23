@@ -168,6 +168,14 @@ func run(args []string, out io.Writer) error {
 		fmt.Fprint(out, usage)
 		return nil
 	}
+	// ack-removed forgets: -h after it only says how to use it (no
+	// session needed).
+	if cmd == "ack-removed" && len(args) > 0 {
+		if a := args[0]; a == "-h" || a == "--help" || a == "-help" {
+			fmt.Fprint(out, ackRemovedUsage)
+			return nil
+		}
+	}
 
 	var st *board.Store
 	if session != "" {
@@ -254,6 +262,9 @@ func run(args []string, out io.Writer) error {
 			return exitError(1)
 		}
 	case "ack-removed":
+		if len(args) > 0 {
+			return fmt.Errorf("ack-removed: unknown argument %q (usage: pitboard -s SESSION ack-removed)", args[0])
+		}
 		n, err := st.AckRemoved()
 		if err != nil {
 			return err
@@ -264,6 +275,15 @@ func run(args []string, out io.Writer) error {
 	}
 	return nil
 }
+
+// ackRemovedUsage is 'pitboard ack-removed -h'.
+const ackRemovedUsage = `usage: pitboard -s SESSION ack-removed
+
+Stops the warnings about rows removed from report.md so far ('check' lists
+them: warning: row "ID" (title) was removed but ...). Run it once removing
+them was right: their questions answered or no longer needed, their comments
+settled. A row removed later is warned of again.
+`
 
 // runWait is 'pitboard wait [--timeout DURATION]'.
 func runWait(st *board.Store, args []string, out io.Writer) error {

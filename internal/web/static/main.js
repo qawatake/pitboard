@@ -33,7 +33,9 @@ const store = {
   set(k, v) { try { sessionStorage.setItem(k, v); } catch { /* the draft lives only on screen */ } },
   del(k) { try { sessionStorage.removeItem(k); } catch { /* nothing */ } },
 };
-const draftKey = (ed) => 'pitboard-draft:' + ed.kind + ':' + (ed.kind === 'edit' ? ed.n : ed.key);
+// A draft is the board's and its target's: the same line id or comment
+// number on another board (another /s/<id>) is another draft.
+const draftKey = (ed) => 'pitboard-draft:' + BASE + ':' + ed.kind + ':' + (ed.kind === 'edit' ? ed.n : ed.key);
 
 const net = connect(BASE, tabId);
 const env = { imageURL: (n) => BASE + '/api/image/' + n };
@@ -51,6 +53,7 @@ let pending = false;
 let hintSeq = 0;
 let hintTimer = 0;
 let retryTimer = 0;
+let stream = null; // the event stream (reopen: after the board came back)
 let returnTo = null; // where the focus goes back to when a dialog closes
 const now = () => Date.now();
 const textarea = () => $('.editor textarea');
@@ -98,9 +101,9 @@ function set(next, only) {
 }
 
 // say puts msg on the bottom line (read out again even when it repeats).
-function say(msg) {
+function say(msg, tone) {
   const s = $('.status');
-  ui = S.say(ui, msg);
+  ui = S.say(ui, msg, tone);
   s.textContent = '';
   requestAnimationFrame(() => { draw('cursor'); syncPadding(); });
 }
@@ -131,6 +134,9 @@ function setConn(conn, msg) {
   // Keep trying quietly while offline: the first page that comes back
   // clears it. A board that is gone stays gone.
   if (conn === 'offline') retryTimer = setInterval(() => { etag = ''; refresh(); }, 3000);
+  // A board that is gone comes back when it is registered again under the
+  // same id (pitboard serve in its directory): ask now and then.
+  if (conn === 'gone') retryTimer = setInterval(() => { etag = ''; refresh(true); }, 4000);
   draw();
 }
 
@@ -140,9 +146,10 @@ function failed(e) {
   return false;
 }
 
-async function refresh() {
+async function refresh(retry) {
   if (composing) { pending = true; return; }
-  if (ui.conn === 'gone') return;
+  if (ui.conn === 'gone' && !retry) return;
+  const wasGone = ui.conn === 'gone';
   let d;
   try {
     const r = await net.request('/api/page' + (ui.showHidden ? '?hidden=1' : ''), undefined, etag ? { 'If-None-Match': etag } : {});
@@ -158,7 +165,9 @@ async function refresh() {
     return;
   }
   const first = !page;
+  if (wasGone) stream.reopen();
   page = d;
+  if (first) fromURL();
   ui = S.placed(ui, page, now());
   ui = S.setConn(ui, 'live');
   clearInterval(retryTimer);
@@ -172,7 +181,8 @@ async function act(action, extra = {}) {
   if (ui.busy) return null;
   try {
     const r = await net.api('/api/act', { Action: action, ShowHidden: ui.showHidden, ...extra });
-    if (r.Message) say(r.Message);
+    // A key that did nothing says why: that needs the person.
+    if (r.Message) say(r.Message, r.OK || r.Changed || action === 'readall' ? '' : 'need');
     return r;
   } catch (e) {
     if (!failed(e)) say('できませんでした: ' + e.message);
@@ -196,6 +206,21 @@ async function requestHint() {
   ui = { ...ui, offer: { key, sel, offer: r.Offer } };
   draw('cursor');
   if (r.Offer.Recheck > 0) hintTimer = setTimeout(requestHint, r.Offer.Recheck + 20);
+}
+
+// fromURL puts the page in the state ?ui= says (JSON over S.initial()),
+// only when the server serves the gallery's check (page.Gallery: pitboard
+// serve --foreground --gallery): scripts/web-gallery.sh compares this live
+// page with the gallery's drawing of the same state.
+function fromURL() {
+  if (!page.Gallery) return;
+  const q = new URLSearchParams(location.search).get('ui');
+  if (!q) return;
+  let v;
+  try { v = JSON.parse(q); } catch { return; }
+  ui = { ...ui, ...v, conn: 'live' };
+  document.body.dataset.ui = 'set';
+  if (ui.showHidden) { etag = ''; setTimeout(refresh, 0); }
 }
 
 // ---- the cursor ----
@@ -243,8 +268,10 @@ function openPanel() {
   clear('panel');
   set(S.openPanel(ui));
   const keys = S.navKeys(page, ui);
-  if (keys.length) setCursor(keys[0], 'person');
+  if (keys.length) setCursor(keys[0], 'person', true);
   else $('.cpanel').focus({ preventScroll: true });
+  // It opens at its top: the heading in view, the first comment under it.
+  $('.cpanel').scrollTop = 0;
 }
 
 function closePanel(back = true) {
@@ -343,7 +370,7 @@ function openEditor(ed) {
   if (!ta) return;
   ta.focus();
   ta.setSelectionRange(ta.value.length, ta.value.length);
-  $('.editor').scrollIntoView({ block: 'nearest' });
+  if (!$('.editor').classList.contains('loose')) $('.editor').scrollIntoView({ block: 'nearest' });
 }
 
 function writeLoose() {
@@ -507,6 +534,10 @@ function run(it, e) {
 }
 
 function onKey(e) {
+  // Every key the person presses is the next key: the message goes
+  // (page.MsgClears), enter on a row and esc too. Not a lone modifier, not
+  // what is typed into the editor.
+  if (page && !/^(Shift|Control|Alt|Meta|CapsLock)$/.test(e.key) && !(e.target && e.target.tagName === 'TEXTAREA') && !e.isComposing) clear('key');
   if (e.target && e.target.tagName === 'TEXTAREA') { editorKey(e); if (e.defaultPrevented) return; }
   const it = intentOf(e, ui, page);
   if (!it) {
@@ -554,7 +585,8 @@ function start() {
     const b = tg.closest('.rowbtn');
     if (!b || tg.closest('a')) return;
     const key = b.dataset.nav;
-    if (key !== ui.cur) { clear('pointer'); setCursor(key, 'person', false); }
+    clear(e.detail === 0 ? 'key' : 'pointer');
+    if (key !== ui.cur) setCursor(key, 'person', false);
     const t = S.index(page).things.get(key);
     // A comment goes to its line by enter (a click from the keyboard has
     // no detail); clicked, it is only chosen (its line's title goes).
@@ -587,7 +619,7 @@ function start() {
     new ResizeObserver(syncPadding).observe($('.foot'));
   }
   syncPadding();
-  net.events({
+  stream = net.events({
     changed: () => refresh(),
     open: () => refresh(),
     lost: () => { if (ui.conn === 'live') { setConn('offline'); refresh(); } },

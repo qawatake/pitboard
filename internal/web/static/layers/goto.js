@@ -23,7 +23,7 @@ export function items(cx, key) {
   return out;
 }
 
-export const covers = {"mode": ["goto"]};
+export const covers = {"mode": {"goto": ["g: letters in the gutter, the places in the bar"]}};
 
 export const variants = [
   { name: 'g: letters in the gutter, the places in the bar', ui: { mode: 'goto' }, responsive: true },

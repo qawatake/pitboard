@@ -25,7 +25,7 @@ export function draw(cx, t, opts) {
   });
 }
 
-export const covers = {"kind": ["ask", "option"]};
+export const covers = {"kind": {"ask": ["answered, closed (key and head)"], "option": ["answered, open (● hangs)"]}};
 
 export const variants = [
   { name: 'answered, closed (key and head)', pick: 'unit' },

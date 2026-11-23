@@ -40,15 +40,15 @@ export function rightOf(t, open) {
   if (r.Reaction) {
     const cls = r.Reaction === 'y' ? 'yes' : r.Reaction === 'n' ? 'no' : 'optkey';
     box.appendChild(el('span', cls, r.Reaction));
-    if (t.Kind === 'ask' && r.OptionHead && !open) box.appendChild(el('span', 'faint ohead', r.OptionHead));
+    if (t.Kind === 'ask' && r.Option && !open) box.appendChild(el('span', 'quiet ohead', r.Option));
   }
   if (r.Input && r.Input.Text) {
     const w = el('span', 'word');
-    if (r.Count > 0) w.appendChild(el('span', 'faint', r.Count + ' '));
+    if (r.Count > 0) w.appendChild(el('span', 'quiet', r.Count + ' '));
     w.appendChild(word(r.Input));
     box.appendChild(w);
   }
-  if (r.AtText) box.appendChild(el('span', 'faint word', r.AtText));
+  if (r.AtText) box.appendChild(el('span', 'quiet word', r.AtText));
   else if (r.Status && r.Status.Text) box.appendChild(word(r.Status));
   return box;
 }
@@ -97,6 +97,7 @@ export function row(cx, t, opts, add) {
 function frame(cx, t, open, opts, jump) {
   const box = el('div', 'row k-' + t.Kind);
   box.dataset.key = t.Key;
+  if (t.State) box.classList.add('st-' + t.State);
   if (t.State === 'done') box.classList.add('done');
   if (t.Hidden) box.classList.add('hidden');
   if (opts.heading && !t.Hidden) box.classList.add('heading');

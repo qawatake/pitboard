@@ -24,22 +24,35 @@ func (s *Server) watchLoop() {
 			return
 		case <-tick.C:
 		}
-		s.mu.Lock()
-		bs := append([]*hosted(nil), s.order...)
-		s.mu.Unlock()
-		for _, b := range bs {
-			if !b.there() {
-				// Its directory went (moved, deleted): it is dropped, and
-				// its pages are told so.
+		s.watchOnce()
+	}
+}
+
+// watchOnce is one poll of every board.
+func (s *Server) watchOnce() {
+	s.mu.Lock()
+	bs := append([]*hosted(nil), s.order...)
+	s.mu.Unlock()
+	for _, b := range bs {
+		if !b.there() {
+			// Its directory went (moved, deleted): after dropAfter
+			// polls in a row it is dropped, and its pages are told so.
+			// One miss may be a move and back, or a slow disk.
+			if b.missed++; b.missed >= dropAfter {
 				s.drop(b)
-				continue
 			}
-			if b.poll() {
-				s.notify(b.id)
-			}
+			continue
+		}
+		b.missed = 0
+		if b.poll() {
+			s.notify(b.id)
 		}
 	}
 }
+
+// dropAfter is how many polls in a row must miss a board's directory
+// before the board is dropped.
+const dropAfter = 3
 
 // poll says whether the board changed since it was last polled.
 func (b *hosted) poll() bool {
@@ -63,30 +76,25 @@ func (b *hosted) there() bool {
 	return err == nil && ok
 }
 
-// drop stops showing b (its directory went): the registry forgets it, and
-// its event streams get "gone" and end.
+// drop stops showing b (its directory went): the registry keeps only its
+// tombstone, and its event streams get "gone" and end.
 func (s *Server) drop(b *hosted) {
 	s.mu.Lock()
 	if s.boards[b.id] != b {
 		s.mu.Unlock()
 		return
 	}
-	delete(s.boards, b.id)
-	for i, x := range s.order {
-		if x == b {
-			s.order = append(s.order[:i:i], s.order[i+1:]...)
-			break
-		}
-	}
+	s.bury(b)
 	s.mu.Unlock()
 	s.save()
-	s.notify(b.id)
-	s.notify("")
+	s.notify(b.id) // its streams, and the index's
 }
 
-// MsgGone is what a page of a board that was dropped says (its directory
-// went): on its banner, and as the answer to its calls.
-const MsgGone = "この pitboard は見つからなくなりました"
+// MsgGone is what a page of a board that is no longer shown says
+// (forgotten, or its directory went): on its banner, and as the answer to
+// its calls. Registered again, the board has the same id, and its page
+// works again.
+const MsgGone = "この pitboard は見つからなくなりました。そのディレクトリで pitboard serve をもう一度動かすと戻ります"
 
 // notify tells the event streams of board id, and the index's, that it
 // changed (id "": the index's only).
@@ -157,5 +165,5 @@ var Modes = []string{"normal", "goto", "editor", "help", "comments", "image"}
 
 // Conns is every state of the page's connection: live, offline (the
 // server cannot be reached, or no longer takes the page), gone (its board
-// was dropped: MsgGone).
+// is no longer shown: MsgGone).
 var Conns = []string{"live", "offline", "gone"}

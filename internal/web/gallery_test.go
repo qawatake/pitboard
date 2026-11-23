@@ -28,7 +28,13 @@ import (
 // code makes now; go test ./internal/web -run TestGalleryFixtures -update
 // writes it again.
 
-var update = flag.Bool("update", false, "write static/gallery/fixtures.json again")
+var (
+	update = flag.Bool("update", false, "write static/gallery/fixtures.json again")
+	// boardsOut keeps the boards the fixtures are made from, one directory
+	// per situation (DIR/<name>, its board -s gallery1): scripts/web-gallery.sh
+	// serves them live and compares the live page with the gallery's.
+	boardsOut = flag.String("boards", "", "keep the fixtures' boards in this directory")
+)
 
 const fixturesPath = "static/gallery/fixtures.json"
 
@@ -39,6 +45,12 @@ type Fixtures struct {
 	// variant of the module that declares it.
 	Enums      map[string][]string
 	Situations map[string]*Situation
+	// Index is the index page (/) in its situations: none, several, gone.
+	Index map[string]Index
+	// Refusals is page.Refusals: what each refusal says.
+	Refusals map[string]string
+	// Sent is what the bar says after a send.
+	Sent string
 	// Locked is the bar's offer on a line rewritten under the cursor.
 	Locked *OfferJSON
 }
@@ -52,13 +64,18 @@ type Situation struct {
 	// cursor to it, closed and open; Placed, when the page put it there.
 	Offers map[string]OfferPair  `json:",omitempty"`
 	Placed map[string]*OfferJSON `json:",omitempty"`
+	// UndoMore is the bar's More for the tab that did the acts above (it
+	// can take them back: u). Page is as a fresh tab sees it, as the live
+	// page the gallery is compared with.
+	UndoMore []page.Hint `json:",omitempty"`
 }
 
 // OfferPair is a line's offers, closed and open.
 type OfferPair struct{ Closed, Open *OfferJSON }
 
-// galleryNow is the time the fixtures are made at.
-var galleryNow = time.Date(2026, 11, 24, 12, 0, 0, 0, time.FixedZone("JST", 9*3600))
+// galleryNow is the time the fixtures are made at (a --gallery server's
+// clock too).
+var galleryNow = GalleryNow
 
 type gboard struct {
 	t  *testing.T
@@ -66,9 +83,16 @@ type gboard struct {
 	b  *page.Board
 }
 
-func newGBoard(t *testing.T, src string, writeReport bool) *gboard {
+func newGBoard(t *testing.T, name, src string, writeReport bool) *gboard {
 	t.Helper()
-	st := board.Open(t.TempDir(), "gallery1")
+	root := t.TempDir()
+	if *boardsOut != "" {
+		root = filepath.Join(*boardsOut, name)
+		if err := os.RemoveAll(root); err != nil {
+			t.Fatal(err)
+		}
+	}
+	st := board.Open(root, "gallery1")
 	if err := os.MkdirAll(st.Dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -171,8 +195,17 @@ func (g *gboard) image() int {
 // situation is the board's page now, as a tab is given it, made the same
 // on every machine (time, directory), with the offers of its lines.
 func (g *gboard) situation(note string, showHidden, placed bool) *Situation {
-	t := &tab{b: g.b, seen: map[string]seenLine{}}
+	var fresh *page.Board
+	if g.st != nil && g.b.Store != nil {
+		fresh = page.Open(g.st)
+	} else {
+		fresh = g.b
+	}
+	t := &tab{b: fresh, seen: map[string]seenLine{}}
 	out := &Situation{Note: note, Page: t.pageJSON(g.st, showHidden)}
+	if g.b.CanWrite() && len(g.b.Hist) > 0 {
+		out.UndoMore, _ = g.b.Bar(showHidden)
+	}
 	out.Page.Dir = "~/dev/sample"
 	var walk func(ts []*page.Thing)
 	walk = func(ts []*page.Thing) {
@@ -412,7 +445,7 @@ func makeFixtures(t *testing.T) *Fixtures {
 
 	// dense: one of each part, answered and not, a reaction of each kind,
 	// something to take back and to send.
-	g := newGBoard(t, denseReport, true)
+	g := newGBoard(t, "dense", denseReport, true)
 	g.react("merge", "y")
 	g.react("pr", "n")
 	g.react("unit", "b")
@@ -420,7 +453,7 @@ func makeFixtures(t *testing.T) *Fixtures {
 	f.Situations["dense"] = g.situation("a whole report: every part, reactions, something to send and to take back", false, true)
 
 	// comments: a comment in every state, on lines and on none.
-	g = newGBoard(t, commentsReport, true)
+	g = newGBoard(t, "comments", commentsReport, true)
 	g.react("u1", "y")
 	c3 := g.comment("c3", "", "読んでください")
 	c4 := g.comment("c4", "", "直してほしい")
@@ -443,28 +476,93 @@ func makeFixtures(t *testing.T) *Fixtures {
 	g.comment("", "", "宛先なしのコメント")
 	g.comment("gone", "消えた行の題", "報告から消えた行へのコメント")
 	// The y on u1 went with the sends above; taken back now, not sent:
-	// 取消 未送信.
+	// 取り消し 未送信.
 	g.undoReact("u1")
 	f.Situations["comments"] = g.situation("comments in every state: unsent, sent, read, doing, hold, done, on a gone line, on none, with an image", false, false)
 
 	// hidden: every kind hidden, shown with H.
-	g = newGBoard(t, hiddenReport, true)
+	g = newGBoard(t, "hidden", hiddenReport, true)
 	for _, id := range []string{"n1", "h1", "h2", "h3", "隠したただの行", "h4"} {
 		g.hide(id)
 	}
 	f.Situations["hidden"] = g.situation("hidden lines of every kind, shown (H)", true, false)
 
 	// long: strings with no place to break.
-	g = newGBoard(t, longReport, true)
+	g = newGBoard(t, "long", longReport, true)
 	g.comment("url", "", "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJK https://example.com/a/very/long/path/that/has/no/spaces/at/all/and/keeps/going")
 	f.Situations["long"] = g.situation("long unbroken strings everywhere", false, false)
 
-	f.Situations["problems"] = newGBoard(t, problemsReport, true).situation("a report with format errors", false, false)
-	f.Situations["empty"] = newGBoard(t, "", true).situation("an empty report", false, false)
-	f.Situations["noreport"] = newGBoard(t, "", false).situation("no report written yet", false, false)
+	f.Situations["problems"] = newGBoard(t, "problems", problemsReport, true).situation("a report with format errors", false, false)
+	f.Situations["empty"] = newGBoard(t, "empty", "", true).situation("an empty report", false, false)
+	f.Situations["noreport"] = newGBoard(t, "noreport", "", false).situation("no report written yet", false, false)
 	nb := &gboard{t: t, b: page.Open(nil), st: board.Open("/nowhere", "none")}
 	f.Situations["nosession"] = nb.situation("no session yet", false, false)
+
+	f.Refusals = page.Refusals
+	f.Sent = "送りました"
+	f.Index = indexFixtures(t)
 	return f
+}
+
+// indexFixtures is the index page with no board, several, and one whose
+// directory went.
+func indexFixtures(t *testing.T) map[string]Index {
+	t.Helper()
+	out := map[string]Index{}
+	home, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+	mk := func(name, src string, act func(g *gboard)) *board.Store {
+		root := filepath.Join(home, "dev", name)
+		st := board.Open(root, "s"+strconv.Itoa(len(name)))
+		if err := os.MkdirAll(st.Dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if src != "" {
+			if err := os.WriteFile(st.ReportPath(), []byte(src), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if act != nil {
+			act(&gboard{t: t, st: st, b: page.Open(st)})
+		}
+		return st
+	}
+	index := func(sts ...*board.Store) Index {
+		s, err := New(Options{Port: 0})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, st := range sts {
+			if _, err := s.Register(st.Base, st.Session); err != nil {
+				t.Fatal(err)
+			}
+		}
+		// A board registered whose directory then went (before the
+		// watcher drops it).
+		for _, st := range sts {
+			if strings.HasSuffix(st.Base, "moved-away") {
+				if err := os.RemoveAll(st.Base); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		ix := s.index()
+		for i := range ix.Boards {
+			ix.Boards[i].ID, ix.Boards[i].Dir = "board"+strconv.Itoa(i+1), ""
+		}
+		return ix
+	}
+	out["none"] = index()
+	a := mk("pitboard", denseReport, func(g *gboard) { g.react("merge", "y"); g.comment("hook", "", "入れてよい") })
+	b := mk("notes", "", nil)
+	c := mk("a-project-with-a-rather-long-directory-name-that-wraps", "<Title>長い場所</Title>\n<Item id=\"x\" look=\"y\">読む</Item>\n", nil)
+	out["several"] = index(a, b, c)
+	d := mk("moved-away", "<Title>動かしたプロジェクト</Title>\n", nil)
+	out["gone"] = index(a, d)
+	return out
 }
 
 func itoa(n int) string { b, _ := json.Marshal(n); return string(b) }
@@ -499,49 +597,101 @@ func TestGalleryFixtures(t *testing.T) {
 	}
 }
 
-// reCovers is a module's declaration of what it covers: a JSON object.
-var reCovers = regexp.MustCompile(`(?s)export const covers = (\{.*?\});\n`)
+// A module's declarations, as static data: covers = {axis: {value:
+// [variant names]}}, differences = {name: [variant names]}, and its
+// variants' names (each written name: '...').
+var (
+	reCovers      = regexp.MustCompile(`(?s)export const covers = (\{.*?\});\n`)
+	reDifferences = regexp.MustCompile(`(?s)export const differences = (\{.*?\});\n`)
+	reVariants    = regexp.MustCompile(`(?s)export const variants = \[(.*)\n\];`)
+	reName        = regexp.MustCompile(`name: '([^']*)'`)
+	reDiffs       = regexp.MustCompile(`(?s)export const DIFFS = \{(.*?)\n\};`)
+	reDiffKey     = regexp.MustCompile(`(?m)^  '([a-z-]+)': `)
+)
+
+// requiredDifferences is every visual difference that is no enum value
+// and must be shown by some variant (WEBFIX3): a module declares it, the
+// gallery checks the drawn DOM shows it.
+var requiredDifferences = []string{
+	"rights-below", "unpinned", "under-band", "under-bar", "at-bottom", "focus-bar",
+	"loose-editor", "editor-empty", "edit-comment", "panel-scrolled", "help-scrolled",
+	"image-large", "message", "sent", "index-none", "index-several", "index-gone",
+}
 
 // TestGalleryCovers: every value of every enum (page's, the modes, the
-// connection states) is covered by the module of a part or layer that
-// declares it (each module's variants are checked against what it
-// declares by the gallery itself, scripts/web-gallery.sh).
+// connection states) and every required visual difference is declared by
+// a module, each naming the variants that show it, and each named variant
+// exists. Whether a named variant really shows it is the gallery's check
+// on the drawn DOM (scripts/web-gallery.sh, part of scripts/check.sh).
 func TestGalleryCovers(t *testing.T) {
 	f := makeFixtures(t)
 	have := map[string]map[string][]string{} // axis -> value -> modules
+	diffs := map[string][]string{}
+	var files []string
 	for _, dir := range []string{"static/parts", "static/layers"} {
 		es, err := staticFS.ReadDir(dir)
 		if err != nil {
 			t.Fatal(err)
 		}
 		for _, e := range es {
-			b, _ := staticFS.ReadFile(dir + "/" + e.Name())
-			m := reCovers.FindSubmatch(b)
-			if m == nil {
-				if !strings.Contains(string(b), "export const variants") {
-					continue // a helper, not a part
+			files = append(files, dir+"/"+e.Name())
+		}
+	}
+	files = append(files, "static/gallery/pages.js")
+	for _, file := range files {
+		b, _ := staticFS.ReadFile(file)
+		vm := reVariants.FindSubmatch(b)
+		if vm == nil {
+			continue // a helper, not a module
+		}
+		names := map[string]bool{}
+		for _, n := range reName.FindAllSubmatch(vm[1], -1) {
+			names[string(n[1])] = true
+		}
+		m := reCovers.FindSubmatch(b)
+		if m == nil {
+			t.Errorf("%s has variants but no covers", file)
+			continue
+		}
+		var cov map[string]map[string][]string
+		if err := json.Unmarshal(m[1], &cov); err != nil {
+			t.Errorf("%s: covers is not {axis: {value: [variant names]}}: %v", file, err)
+			continue
+		}
+		named := func(what string, vs []string) {
+			if len(vs) == 0 {
+				t.Errorf("%s: %s names no variant", file, what)
+			}
+			for _, v := range vs {
+				if !names[v] {
+					t.Errorf("%s: %s names %q, which is no variant of it", file, what, v)
 				}
-				t.Errorf("%s/%s has variants but no covers", dir, e.Name())
+			}
+		}
+		for axis, vals := range cov {
+			if _, ok := f.Enums[axis]; !ok {
+				t.Errorf("%s covers %q, which is no enum", file, axis)
+			}
+			for v, vs := range vals {
+				if !slices.Contains(f.Enums[axis], v) {
+					t.Errorf("%s covers %s %q, which is no value", file, axis, v)
+				}
+				named(axis+" "+v, vs)
+				if have[axis] == nil {
+					have[axis] = map[string][]string{}
+				}
+				have[axis][v] = append(have[axis][v], file)
+			}
+		}
+		if dm := reDifferences.FindSubmatch(b); dm != nil {
+			var ds map[string][]string
+			if err := json.Unmarshal(dm[1], &ds); err != nil {
+				t.Errorf("%s: differences is not {name: [variant names]}: %v", file, err)
 				continue
 			}
-			var cov map[string][]string
-			if err := json.Unmarshal(m[1], &cov); err != nil {
-				t.Errorf("%s/%s: covers is not JSON: %v", dir, e.Name(), err)
-				continue
-			}
-			for axis, vs := range cov {
-				if _, ok := f.Enums[axis]; !ok {
-					t.Errorf("%s/%s covers %q, which is no enum", dir, e.Name(), axis)
-				}
-				for _, v := range vs {
-					if !slices.Contains(f.Enums[axis], v) {
-						t.Errorf("%s/%s covers %s %q, which is no value", dir, e.Name(), axis, v)
-					}
-					if have[axis] == nil {
-						have[axis] = map[string][]string{}
-					}
-					have[axis][v] = append(have[axis][v], e.Name())
-				}
+			for d, vs := range ds {
+				named("difference "+d, vs)
+				diffs[d] = append(diffs[d], file)
 			}
 		}
 	}
@@ -550,6 +700,25 @@ func TestGalleryCovers(t *testing.T) {
 			if len(have[axis][v]) == 0 {
 				t.Errorf("no part or layer has a variant for %s %q", axis, v)
 			}
+		}
+	}
+	// Every difference is declared somewhere, and the gallery can tell
+	// from the DOM whether a variant shows it.
+	g, _ := staticFS.ReadFile("static/gallery/gallery.js")
+	known := map[string]bool{}
+	if m := reDiffs.FindSubmatch(g); m != nil {
+		for _, k := range reDiffKey.FindAllSubmatch(m[1], -1) {
+			known[string(k[1])] = true
+		}
+	}
+	for _, d := range requiredDifferences {
+		if len(diffs[d]) == 0 {
+			t.Errorf("no module declares the difference %q", d)
+		}
+	}
+	for d, files := range diffs {
+		if !known[d] {
+			t.Errorf("%v declare the difference %q, which gallery.js's DIFFS cannot see", files, d)
 		}
 	}
 	// state.js's modes are Modes.

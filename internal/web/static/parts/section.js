@@ -10,11 +10,11 @@ export function draw(cx, t, out) {
   if (cx.ui.mode === 'goto' && t.JumpKey) h.appendChild(el('span', 'jumpkey hang', t.JumpKey));
   spans(h, t.Title);
   out.push(h);
-  if (t.None) out.push(el('p', 'none faint', t.None));
+  if (t.None) out.push(el('p', 'none quiet', t.None));
   out.push(...cx.things(t.Kids));
 }
 
-export const covers = {"kind": ["section"]};
+export const covers = {"kind": {"section": ["with lines"]}};
 
 export const variants = [
   { name: 'with lines', pick: 'あなたへ' },

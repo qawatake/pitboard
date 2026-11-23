@@ -71,27 +71,27 @@ func TestUnsentMark(t *testing.T) {
 	a.loadEvents()
 	// The top line is the blank padding: the mark goes on its right.
 	ls, _ := screen(t, a)
-	if !strings.HasSuffix(ls[0], "● 未送信 3") || visibleWidth(ls[0]) != lgutter+a.textWidth() {
+	if !strings.HasSuffix(ls[0], "未送信 3") || visibleWidth(ls[0]) != lgutter+a.textWidth() {
 		t.Errorf("top line %q", ls[0])
 	}
 	// Scrolled so the title is on top: the mark keeps a line of its own,
 	// and the title is not cut.
 	a.top().top = 1
 	ls, _ = screen(t, a)
-	if !strings.HasSuffix(ls[0], "● 未送信 3") || strings.TrimSpace(strings.TrimSuffix(ls[0], "● 未送信 3")) != "" || !strings.Contains(ls[1], "とても長い題") || strings.Contains(ls[1], "…") || visibleWidth(ls[0]) > lgutter+a.textWidth() {
+	if !strings.HasSuffix(ls[0], "未送信 3") || strings.TrimSpace(strings.TrimSuffix(ls[0], "未送信 3")) != "" || !strings.Contains(ls[1], "とても長い題") || strings.Contains(ls[1], "…") || visibleWidth(ls[0]) > lgutter+a.textWidth() {
 		t.Errorf("title line %q / %q", ls[0], ls[1])
 	}
 	// Scrolled further: still on the top line.
 	a.top().top = 10
 	ls, _ = screen(t, a)
-	if !strings.HasSuffix(ls[0], "● 未送信 3") {
+	if !strings.HasSuffix(ls[0], "未送信 3") {
 		t.Errorf("scrolled: %q", ls[0])
 	}
 	// The thoughts list shows it too; the editor's text is not counted.
 	a.list = true
 	a.in = &input{label: "x", ed: newEdit("書きかけ")}
 	ls, _ = screen(t, a)
-	if !strings.HasSuffix(ls[0], "● 未送信 3") {
+	if !strings.HasSuffix(ls[0], "未送信 3") {
 		t.Errorf("list: %q", ls[0])
 	}
 	a.in, a.list = nil, false
@@ -105,12 +105,12 @@ func TestUnsentMark(t *testing.T) {
 	// Something new after the send: both.
 	st.Append(board.Event{Op: "thought", Text: "b"})
 	a.loadEvents()
-	if ls, _ := screen(t, a); !strings.HasSuffix(ls[0], "送信済 3  ● 未送信 1") {
+	if ls, _ := screen(t, a); !strings.HasSuffix(ls[0], "送信済 3  未送信 1") {
 		t.Errorf("sent and unsent: %q", ls[0])
 	}
 	st.Changes()
 	a.loadEvents()
-	if ls, _ := screen(t, a); strings.Contains(ls[0], "送信済") || !strings.HasSuffix(ls[0], "● 未送信 1") {
+	if ls, _ := screen(t, a); strings.Contains(ls[0], "送信済") || !strings.HasSuffix(ls[0], "未送信 1") {
 		t.Errorf("after changes: %q", ls[0])
 	}
 }

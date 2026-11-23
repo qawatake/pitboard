@@ -13,17 +13,20 @@ import (
 )
 
 // When the AI rewrites report.md it may drop a row the person still has
-// business with: one that asks for them (look="y", ask="y", an Ask) that
-// they have not reacted to, read or hidden, or one with a comment the AI
-// has not settled done. 'check' warns of each (and the line every command
-// the AI runs ends with counts them), so the AI learns it from the tool,
-// not from the person's next comment arriving on a gone row.
+// business with: one that wants them (ask="y" or an Ask they have not
+// answered, wait="you" they have not acted on, look="y" they have not
+// read) or one with a sent comment the AI has not settled done. 'check'
+// warns of each every time; the line the other commands the AI runs end
+// with counts each removal once, so the AI learns it from the tool, not
+// from the person's next comment arriving on a gone row.
 //
 // The rows are remembered in the session's rows.json: every row with an
-// id the report has had since it was last acknowledged (each command the
-// AI runs adds the rows the report has now). A gone row is warned of
-// until 'ack-removed', or until it comes back, or until nothing about it
-// is left open (its comments settled done); then it is forgotten.
+// id, and every Fold without one (by report.Target: "Fold|title=<title>",
+// which is what its reactions, comments and hiding go by), the report has
+// had since it was last acknowledged (each command the AI runs adds the
+// rows the report has now, when it parses without problems). A gone row
+// is warned of until 'ack-removed', or until it comes back, or until
+// nothing about it is left open; then it is forgotten.
 
 // rowsPath is the session's remembered rows.
 func (s *Store) rowsPath() string { return filepath.Join(s.Dir, "rows.json") }
@@ -31,9 +34,12 @@ func (s *Store) rowsPath() string { return filepath.Join(s.Dir, "rows.json") }
 // seenRow is a row as it was remembered.
 type seenRow struct {
 	Title   string
-	Asks    bool   `json:",omitempty"` // look="y", ask="y" or an Ask: it wants the person
+	Ask     bool   `json:",omitempty"` // ask="y" or an Ask: answered by a reaction or hiding
+	Wait    bool   `json:",omitempty"` // wait="you": a reaction, hiding or a sent comment
+	Look    bool   `json:",omitempty"` // look="y": reading it is enough
 	HideKey string `json:",omitempty"`
 	View    string `json:",omitempty"` // the hash of its ViewKey (read = the person viewed it)
+	Noted   bool   `json:",omitempty"` // counted once on a command's last line since it went
 }
 
 func (s *Store) readRows() map[string]seenRow {
@@ -51,71 +57,95 @@ func (s *Store) writeRows(rows map[string]seenRow) {
 	}
 }
 
-// reportRows is the rows with an id of the report as it is now (ok false
-// when it cannot be read or does not parse).
-func (s *Store) reportRows() (map[string]*report.Node, bool) {
+// reportRows is the rows of the report as it is now, by report.Target
+// (rows with an id, and Folds without one); ok false when it cannot be
+// read or does not parse; valid false when it has problems.
+func (s *Store) reportRows() (now map[string]*report.Node, ok, valid bool) {
 	b, err := os.ReadFile(s.ReportPath())
 	if err != nil {
-		return nil, false
+		return nil, false, false
 	}
-	nodes, _, err := report.Parse(string(b))
+	nodes, probs, err := report.Parse(string(b))
 	if err != nil {
-		return nil, false
+		return nil, false, false
 	}
-	now := map[string]*report.Node{}
+	now = map[string]*report.Node{}
 	report.WalkAll(nodes, func(n *report.Node) {
-		if n.ID != "" {
-			now[n.ID] = n
+		if n.ID != "" || n.Kind == report.KindDetails {
+			if k := report.Target(n); k != "" {
+				if _, dup := now[k]; !dup {
+					now[k] = n
+				}
+			}
 		}
 	})
-	return now, true
+	return now, true, len(probs) == 0
 }
 
 // Removed is the warnings about rows the report no longer has, one line
-// each, in id order; it remembers the rows the report has now. Nothing
-// when the report cannot be read (it is not the time to warn of rows).
-func (s *Store) Removed() (warnings []string) {
+// each, in key order ('check' prints them all every time). Nothing when
+// the report cannot be read (it is not the time to warn of rows).
+func (s *Store) Removed() []string {
+	w, _ := s.removed(false)
+	return w
+}
+
+// removed is Removed; with note, it also counts the warnings of rows not
+// counted before (fresh) and remembers that they were.
+func (s *Store) removed(note bool) (warnings []string, fresh int) {
 	defer func() {
 		if recover() != nil {
-			warnings = nil
+			warnings, fresh = nil, 0
 		}
 	}()
 	if _, err := os.Stat(s.Dir); err != nil {
-		return nil
+		return nil, 0
 	}
-	now, ok := s.reportRows()
+	now, ok, valid := s.reportRows()
 	if !ok {
-		return nil
+		return nil, 0
 	}
 	rows := s.readRows()
 	before, _ := json.Marshal(rows)
-	for id, n := range now {
-		rows[id] = seenRow{Title: n.Title(), HideKey: report.HideKey(n), View: viewHash(n),
-			Asks: n.Look == "y" || n.Ask == "y" || n.Kind == report.KindQuestion}
+	// A report with problems is not remembered: its titles (or its rows)
+	// may be what a broken edit left, and the warnings keep the last good
+	// ones.
+	if valid {
+		for k, n := range now {
+			rows[k] = seenRow{Title: n.Title(), HideKey: report.HideKey(n), View: viewHash(n),
+				Ask:  n.Ask == "y" || n.Kind == report.KindQuestion,
+				Wait: n.Wait == "you",
+				Look: n.Look == "y"}
+		}
 	}
 	st := Replay(s.Events(), s.Seen())
 	viewed := s.Viewed()
-	var ids []string
-	for id := range rows {
-		ids = append(ids, id)
+	var keys []string
+	for k := range rows {
+		keys = append(keys, k)
 	}
-	slices.Sort(ids)
-	for _, id := range ids {
-		if _, there := now[id]; there {
+	slices.Sort(keys)
+	for _, k := range keys {
+		if _, there := now[k]; there {
 			continue
 		}
-		r := rows[id]
-		w := removedWarnings(id, r, st, viewed)
+		r := rows[k]
+		w := removedWarnings(k, r, st, viewed)
 		if len(w) == 0 {
-			delete(rows, id) // nothing about it is left open
+			delete(rows, k) // nothing about it is left open
 			continue
 		}
 		warnings = append(warnings, w...)
+		if note && !r.Noted {
+			fresh += len(w)
+			r.Noted = true
+			rows[k] = r
+		}
 	}
 	if after, _ := json.Marshal(rows); string(after) != string(before) {
 		s.writeRows(rows)
 	}
-	return warnings
+	return warnings, fresh
 }
 
 func viewHash(n *report.Node) string {
@@ -125,20 +155,41 @@ func viewHash(n *report.Node) string {
 	return ""
 }
 
-// removedWarnings is what to say about row id, gone from the report.
-func removedWarnings(id string, r seenRow, st *State, viewed map[string]bool) []string {
+// removedWarnings is what to say about the row remembered by key (its id,
+// or an id-less Fold's target), gone from the report.
+func removedWarnings(key string, r seenRow, st *State, viewed map[string]bool) []string {
 	var out []string
-	head := fmt.Sprintf("warning: row %q (%s) was removed", id, cutTitle(r.Title))
-	_, reacted := st.React[id]
-	answered := reacted || (r.HideKey != "" && st.Hidden[r.HideKey]) || (r.View != "" && viewed[r.View])
-	if r.Asks && !answered {
-		out = append(out, head+" but the person has not hidden or answered it")
+	head := fmt.Sprintf("warning: row %q (%s) was removed", key, cutTitle(r.Title))
+	if title, fold := report.FoldTitle(key); fold {
+		head = fmt.Sprintf("warning: Fold %q was removed", cutTitle(title))
 	}
-	var open []string
-	for _, t := range st.On(id) {
+	// What is in effect now: Replay leaves out what was taken back.
+	_, reacted := st.React[key]
+	hidden := r.HideKey != "" && st.Hidden[r.HideKey]
+	var sent, open []string
+	for _, t := range st.On(key) {
+		// A comment never sent is not known to the AI: not its business.
+		if t.N > st.Sent {
+			continue
+		}
+		sent = append(sent, strconv.Itoa(t.N))
 		if !t.Finished() {
 			open = append(open, strconv.Itoa(t.N))
 		}
+	}
+	var handled bool
+	switch {
+	case r.Ask:
+		handled = reacted || hidden
+	case r.Wait:
+		handled = reacted || hidden || len(sent) > 0
+	case r.Look:
+		handled = reacted || hidden || (r.View != "" && viewed[r.View])
+	default:
+		handled = true
+	}
+	if !handled {
+		out = append(out, head+" but the person has not hidden or answered it")
 	}
 	if len(open) > 0 {
 		out = append(out, head+" but it has an open comment ("+strings.Join(open, ", ")+")")
@@ -157,15 +208,15 @@ func cutTitle(t string) string {
 // AckRemoved forgets the rows the report no longer has: their warnings
 // stop. It says how many.
 func (s *Store) AckRemoved() (int, error) {
-	now, ok := s.reportRows()
+	now, ok, _ := s.reportRows()
 	if !ok {
 		return 0, fmt.Errorf("%s: cannot be read", s.ReportPath())
 	}
 	rows := s.readRows()
 	n := 0
-	for id := range rows {
-		if _, there := now[id]; !there {
-			delete(rows, id)
+	for k := range rows {
+		if _, there := now[k]; !there {
+			delete(rows, k)
 			n++
 		}
 	}

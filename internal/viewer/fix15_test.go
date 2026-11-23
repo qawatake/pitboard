@@ -157,3 +157,27 @@ func TestReadingTallNoticeUnplaces(t *testing.T) {
 		t.Errorf("x off screen: %q", a.msg)
 	}
 }
+
+// At 40 columns "j k" keeps a word (REVIEW14 f), and the editor keeps its
+// newline key.
+func TestNarrowKeepsWaitWordAndNewline(t *testing.T) {
+	st := testStore(t)
+	os.WriteFile(st.ReportPath(), []byte(fix15Report), 0o644)
+	a := testApp(t, st)
+	a.t.w = 40
+	a.render()
+	if s := bottomText(a); !strings.Contains(s, "j k "+wordWaitNarrow) {
+		t.Errorf("placed hint at 40: %q", s)
+	}
+	a.handle(key{r: 'j'})
+	a.render()
+	a.handle(key{r: 'c'})
+	a.render()
+	if a.in == nil {
+		t.Fatal("c did not open the editor")
+	}
+	s := reEsc.ReplaceAllString(strings.Join(a.editorHints(), ""), "")
+	if !strings.Contains(s, "enter") || !strings.Contains(s, "esc") || !strings.Contains(s, "ctrl+j") {
+		t.Errorf("editor hints at 40: %q", s)
+	}
+}

@@ -1,41 +1,43 @@
 // The gallery (/_gallery): every part of the report and every layer of the
-// page, in each of its variants, drawn by the page's own render.js from
-// fixtures.json (made by the Go code: internal/web/gallery_test.go).
+// page, in each of its variants, drawn by the page's own render.js (and
+// layers/home.js for the index) from fixtures.json, made by the Go code
+// (internal/web/gallery_test.go). A variant takes the very path the live
+// page takes: render() for a layer or a page, renderPart() (the same
+// things() and mount point) for a part, then fit().
 //
-// Each module owns its variants (export const variants) and says which
-// values of the data model they cover (export const covers). Axes that are
-// not a part's own are applied here to every variant: the width (1280 /
-// 390), the theme (light / dark), and the cursor on the part. A few whole
-// pages show the spacing between parts.
+// Each module owns its variants (export const variants) and declares, as
+// static data, which variants show each value of the data model it covers
+// (export const covers = {axis: {value: [variant names]}}) and each visual
+// difference that is no enum value (export const differences = {name:
+// [variant names]}). Go checks the bookkeeping (every value covered, every
+// name a variant); this page checks that each named variant really SHOWS
+// it, by looking at the drawn DOM (classes, attributes, layout), never at
+// the variant's data or ui.
+//
+// Axes that are not a part's own are applied here to every variant: the
+// width (1280 / 390), the theme (light / dark), and the cursor on the
+// part. A variant may fix its own width (w) and height (h).
 //
 // When it is done, window.__gallery says what it drew and what went wrong
-// (a story that threw, drew nothing, has something wider than its box but
-// Code, or a module whose variants do not show what it says it covers):
-// scripts/web-gallery.sh fails on any.
+// (a story that threw, drew nothing, has something wider than its box, a
+// declared value or difference its variant does not show):
+// scripts/web-gallery.sh fails on any, and compares a few stories with the
+// live page put in the same state.
 
 import { createApp, newMemo, render, renderPart, fit, PARTS, LAYERS } from '../render.js';
+import { createHome, draw as drawHome } from '../layers/home.js';
+import * as home from '../layers/home.js';
+import * as pages from './pages.js';
 import { findThing } from '../parts/row.js';
 import * as S from '../state.js';
-import { el, plain } from '../dom.js';
+import { el } from '../dom.js';
 
 const params = new URLSearchParams(location.search);
 const W = Number(params.get('w')) || 1280;
 const THEME = params.get('theme') === 'dark' ? 'dark' : 'light';
 const CUR = params.get('cur') === '1';
 const ONLY = params.get('only') || ''; // module, or module/NN
-const env = { imageURL: () => '/gallery/sample.svg' };
-
-// PAGES are whole pages: the spacing between parts.
-const PAGES = {
-  covers: {},
-  variants: [
-    { name: 'dense, all closed', ui: { cur: 'hook' }, responsive: true },
-    { name: 'dense, several open', ui: { cur: 'hook' }, open: ['restart', 'hook', 'unit', 'web', 'olddiff', '決まったこと (3)'], responsive: true },
-    { name: 'comments, open', fixture: 'comments', ui: { cur: 'c1' }, open: ['c1', 'c4', 'c6', 'f1'] },
-    { name: 'long strings, open', fixture: 'long', ui: { cur: 'url' }, open: ['url', 'long', 'lask'], responsive: true },
-    { name: 'hidden lines shown (H)', fixture: 'hidden', ui: { cur: 'v1', showHidden: true } },
-  ],
-};
+const env = { imageURL: (n) => (n === 2 ? '/gallery/large.svg' : '/gallery/sample.svg') };
 
 const fx = await (await fetch('/gallery/fixtures.json')).json();
 const report = { ready: false, stories: [], errors: [] };
@@ -44,8 +46,9 @@ window.__gallery = report;
 // keyOf is the key of the line named name (an id, a key, a title).
 function keyOf(page, name) {
   if (!name) return '';
-  if (name === '#l:first') {
-    const c = S.panelOrder(page)[0];
+  if (name === '#l:first' || name === '#l:last') {
+    const cs = S.panelOrder(page);
+    const c = name === '#l:first' ? cs[0] : cs[cs.length - 1];
     return c ? '#l:' + c.N : '';
   }
   if (name.startsWith('#')) return name;
@@ -58,11 +61,14 @@ function keyOf(page, name) {
 function resolve(v, isPart) {
   const sit = fx.Situations[v.fixture || 'dense'];
   if (!sit) throw new Error(`no fixture ${v.fixture}`);
-  const page = sit.Page;
+  // undo: as the tab that did the acts sees it (its bar has u).
+  const page = v.undo ? { ...sit.Page, CanUndo: true, More: sit.UndoMore } : sit.Page;
   const ui = { ...S.initial(), ...(v.ui || {}), open: {}, unpinned: {} };
   for (const [k, on] of Object.entries((v.ui && v.ui.open) || {})) ui.open[keyOf(page, k)] = on;
   for (const n of v.open && v.open !== true ? v.open : []) ui.open[keyOf(page, n)] = true;
   for (const n of v.openAlso || []) ui.open[keyOf(page, n)] = true;
+  if (v.refusal) Object.assign(ui, { status: fx.Refusals[v.refusal], statusTone: 'need' });
+  if (v.sent) Object.assign(ui, { status: fx.Sent, statusTone: '' });
   let things = null;
   if (isPart) {
     const t = typeof v.pick === 'function' ? v.pick(page) : findThing(page, v.pick);
@@ -74,6 +80,7 @@ function resolve(v, isPart) {
   } else {
     ui.cur = keyOf(page, ui.cur);
     if (ui.editor) ui.editor = { ...ui.editor, at: keyOf(page, ui.editor.at), key: keyOf(page, ui.editor.key) };
+    if (ui.editor && ui.editor.kind === 'edit') ui.editor.n = Number(ui.editor.at.slice(3));
     if (ui.panel && !ui.mode) ui.mode = 'comments';
     const t = S.index(page).things.get(ui.cur);
     if (t) {
@@ -86,43 +93,104 @@ function resolve(v, isPart) {
   return { page, ui, things };
 }
 
-// facts is what a story shows of the data model (for covers).
-function facts(st, frame) {
+// ---- what a story shows, read from its DOM ----
+
+const visible = (e) => !!e && !e.closest('[hidden]') && e.getClientRects().length > 0;
+const all = (root, sel) => [...root.querySelectorAll(sel)].filter(visible);
+const settleOf = { '対応中: ': 'doing', '保留: ': 'hold', '対応: ': 'done' };
+
+// straddles: some line of the report is cut by the y of edge.
+function straddles(app, y) {
+  return all(app, '.board .rowbtn, .board .para, .board h2, .board .cl').some((e) => {
+    const r = e.getBoundingClientRect();
+    return r.top < y - 2 && r.bottom > y + 2;
+  });
+}
+
+// DIFFS says, for each visual difference a module may declare, whether a
+// drawn frame shows it.
+export const DIFFS = {
+  'rights-below': (a) => all(a, '.rights-below > .row > .rowbtn > .right:not(:empty)').length > 0,
+  'unpinned': (a) => all(a, '.board > .row.k-notice').length > 0,
+  'under-band': (a) => all(a, '.notices > .row').length > 0 && straddles(a, a.querySelector('.top').getBoundingClientRect().bottom),
+  'under-bar': (a) => straddles(a, a.querySelector('.foot').getBoundingClientRect().top),
+  'at-bottom': (a) => { const s = a.querySelector('.scroller'); return s.scrollTop > 0 && s.scrollTop + s.clientHeight >= s.scrollHeight - 1; },
+  'focus-bar': (a) => { const f = document.activeElement; return !!f && a.contains(f) && !!f.closest('.bar') && f.matches(':focus-visible') && getComputedStyle(f).outlineStyle !== 'none'; },
+  'loose-editor': (a) => all(a, '.editor.loose textarea').length > 0,
+  'editor-empty': (a) => all(a, '.editor textarea').some((t) => t.value === ''),
+  'edit-comment': (a) => all(a, '.cpanel .crow > .editor textarea').length > 0,
+  'panel-scrolled': (a) => { const p = a.querySelector('.cpanel'); const c = p.querySelector('.row.cur'); if (!visible(p) || !c || p.scrollTop <= 0) return false; const pr = p.getBoundingClientRect(), cr = c.getBoundingClientRect(); return cr.top >= pr.top - 1 && cr.bottom <= pr.bottom + 1; },
+  'help-scrolled': (a) => { const s = a.querySelector('.help .sheet'); return visible(s) && s.scrollTop > 0 && s.scrollTop + s.clientHeight >= s.scrollHeight - 1; },
+  'image-large': (a) => { const i = a.querySelector('.viewer img'); return visible(i) && i.naturalWidth > i.clientWidth + 1; },
+  'message': (a) => all(a, '.status:not(.need)').some((s) => s.textContent !== ''),
+  'sent': (a) => all(a, '.status').some((s) => s.textContent.startsWith(fx.Sent)),
+  'index-none': (a) => all(a, '.boards > .msg').length > 0,
+  'index-several': (a) => all(a, '.boards > .boardrow').length >= 3,
+  'index-gone': (a) => all(a, '.boardrow.gone').length > 0,
+};
+
+// facts is what a drawn frame shows of the data model, by axis.
+function facts(app) {
   const f = {};
   const add = (axis, v) => { if (v != null && v !== '') (f[axis] = f[axis] || new Set()).add(v); };
-  const settle = { 対応中: 'doing', 保留: 'hold', 対応済: 'done' };
-  const comment = (c) => { add('status', c.Word && c.Word.Text); add('settle', settle[c.Word && c.Word.Text]); add('tone', c.Word && c.Word.Tone); };
-  const walk = (t) => {
-    if (!t) return;
-    add('kind', t.Kind);
-    if (t.Stop) add('mark', t.Mark || 'none');
-    add('state', t.State);
-    for (const s of t.Title || []) add('style', s.Style);
-    const r = t.Right || {};
-    if (r.Input && r.Input.Text) add('tone', r.Input.Tone);
-    if (r.Status && r.Status.Text) add('tone', r.Status.Tone);
-    for (const c of t.Comments || []) comment(c);
-    for (const x of [...(t.Body || []), ...(t.Kids || []), ...(t.Subs || [])]) walk(x);
-  };
-  if (st.things) st.things.forEach(walk);
-  else {
-    add('mode', st.ui.mode);
-    add('conn', st.ui.conn);
-    for (const b of frame.querySelectorAll('.foot [data-act]')) if (!b.hidden) add('hint', b.dataset.act);
-    const t = S.index(st.page).things.get(st.ui.cur);
-    const a = (t && t.Actions) || {};
-    for (const [k, v] of Object.entries(a)) if (v && (!Array.isArray(v) || v.length)) add('action', k);
-    if (st.ui.panel) for (const c of st.page.Comments || []) comment(c);
+  const words = fx.Situations.dense.Page.Words;
+  for (const r of all(app, '.row[class*="k-"]')) {
+    add('kind', [...r.classList].find((c) => c.startsWith('k-')).slice(2));
+    for (const c of r.classList) if (c.startsWith('st-')) add('state', c.slice(3));
+    const d = r.querySelector(':scope > .rowbtn > .dot');
+    if (d) add('mark', d.classList.contains('waiting') ? 'waiting' : d.classList.contains('new') ? 'new' : 'none');
+  }
+  if (all(app, 'h1.ptitle').length) add('kind', 'title');
+  if (all(app, 'h2.section').length) add('kind', 'section');
+  if (all(app, '.para').length) add('kind', 'para');
+  if (all(app, '.list').length) add('kind', 'list');
+  if (all(app, 'pre.code').length) add('kind', 'code');
+  if (all(app, '.option').length) add('kind', 'option');
+  for (const e of all(app, '.board strong, .notices strong')) if (e.textContent) add('style', 'bold');
+  for (const e of all(app, '.board code, .notices code')) if (!e.closest('pre')) add('style', 'code');
+  for (const e of all(app, '.board .link, .notices .link')) if (e.textContent) add('style', 'link');
+  for (const e of all(app, '.board .title, .board .para, .notices .title')) {
+    if ([...e.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())) add('style', 'plain');
+  }
+  for (const w of all(app, '.board .word, .notices .word, .cpanel .word')) for (const t of ['quiet', 'need', 'move']) if (w.classList.contains(t)) add('tone', t);
+  for (const w of all(app, '.cstate, .crow .right .word')) add('status', w.textContent);
+  for (const h of all(app, '.creply > .quiet:first-child')) add('settle', settleOf[h.textContent]);
+  const bar = all(app, '.foot .bar [data-act]').map((b) => b.dataset.act);
+  for (const a of bar) add('hint', a);
+  if (bar.includes('y') || bar.includes('n')) add('action', 'YN');
+  if (bar.includes('answer')) add('action', 'Options');
+  if (bar.includes('comment')) add('action', 'Comment');
+  if (bar.includes('hide')) add('action', 'Hide');
+  if (bar.includes('read')) add('action', 'Read');
+  if (app.querySelector('.foot')) {
+    if (all(app, '.bar.jumps').length && all(app, '.jumpkey').length) add('mode', 'goto');
+    if (all(app, '.editor textarea').length) add('mode', 'editor');
+    if (all(app, '.help .sheet').length) add('mode', 'help');
+    if (all(app, '.cpanel').length) add('mode', 'comments');
+    if (all(app, '.viewer img[src]').length) add('mode', 'image');
+    if (!f.mode && all(app, '.bar .key').length) add('mode', 'normal');
+    const b = app.querySelector('.banner');
+    add('conn', visible(b) ? b.dataset.conn : 'live');
+  }
+  for (const s of all(app, '.status.need')) {
+    const k = Object.keys(fx.Refusals).find((x) => fx.Refusals[x] === s.textContent);
+    add('refusal', k);
+  }
+  void words;
+  for (const [name, has] of Object.entries(DIFFS)) {
+    let yes = false;
+    try { yes = has(app); } catch { yes = false; } // a frame without that part
+    if (yes) add('difference', name);
   }
   return f;
 }
 
 // overflows is what is wider than its box (and so cut or spilling): any
-// element but Code and what is cut on purpose with an ellipsis.
+// element but what is cut on purpose with an ellipsis. Code too: it wraps.
 function overflows(frame) {
   const out = [];
   for (const e of frame.querySelectorAll('*')) {
-    if (e.closest('pre.code, .sr, .skip, [hidden]') || !e.getClientRects().length) continue;
+    if (e.closest('.sr, .skip, [hidden]') || !e.getClientRects().length) continue;
     const cs = getComputedStyle(e);
     if (cs.textOverflow === 'ellipsis' || cs.display === 'contents') continue;
     if (e.scrollWidth > e.clientWidth + 1 && e.clientWidth > 0) out.push((e.className || e.tagName).toString().slice(0, 40));
@@ -130,76 +198,118 @@ function overflows(frame) {
   return out;
 }
 
-function frameFor(isPart, v) {
-  const app = createApp();
+// ---- drawing the stories ----
+
+function frameFor(kind, v) {
+  const app = kind === 'home' ? createHome() : createApp();
   app.classList.add(THEME);
-  app.style.width = W + 'px';
-  if (!isPart) app.style.height = (v.h || (W < 600 ? 760 : 720)) + 'px';
+  const w = v.w || W;
+  app.style.width = w + 'px';
+  if (kind !== 'part') app.style.height = (v.h || (w < 600 ? 760 : 720)) + 'px';
   return app;
 }
 
-function story(mod, name, v, i, isPart, grid) {
-  const id = `${mod}-${String(i + 1).padStart(2, '0')}`;
+// scrollTo scrolls the frame's page as the variant says.
+function scrollTo(app, how) {
+  const s = app.querySelector('.scroller');
+  if (how === 'bottom') { s.scrollTop = s.scrollHeight; return; }
+  const want = DIFFS[how];
+  for (let y = 0; y < s.scrollHeight; y += 6) {
+    s.scrollTop = y;
+    if (want(app)) return;
+  }
+}
+
+function draw(kind, v, app, st) {
+  const memo = newMemo();
+  if (kind === 'home') {
+    drawHome(app, fx.Index[v.index], v.cur || '', false);
+    return;
+  }
+  if (kind === 'part') {
+    renderPart(app, st.page, st.ui, memo, env, st.things);
+    fit(app, st.page, st.ui);
+    return;
+  }
+  render(app, st.page, st.ui, memo, env);
+  app.style.setProperty('--foot-h', app.querySelector('.foot').offsetHeight + 'px');
+  const un = fit(app, st.page, st.ui);
+  if (un) { st.ui = { ...st.ui, unpinned: un }; render(app, st.page, st.ui, memo, env); fit(app, st.page, st.ui); }
+  app.style.setProperty('--foot-h', app.querySelector('.foot').offsetHeight + 'px');
+  scrolls(app, v, st.ui);
+}
+
+// scrolls puts what scrolls where the variant says (again once fonts and
+// images are in: they move things).
+function scrolls(app, v, ui) {
+  if (!ui) return;
+  if (ui.mode === 'help') {
+    const sh = app.querySelector('.help .sheet');
+    sh.scrollTop = v.sheetScroll === 'bottom' ? sh.scrollHeight : 0;
+  }
+  if (ui.panel) {
+    const p = app.querySelector('.cpanel');
+    p.scrollTop = 0;
+    const c = p.querySelector('.row.cur');
+    if (v.panelScroll === 'cursor' && c) p.scrollTop = c.getBoundingClientRect().bottom - p.getBoundingClientRect().bottom + 8;
+  }
+  if (v.scroll) scrollTo(app, v.scroll);
+}
+
+const stories = []; // {rec, app, v, kind}
+
+function story(mod, v, i, kind, grid) {
+  const nn = String(i + 1).padStart(2, '0');
+  const id = `${mod}-${nn}`;
   const box = el('figure', 'g-story');
   box.id = 'story-' + id;
   box.dataset.module = mod;
   box.dataset.flags = [v.responsive ? 'responsive' : '', v.themed ? 'themed' : ''].join(' ').trim();
-  box.appendChild(el('figcaption', 'g-name', `${String(i + 1).padStart(2, '0')} ${v.name}`));
+  if (v.focus) box.dataset.focus = v.focus;
+  box.appendChild(el('figcaption', 'g-name', `${nn} ${v.name}`));
   grid.appendChild(box);
-  const rec = { id, module: mod, name: v.name, file: `${mod}/${String(i + 1).padStart(2, '0')}-${v.name.replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '').slice(0, 48)}.png`, flags: box.dataset.flags };
+  const rec = { id, module: mod, name: v.name, nn, kind, file: `${mod}/${nn}-${v.name.replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '').slice(0, 48)}.png`, flags: box.dataset.flags, first: i === 0, w: v.w || W, h: v.h || ((v.w || W) < 600 ? 760 : 720), focus: v.focus || '' };
   report.stories.push(rec);
   try {
-    const st = resolve(v, isPart);
-    const app = frameFor(isPart, v);
+    const st = kind === 'home' ? null : resolve(v, kind === 'part');
+    const app = frameFor(kind, v);
     box.appendChild(app);
-    const memo = newMemo();
-    if (isPart) {
-      renderPart(app, st.page, st.ui, memo, env, st.things, { heading: !!v.heading });
-      fit(app, st.page, st.ui);
-    } else {
-      render(app, st.page, st.ui, memo, env);
-      app.style.setProperty('--foot-h', app.querySelector('.foot').offsetHeight + 'px');
-      const un = fit(app, st.page, st.ui);
-      if (un) { st.ui = { ...st.ui, unpinned: un }; render(app, st.page, st.ui, memo, env); fit(app, st.page, st.ui); }
-      app.style.setProperty('--foot-h', app.querySelector('.foot').offsetHeight + 'px');
-      if (st.ui.mode === 'help') app.querySelector('.help .sheet').scrollTop = 0;
-    }
+    draw(kind, v, app, st);
     const r = app.getBoundingClientRect();
-    if (!r.width || !r.height || (isPart && !app.querySelector('.board').childElementCount)) throw new Error('drew nothing');
-    const over = overflows(app);
-    if (over.length) report.errors.push({ id, what: 'wider than its box: ' + [...new Set(over)].join(', ') });
-    return facts(st, app);
+    if (!r.width || !r.height || (kind === 'part' && !app.querySelector('.board').childElementCount && !app.querySelector('.notices').childElementCount)) throw new Error('drew nothing');
+    if (st) {
+      rec.fixture = v.fixture || 'dense';
+      const u = st.ui;
+      rec.ui = { cur: u.cur, open: u.open, mode: u.mode, panel: u.panel, editor: u.editor, image: u.image, status: u.status, statusTone: u.statusTone, showHidden: u.showHidden, how: 'person', start: false, at: 0 };
+    }
+    stories.push({ rec, app, v, kind, ui: st && st.ui });
   } catch (e) {
     box.classList.add('error');
     box.appendChild(el('pre', '', String(e && e.stack || e)));
     report.errors.push({ id, what: 'threw: ' + (e && e.message || e) });
-    return {};
   }
 }
 
-function moduleSection(mod, m, isPart) {
+const declared = []; // {mod, axis, value, names}
+
+function moduleSection(mod, m, kind) {
   if (ONLY && ONLY.split('/')[0] !== mod) return;
   const sec = el('section', 'g-module');
   sec.id = 'module-' + mod;
-  sec.appendChild(el('h2', '', (isPart ? 'parts/' : mod === 'pages' ? '' : 'layers/') + mod + (mod === 'pages' ? ' (whole pages)' : '.js')));
-  sec.appendChild(el('p', 'g-covers', 'covers ' + Object.entries(m.covers || {}).map(([k, v]) => `${k}: ${v.join(' ')}`).join(' · ')));
+  const label = kind === 'part' ? 'parts/' + mod + '.js' : mod === 'pages' ? 'pages (whole pages)' : 'layers/' + mod + '.js';
+  sec.appendChild(el('h2', '', label));
+  const cov = Object.entries(m.covers || {}).map(([k, v]) => `${k}: ${Object.keys(v).join(' ')}`);
+  const dif = Object.keys(m.differences || {});
+  sec.appendChild(el('p', 'g-covers', 'covers ' + cov.join(' · ') + (dif.length ? ' · differences: ' + dif.join(' ') : '')));
   const grid = el('div', 'g-grid');
   sec.appendChild(grid);
   document.querySelector('.g-main').appendChild(sec);
-  const seen = {};
   (m.variants || []).forEach((v, i) => {
     if (ONLY.includes('/') && ONLY !== `${mod}/${String(i + 1).padStart(2, '0')}`) return;
-    const f = story(mod, null, v, i, isPart, grid);
-    for (const [axis, vs] of Object.entries(f)) for (const x of vs) (seen[axis] = seen[axis] || new Set()).add(x);
+    story(mod, v, i, kind, grid);
   });
-  // Checked at the default width: narrower, keys are left out by design.
-  if (ONLY.includes('/') || W !== 1280) return;
-  // What the module says it covers, its variants must show.
-  for (const [axis, vs] of Object.entries(m.covers || {})) {
-    for (const x of vs) {
-      if (!(seen[axis] && seen[axis].has(x))) report.errors.push({ id: mod, what: `covers ${axis} ${x}, but no variant shows it` });
-    }
-  }
+  for (const [axis, vals] of Object.entries(m.covers || {})) for (const [value, names] of Object.entries(vals)) declared.push({ mod, axis, value, names });
+  for (const [value, names] of Object.entries(m.differences || {})) declared.push({ mod, axis: 'difference', value, names });
 }
 
 function controls() {
@@ -213,12 +323,42 @@ function controls() {
 }
 
 controls();
-for (const [mod, m] of Object.entries(PARTS)) moduleSection(mod, m, true);
-for (const [mod, m] of Object.entries(LAYERS)) moduleSection(mod, m, false);
-moduleSection('pages', PAGES, false);
+for (const [mod, m] of Object.entries(PARTS)) moduleSection(mod, m, 'part');
+for (const [mod, m] of Object.entries(LAYERS)) moduleSection(mod, m, 'layer');
+moduleSection('home', home, 'home');
+moduleSection('pages', pages, 'layer');
 await document.fonts.ready;
+await Promise.all([...document.images].map((i) => i.decode().catch(() => {})));
+
+// Each story's facts, from its DOM (one at a time: a story with a focus
+// takes it, is read, and lets it go).
+const shown = new Map();
+for (const s of stories) {
+  scrolls(s.app, s.v, s.ui);
+  if (s.v.focus) { const f = s.app.querySelector(s.v.focus); if (f) f.focus({ preventScroll: true }); }
+  shown.set(s.rec.name + '\u0000' + s.rec.module, facts(s.app));
+  if (s.v.focus && document.activeElement) document.activeElement.blur();
+  const over = overflows(s.app);
+  if (over.length) report.errors.push({ id: s.rec.id, what: 'wider than its box: ' + [...new Set(over)].join(', ') });
+}
+// What a module declares, the variant it names must show. At the default
+// width (a variant with its own width at that one); narrower, keys are
+// left out by design.
+if (!ONLY.includes('/') && W === 1280) {
+  for (const d of declared) {
+    for (const name of d.names) {
+      const f = shown.get(name + '\u0000' + d.mod);
+      if (!f) { report.errors.push({ id: d.mod, what: `${d.axis} ${d.value}: no variant "${name}"` }); continue; }
+      if (!(f[d.axis] && f[d.axis].has(d.value))) report.errors.push({ id: d.mod, what: `${d.axis} ${d.value}: variant "${name}" does not show it` });
+    }
+  }
+}
+// For the script: every story's facts (to make or check the covers).
+for (const r of report.stories) {
+  const f = shown.get(r.name + '\u0000' + r.module) || {};
+  r.facts = Object.fromEntries(Object.entries(f).map(([k, v]) => [k, [...v]]));
+}
 const out = document.querySelector('.g-report');
 out.textContent = `${report.stories.length} stories, ${report.errors.length} problems` + report.errors.map((e) => `\n${e.id}: ${e.what}`).join('');
 out.classList.toggle('bad', report.errors.length > 0);
 report.ready = true;
-void plain;

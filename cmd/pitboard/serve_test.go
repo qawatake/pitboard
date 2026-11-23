@@ -408,3 +408,67 @@ func TestServeHelp(t *testing.T) {
 		t.Errorf("serve -h: %q", b.String())
 	}
 }
+
+// A server starting tightens a state directory and files left looser
+// (umask 022): 0700 and 0600. A link is left alone.
+func TestTightenState(t *testing.T) {
+	d := filepath.Join(t.TempDir(), "pitboard")
+	if err := os.Mkdir(d, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	os.Chmod(d, 0o755)
+	for _, n := range []string{"serve.log", "serve.lock", "boards.json"} {
+		os.WriteFile(filepath.Join(d, n), nil, 0o644)
+		os.Chmod(filepath.Join(d, n), 0o644)
+	}
+	other := filepath.Join(t.TempDir(), "other")
+	os.WriteFile(other, nil, 0o644)
+	os.Chmod(other, 0o644)
+	os.Symlink(other, filepath.Join(d, "serve.json"))
+	tightenState(d)
+	if fi, _ := os.Stat(d); fi.Mode().Perm() != 0o700 {
+		t.Errorf("dir %v", fi.Mode().Perm())
+	}
+	for _, n := range []string{"serve.log", "serve.lock", "boards.json"} {
+		if fi, _ := os.Stat(filepath.Join(d, n)); fi.Mode().Perm() != 0o600 {
+			t.Errorf("%s %v", n, fi.Mode().Perm())
+		}
+	}
+	if fi, _ := os.Stat(other); fi.Mode().Perm() != 0o644 {
+		t.Errorf("through a link: %v", fi.Mode().Perm())
+	}
+}
+
+// --forget with no server running keeps a tombstone in the registry: the
+// id goes to no other board, and the same board gets it back.
+func TestForgetOfflineTombstone(t *testing.T) {
+	st, sd := serveBoard(t)
+	reg := registryPath(sd)
+	os.MkdirAll(sd, 0o700)
+	if err := web.WriteRegistry(reg, []web.Registered{{ID: "srv1", Dir: st.Base, Session: "srv1"}}); err != nil {
+		t.Fatal(err)
+	}
+	if out := serveCmd(t, "--forget"); !strings.Contains(out, "forgot srv1") {
+		t.Fatalf("forget %q", out)
+	}
+	if rs := web.ReadRegistry(reg); len(rs) != 1 || rs[0].ID != "srv1" || !rs[0].Gone {
+		t.Errorf("registry %+v", rs)
+	}
+	if out := serveCmd(t, "--forget"); !strings.Contains(out, "not served") {
+		t.Errorf("forget again %q", out)
+	}
+}
+
+// --gallery is only for a foreground server (scripts/web-gallery.sh).
+func TestServeGalleryFlag(t *testing.T) {
+	if _, err := parseServe([]string{"--gallery"}); err == nil {
+		t.Error("--gallery without --foreground was taken")
+	}
+	a, err := parseServe([]string{"--foreground", "--gallery"})
+	if err != nil || !a.o.Gallery {
+		t.Errorf("--foreground --gallery: %v %v", a.o.Gallery, err)
+	}
+	if a, _ := parseServe(nil); a.o.Gallery {
+		t.Error("a plain serve is a gallery server")
+	}
+}

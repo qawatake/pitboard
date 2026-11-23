@@ -13,11 +13,12 @@ const (
 	MsgChanged   = "報告が書き換わりました。もう一度押してください"
 	MsgMoved     = "報告が書き換わりました。カーソルの行を確かめてください"
 	MsgNoReport  = "AI はまだ報告を書いていません"
-	MsgEmpty     = "報告はまだ空です。AI が書くと、ここに出ます。"
+	MsgEmpty     = "報告はまだ空です。AI が書くと、ここに出ます"
 	MsgNoBoard   = "このディレクトリと親に pitboard の置き場 (.pitboard/) がありません。AI を動かしているディレクトリで開いてください"
 	MsgNoSession = "pitboard にはまだ報告がありません。AI が報告を書くと、ここに出ます"
 	MsgProblems  = "報告に書き方の誤りがあります"
 	MsgPartial   = " (読めた所までを出しています)"
+	MsgNotSent   = "まだ送っていません (s で送る)"
 	MsgNone      = "なし" // under the heading of a Section that holds nothing (faint)
 )
 
@@ -72,22 +73,27 @@ func StatusWord(s board.Status) string {
 	return "対応済"
 }
 
-// ThoughtWord is a comment's status in one word: only what needs the
-// person (not sent) has a color.
+// ThoughtWord is a comment's status in one word, in the palette's
+// meaning: not sent needs the person, 対応中 moves (the AI works on it),
+// the rest are quiet.
 func (b *Board) ThoughtWord(t *board.Thought) Word {
-	s := b.State.StatusOf(t)
-	if s == board.StatusUnsent {
+	switch s := b.State.StatusOf(t); s {
+	case board.StatusUnsent:
 		return Word{StatusWord(s), ToneNeed}
+	case board.StatusDoing:
+		return Word{StatusWord(s), ToneMove}
+	default:
+		return Word{StatusWord(s), ToneQuiet}
 	}
-	return Word{StatusWord(s), ToneQuiet}
 }
 
 // ThoughtNote is what an opened comment says about how far it got, when
-// the AI has not written on it.
+// the AI has not written on it. MsgNotSent is the one for a comment not
+// sent (a list of comments may say it once for all).
 func (b *Board) ThoughtNote(t *board.Thought) string {
 	switch {
 	case t.LastN > b.State.Sent:
-		return "まだ送っていません (s で送る)"
+		return MsgNotSent
 	case t.LastN > b.State.Seen:
 		return "送りました。AI はまだ読んでいません"
 	}
@@ -109,7 +115,7 @@ type Right struct {
 	// comment and there are more than one (0 otherwise).
 	Count int
 	// Input is the state of the latest input (未送信, 送信済, 既読, the
-	// AI's state for a comment, 取消 未送信); "" when there is none.
+	// AI's state for a comment, 取り消し 未送信); "" when there is none.
 	Input Word
 	// Status is the AI's status (or 作業中 for a doing Item without one).
 	Status Word
@@ -125,7 +131,7 @@ const WorkingWord = "作業中"
 
 // UndoingWord is what a line says while a sent reaction (or hide) on it is
 // taken back and the taking back not sent.
-const UndoingWord = "取消 未送信"
+const UndoingWord = "取り消し 未送信"
 
 // RightOf is the right end of n.
 func (b *Board) RightOf(n *report.Node) Right {
@@ -181,6 +187,10 @@ func (b *Board) RightOf(n *report.Node) Right {
 	}
 	return r
 }
+
+// Clock is the time a screen shows things at (the gallery's server fixes
+// it, so a page reads the same as its fixture).
+var Clock = time.Now
 
 // AtWord is when a notice was put up: the time today, else the day too.
 func AtWord(t, now time.Time) string {

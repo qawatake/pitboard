@@ -99,7 +99,7 @@ export function createApp() {
   const close = el('button', 'help-close');
   close.type = 'button';
   close.dataset.act = 'closeHelp';
-  close.append('閉じる ', el('kbd', '', 'esc'));
+  close.append(el('kbd', '', 'esc'), ' 閉じる');
   sheet.append(h, el('dl'), close);
   hl.append(sheet);
 
@@ -111,7 +111,7 @@ export function createApp() {
   const vc = el('button', 'viewer-close');
   vc.type = 'button';
   vc.dataset.act = 'closeImage';
-  vc.append('閉じる ', el('kbd', '', 'esc'));
+  vc.append(el('kbd', '', 'esc'), ' 閉じる');
   viewer.append(el('img'), vc);
 
   app.append(scroller, foot, backdrop, panel, hl, viewer);
@@ -195,7 +195,7 @@ export function render(app, page, ui, memo, env, only) {
   const sum = q(app, '.summary');
   sum.replaceChildren();
   for (const w of page.Summary || []) sum.appendChild(el('span', 'word ' + w.Tone, w.Text));
-  if (page.Hidden > 0) sum.appendChild(el('span', 'faint word', `隠した行 ${page.Hidden}` + (ui.showHidden ? ' (表示中)' : '')));
+  if (page.Hidden > 0) sum.appendChild(el('span', 'quiet word', `隠した行 ${page.Hidden}` + (ui.showHidden ? ' (表示中)' : '')));
 
   // Notices are pinned in the band at the top, but one opened too tall to
   // pin heads the page instead (as the terminal's).
@@ -210,23 +210,25 @@ export function render(app, page, ui, memo, env, only) {
   comments.draw(cx, q(app, '.cpanel'));
   memo.rows = cx.rows;
   cursor(cx);
-  editor.place(cx, q(app, '.board'));
+  editor.place(cx, app);
   help.draw(cx, q(app, '.help'));
   image.draw(cx, q(app, '.viewer'));
   bar.draw(cx, q(app, '.foot'));
 }
 
 // renderPart draws lines ts of page alone (a part's variant), with the
-// page's frame around them so they look as on the page.
-export function renderPart(app, page, ui, memo, env, ts, opts = {}) {
+// page's frame around them, through the very path render takes: the same
+// things() and the same mount point (.board, or the band for a notice),
+// a line of the report's own top level drawn as at the top (a Fold there
+// is a heading). Nothing is told how to look.
+export function renderPart(app, page, ui, memo, env, ts) {
   const cx = context(page, ui, memo, env);
   app.classList.add('part');
-  const out = [];
-  for (const t of ts) {
-    if (t.Kind === 'section' || t.Kind === 'title' || !t.Stop) out.push(...things(cx, [t], !!opts.heading));
-    else out.push(rowOf(cx, t, { heading: !!opts.heading && t.Kind === 'fold' }));
-  }
-  patch(q(app, '.board'), out);
+  const top = ts.every((t) => (page.Things || []).includes(t));
+  const notices = ts.filter((t) => (page.Notices || []).includes(t));
+  patch(q(app, '.notices'), notices.map((t) => rowOf(cx, t, {})));
+  const rest = ts.filter((t) => !notices.includes(t));
+  patch(q(app, '.board'), top ? things(cx, rest, true) : things(cx, rest, false));
   memo.rows = cx.rows;
   cursor(cx);
 }

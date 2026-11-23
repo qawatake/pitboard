@@ -21,12 +21,12 @@ export function spans(parent, ss, inButton) {
       case 'code': e = el('code'); break;
       case 'link':
         if (!inButton && isWeb(s.URL)) {
-          e = el('a');
+          e = el('a', 'link');
           e.href = s.URL;
           e.rel = 'noopener noreferrer';
           e.target = '_blank';
         } else {
-          e = el('span', 'faint');
+          e = el('span', 'link quiet');
         }
         break;
       default: e = document.createDocumentFragment();

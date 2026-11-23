@@ -24,17 +24,17 @@ type pinning struct {
 
 // noticeHead is a notice's title, wrapped, not cut (most > 0 cuts it to
 // that many rows, ending in …, for a screen too low for it). Its mark is
-// ▸ / ▾ (yellow) when it opens, as an Item's, and ! when it does not.
+// ▸ / ▾ (cNeed) when it opens, as an Item's, and ! when it does not.
 func (a *app) noticeHead(pv *view, n *report.Node, most int) []row {
 	sel := n.Key != "" && n.Key == pv.cur && !a.inPane
-	mark, base := plainText("!", yellow+bold), yellow
+	mark, base := plainText("!", cNeed+bold), cNeed
 	switch {
 	case pv.isHidden(n):
 		mark, base = plainText("⌀", dim), dim
 	case a.canOpen(pv, n) && pv.open[n.Key]:
-		mark = plainText(page.SignOpen, yellow+bold)
+		mark = plainText(page.SignOpen, cNeed+bold)
 	case a.canOpen(pv, n):
-		mark = plainText(page.SignClosed, yellow)
+		mark = plainText(page.SignClosed, cNeed)
 	}
 	body := inline(n.Text, base).capped(titleCap)
 	lns := a.titled(sel, 0, 0, mark, body, a.right(pv, n), most)
@@ -128,7 +128,7 @@ func (a *app) pin(pv *view, h int, must string) pinning {
 	if left > 0 {
 		// The sum takes the last row of the room.
 		if len(out.rows) < room {
-			out.rows = append(out.rows, row{line: a.compose(false, 0, plainText("!", yellow), plainText(fmt.Sprintf("ほか %d 件のお知らせ", left), yellow), nil)})
+			out.rows = append(out.rows, row{line: a.compose(false, 0, plainText("!", cNeed), plainText(fmt.Sprintf("ほか %d 件のお知らせ", left), cNeed), nil)})
 		}
 	}
 	if len(out.rows) > 0 && len(out.rows) < room {

@@ -337,7 +337,7 @@ func (b *Board) thing(n *report.Node, comments map[int]*Comment) *Thing {
 	t.You = n.Wait == "you" && !t.Hidden
 	t.Right = b.RightOf(n)
 	if !t.Right.At.IsZero() {
-		t.Right.AtText = AtWord(t.Right.At, time.Now())
+		t.Right.AtText = AtWord(t.Right.At, Clock())
 	}
 	t.Sign, t.OpenSign = SignOf(n, t.CanOpen, false, t.Hidden), SignOf(n, t.CanOpen, true, t.Hidden)
 	if t.Target != "" {

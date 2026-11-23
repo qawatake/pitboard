@@ -15,6 +15,8 @@ export function draw(cx, panel) {
   const cs = panelOrder(cx.page);
   const out = [];
   if (!cs.length) out.push(el('p', 'msg', cx.words('noComments')));
+  // Said once for all, not under each comment.
+  if (cs.some((c) => c.Note === cx.words('notSent'))) out.push(el('p', 'cnote quiet', cx.words('notSent')));
   const byTarget = index(cx.page).byTarget;
   for (const c of cs) {
     const key = '#l:' + c.N;
@@ -25,9 +27,12 @@ export function draw(cx, panel) {
   list.replaceChildren(...out);
 }
 
-export const covers = {"mode": ["comments"], "hint": ["edit", "retract"]};
+export const covers = {"mode": {"comments": ["every state; cursor on a comment"]}, "hint": {"edit": ["every state; cursor on a comment"], "retract": ["every state; cursor on a comment"]}};
+
+export const differences = {"panel-scrolled": ["scrolled to the cursor (the last comment)"]};
 
 export const variants = [
   { name: 'every state; cursor on a comment', fixture: 'comments', ui: { panel: true, mode: 'comments', cur: '#l:first' }, responsive: true },
   { name: 'no comments yet', fixture: 'empty', ui: { panel: true, mode: 'comments' } },
+  { name: 'scrolled to the cursor (the last comment)', fixture: 'comments', ui: { panel: true, mode: 'comments', cur: '#l:last' }, panelScroll: 'cursor', h: 520 },
 ];

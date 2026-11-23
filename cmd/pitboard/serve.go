@@ -151,6 +151,8 @@ const serveHelp = serveUsage + `
   --stop          stop the server
   --status        show the server and its boards (--url: with their URLs)
   --forget        take the board of -s SESSION off the server
+  --gallery       with --foreground, for scripts/web-gallery.sh only: a page
+                  may be put in a state by ?ui= and the clock is fixed
 
 The server keeps serve.json, serve.log and boards.json in
 $XDG_STATE_HOME/pitboard/ (or ~/.local/state/pitboard/), and stops by itself
@@ -184,6 +186,8 @@ func parseServe(args []string) (serveArgs, error) {
 			err = flag(&a.status, true)
 		case "--forget", "-forget":
 			err = flag(&a.forget, true)
+		case "--gallery", "-gallery":
+			err = flag(&a.o.Gallery, true)
 		case "--url", "-url":
 			err = flag(&a.showURL, true)
 		case "-h", "--help", "-help":
@@ -207,6 +211,9 @@ func parseServe(args []string) (serveArgs, error) {
 		if err != nil {
 			return a, err
 		}
+	}
+	if a.o.Gallery && !a.foreground {
+		return a, errors.New("serve: --gallery only with --foreground")
 	}
 	n := 0
 	for _, b := range []bool{a.stop, a.status, a.forget} {
@@ -350,10 +357,30 @@ func register(s serveState, path string, st *board.Store) (string, error) {
 	return r.ID, nil
 }
 
+// tightenState makes the state directory 0700 and its files 0600 again
+// when they are looser (made earlier under umask 022, say): the log and
+// the registry name the boards' directories. Links are left alone.
+func tightenState(dir string) {
+	fix := func(p string, mode os.FileMode, isDir bool) {
+		fi, err := os.Lstat(p)
+		if err != nil || fi.IsDir() != isDir || (!isDir && !fi.Mode().IsRegular()) || fi.Mode().Perm()&^mode == 0 {
+			return
+		}
+		if err := os.Chmod(p, fi.Mode().Perm()&mode); err != nil {
+			fmt.Fprintln(os.Stderr, "pitboard:", err)
+		}
+	}
+	fix(dir, 0o700, true)
+	for _, n := range []string{"serve.log", "serve.lock", "serve.json", "boards.json"} {
+		fix(filepath.Join(dir, n), 0o600, false)
+	}
+}
+
 // serveForeground serves until ctrl+c (or, for the background process,
 // SIGTERM or idling out), keeping serve.json while it runs.
 func serveForeground(dir string, bs []*board.Store, o web.Options, out io.Writer) error {
 	detached := os.Getenv(detachedEnv) == "1"
+	tightenState(dir)
 	o.Out, o.Boards, o.Registry = out, bs, registryPath(dir)
 	if detached {
 		// Its output is the log: the URL (the token) never goes there.
@@ -474,16 +501,16 @@ func serveForget(dir string, st *board.Store, out io.Writer) error {
 			return err
 		}
 	} else {
-		var keep []web.Registered
-		for _, r := range web.ReadRegistry(registryPath(dir)) {
-			if filepath.Join(r.Dir, ".pitboard", r.Session) == st.Dir || sameBoard(r, st) {
+		// It stays as a tombstone, so its id goes to no other board.
+		rs := web.ReadRegistry(registryPath(dir))
+		for i, r := range rs {
+			if !r.Gone && (filepath.Join(r.Dir, ".pitboard", r.Session) == st.Dir || sameBoard(r, st)) {
 				id = r.ID
-				continue
+				rs[i].Gone = true
 			}
-			keep = append(keep, r)
 		}
 		if id != "" {
-			if err := web.WriteRegistry(registryPath(dir), keep); err != nil {
+			if err := web.WriteRegistry(registryPath(dir), rs); err != nil {
 				return err
 			}
 		}

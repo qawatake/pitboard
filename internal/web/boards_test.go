@@ -2,11 +2,13 @@ package web
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -202,7 +204,8 @@ func TestImageLinksNotServed(t *testing.T) {
 }
 
 // The registry keeps the boards (and their ids) for the next server; a
-// board whose directory went is dropped without a word.
+// board whose directory went is kept as a tombstone without a word: its id
+// goes to no other board, and comes back with the board.
 func TestRegistryRestored(t *testing.T) {
 	reg := filepath.Join(t.TempDir(), "boards.json")
 	dir, _ := filepath.EvalSymlinks(t.TempDir())
@@ -224,8 +227,180 @@ func TestRegistryRestored(t *testing.T) {
 	if s2.board(ida) == nil || len(s2.order) != 1 {
 		t.Errorf("restored %d boards", len(s2.order))
 	}
-	if rs := ReadRegistry(reg); len(rs) != 1 || rs[0].ID != ida || rs[0].Added.After(time.Now()) {
-		t.Errorf("registry %+v", rs)
+	rs := ReadRegistry(reg)
+	if len(rs) != 2 || rs[0].ID != ida || rs[0].Gone || rs[0].Added.After(time.Now()) || !rs[1].Gone || rs[1].ID != "gone5678" {
+		t.Fatalf("registry %+v", rs)
+	}
+	other, _ := filepath.EvalSymlinks(t.TempDir())
+	newBoard(t, other, "gone5678abc", "<Title>c</Title>\n")
+	if id, err := s2.Register(other, "gone5678abc"); err != nil || id == "gone5678" {
+		t.Errorf("another board with the session: %q %v", id, err)
+	}
+	newBoard(t, dir, "gone5678abc", "<Title>b</Title>\n")
+	if id, err := s2.Register(dir, "gone5678abc"); err != nil || id != "gone5678" {
+		t.Errorf("the board back: %q %v", id, err)
+	}
+}
+
+// readUntilGone reads the event stream until "gone" (or 5 seconds).
+func readUntilGone(t *testing.T, resp *http.Response) string {
+	t.Helper()
+	got := make(chan string, 1)
+	go func() {
+		b := make([]byte, 4096)
+		var all string
+		for {
+			n, err := resp.Body.Read(b)
+			all += string(b[:n])
+			if strings.Contains(all, "event: gone") || err != nil {
+				got <- all
+				return
+			}
+		}
+	}()
+	select {
+	case s := <-got:
+		return s
+	case <-time.After(5 * time.Second):
+		t.Fatal("no gone event")
+	}
+	return ""
+}
+
+// Forget tells the board's open pages "gone" at once, and its calls answer
+// MsgGone (404). Registered again from the same directory, it has the same
+// id and works again (the page polls /api/page to see this); the same
+// session in another directory gets another id.
+func TestForgetGoneAndBack(t *testing.T) {
+	f := setup(t)
+	id := strings.TrimPrefix(f.base, "/s/")
+	ev := f.req("GET", f.base+"/api/events", nil, nil)
+	defer ev.Body.Close()
+	resp := f.req("POST", "/api/forget", BoardRef{Dir: f.st.Base, Session: f.st.Session}, func(r *http.Request) {
+		r.Header.Del("Cookie")
+		r.Header.Del("Origin")
+		r.Header.Set("Authorization", "Bearer "+f.s.Token())
+	})
+	var reg Registration
+	json.NewDecoder(resp.Body).Decode(&reg)
+	if reg.ID != id {
+		t.Fatalf("forget %+v", reg)
+	}
+	if s := readUntilGone(t, ev); !strings.Contains(s, "event: gone\ndata: "+MsgGone+"\n") {
+		t.Errorf("stream: %q", s)
+	}
+	page := func() (int, string) {
+		r := f.req("GET", f.base+"/api/page", nil, nil)
+		b, _ := io.ReadAll(r.Body)
+		return r.StatusCode, string(b)
+	}
+	if c, b := page(); c != http.StatusNotFound || !strings.Contains(b, MsgGone) {
+		t.Errorf("forgotten page: %d %q", c, b)
+	}
+	other, _ := filepath.EvalSymlinks(t.TempDir())
+	newBoard(t, other, f.st.Session, "<Title>別</Title>\n")
+	if _, reg := f.register(other, f.st.Session, nil); reg.ID == "" || reg.ID == id {
+		t.Errorf("another directory: %+v", reg)
+	}
+	if c, _ := page(); c != http.StatusNotFound {
+		t.Errorf("the id went to another board: %d", c)
+	}
+	if _, reg := f.register(f.st.Base, f.st.Session, nil); reg.ID != id {
+		t.Errorf("registered again: %+v, want %s", reg, id)
+	}
+	if c, b := page(); c != 200 || !strings.Contains(b, "ページの単位") {
+		t.Errorf("back: %d", c)
+	}
+}
+
+// A board's directory missing for a poll or two (moved and back) is kept;
+// it is dropped after dropAfter polls in a row miss it.
+func TestMissingDirKept(t *testing.T) {
+	f := setup(t)
+	id := strings.TrimPrefix(f.base, "/s/")
+	away := f.st.Dir + ".away"
+	move := func(from, to string) {
+		t.Helper()
+		if err := os.Rename(from, to); err != nil {
+			t.Fatal(err)
+		}
+	}
+	move(f.st.Dir, away)
+	for range dropAfter - 1 {
+		f.s.watchOnce()
+	}
+	if f.s.board(id) == nil {
+		t.Fatal("dropped before dropAfter polls")
+	}
+	move(away, f.st.Dir)
+	f.s.watchOnce()
+	move(f.st.Dir, away)
+	for range dropAfter - 1 {
+		f.s.watchOnce()
+	}
+	if f.s.board(id) == nil {
+		t.Fatal("misses not counted afresh after the directory came back")
+	}
+	f.s.watchOnce()
+	if f.s.board(id) != nil {
+		t.Fatal("not dropped after dropAfter polls")
+	}
+}
+
+// Registers at once are all kept: the registry is written one at a time,
+// each through a file of its own, and nothing goes wrong.
+func TestRegistryConcurrent(t *testing.T) {
+	var mu sync.Mutex
+	var errs []string
+	old := logError
+	logError = func(format string, a ...any) {
+		mu.Lock()
+		errs = append(errs, fmt.Sprintf(format, a...))
+		mu.Unlock()
+	}
+	t.Cleanup(func() { logError = old })
+	stateDir := t.TempDir()
+	reg := filepath.Join(stateDir, "boards.json")
+	s, err := New(Options{Registry: reg})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir, _ := filepath.EvalSymlinks(t.TempDir())
+	const n, workers = 200, 16
+	for i := range n {
+		newBoard(t, dir, fmt.Sprintf("conc%04dxyz", i), "<Title>t</Title>\n")
+	}
+	var wg sync.WaitGroup
+	for w := range workers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := w; i < n; i += workers {
+				if _, err := s.Register(dir, fmt.Sprintf("conc%04dxyz", i)); err != nil {
+					t.Error(err)
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	if len(errs) > 0 {
+		t.Errorf("%d errors logged, first %q", len(errs), errs[0])
+	}
+	rs := ReadRegistry(reg)
+	seen := map[string]bool{}
+	for _, r := range rs {
+		seen[r.Session] = true
+	}
+	for i := range n {
+		if !seen[fmt.Sprintf("conc%04dxyz", i)] {
+			t.Errorf("conc%04dxyz not on disk", i)
+		}
+	}
+	if len(rs) != n {
+		t.Errorf("%d on disk, want %d", len(rs), n)
+	}
+	if es, _ := os.ReadDir(stateDir); len(es) != 1 {
+		t.Errorf("left beside the registry: %v", es)
 	}
 }
 
@@ -263,6 +438,9 @@ func TestBoardGone(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("no gone event")
+	}
+	if rs := ReadRegistry(f.s.registry); f.s.registry != "" && (len(rs) != 1 || !rs[0].Gone) {
+		t.Errorf("registry %+v", rs)
 	}
 	r := f.req("GET", f.base+"/api/page", nil, nil)
 	b, _ := io.ReadAll(r.Body)

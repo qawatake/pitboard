@@ -351,7 +351,7 @@ func (a *app) drawEditing() {
 		// The pane, in full, under the page.
 		pv := a.top()
 		rows, top = a.rows(pv), pv.top
-		rows = append(rows, row{}, row{line: a.compose(false, 0, nil, plainText("コメント", bold+blue), nil)})
+		rows = append(rows, row{}, row{line: a.compose(false, 0, nil, plainText("コメント", bold+cStructure), nil)})
 		prows, ends := a.paneAll(a.paneOrder())
 		n := a.in.edit
 		if n == 0 {
@@ -451,8 +451,9 @@ func (a *app) drawEditing() {
 }
 
 // editorHints is the editor's one line of hints. When narrow, they are
-// left out from the end: ctrl+g, then ctrl+j; how to write, send and stop
-// always stay.
+// left out from the end: ctrl+g, then the word of ctrl+j (its key stays:
+// how to write a new line is not found otherwise), then ctrl+j; how to
+// write, send and stop always stay.
 func (a *app) editorHints() []string {
 	nl := "ctrl+j"
 	if a.kbd {
@@ -462,16 +463,19 @@ func (a *app) editorHints() []string {
 	for _, h := range page.EditorHints(nl) {
 		x := hint{k: h.Key, d: h.Word}
 		if h.Do == "newline" {
-			x.rank = 2
+			x.rank, x.short = 3, h.Key
 		}
 		all = append(all, x)
 	}
 	all = append(all, hint{k: "ctrl+g", d: "エディタ", rank: 1})
 	var ks []hint
-	for lvl := 0; lvl <= 2; lvl++ {
+	for lvl := 0; lvl <= 3; lvl++ {
 		ks = ks[:0]
 		for _, k := range all {
 			if k.rank == 0 || k.rank > lvl {
+				if lvl >= 2 && k.short != "" {
+					k.k, k.d = k.short, ""
+				}
 				ks = append(ks, k)
 			}
 		}

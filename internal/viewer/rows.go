@@ -11,15 +11,7 @@ import (
 
 // toneColor is the color of a Tone: yellow needs the person, green moves,
 // faint waits or is done.
-func toneColor(t page.Tone) string {
-	switch t {
-	case page.ToneNeed:
-		return yellow
-	case page.ToneMove:
-		return green
-	}
-	return dim
-}
+func toneColor(t page.Tone) string { return palette[page.ToneColor(t)] }
 
 // wordText is a Word drawn in its color.
 func wordText(w page.Word) text {
@@ -42,11 +34,11 @@ func (a *app) right(pv *view, n *report.Node) text {
 	switch r.Reaction {
 	case "":
 	case "y":
-		re = plainText("y", bold+green)
+		re = plainText("y", bold+cMove)
 	case "n":
-		re = plainText("n", bold+red)
+		re = plainText("n", bold+cBad)
 	default:
-		re = plainText(r.Reaction, bold+cyan)
+		re = plainText(r.Reaction, bold+cYours)
 	}
 	word := wordText(r.Input)
 	if r.Count > 0 {
@@ -92,11 +84,11 @@ const answerHead = page.AnswerHead
 func markOf(k report.Kind, canOpen, open bool) text {
 	switch {
 	case k == report.KindLink:
-		return plainText("→", blue)
+		return plainText("→", cStructure)
 	case k == report.KindDone:
 		return plainText("✓", dim)
 	case k == report.KindQuestion:
-		return plainText("?", yellow) // even when a long question opens
+		return plainText("?", cNeed) // even when a long question opens
 	case canOpen && open:
 		return plainText(page.SignOpen, bold)
 	case canOpen:
@@ -180,7 +172,7 @@ func (a *app) rows(pv *view) []row {
 			rows = append(rows, row{})
 		case report.KindSection:
 			blank()
-			h := a.para(0, inline(n.Text, bold+blue))
+			h := a.para(0, inline(n.Text, bold+cStructure))
 			h[0].jump = n
 			rows = append(rows, h...)
 			if page.EmptySection(n) {
@@ -204,7 +196,7 @@ func (a *app) rows(pv *view) []row {
 			label := plainText(n.Label+"  ", dim)
 			var mark text
 			if chosen != "" && n.Label == chosen {
-				mark = plainText("●", bold+cyan)
+				mark = plainText("●", bold+cYours)
 			}
 			lns := inline(n.Text, "").wrap(a.room(ind, nil) - label.width())
 			rows = append(rows, row{line: a.compose(false, ind, mark, append(label, lns[0]...), nil)})
@@ -226,7 +218,7 @@ func (a *app) rows(pv *view) []row {
 			case report.KindDone:
 				base = dim
 			case report.KindLink:
-				base = blue
+				base = cStructure
 			}
 			hidden := pv.isHidden(n) // drawn only while H shows hidden lines
 			heading := outer[n] && !hidden
@@ -234,7 +226,7 @@ func (a *app) rows(pv *view) []row {
 			case hidden:
 				base = dim
 			case heading:
-				base = bold + blue
+				base = bold + cStructure
 			}
 			body, right := inline(n.Text, base).capped(titleCap), a.right(pv, n)
 			nav := pv.navigable(n)
@@ -254,7 +246,7 @@ func (a *app) rows(pv *view) []row {
 			case hidden:
 				mark = plainText("⌀", dim)
 			case heading:
-				mark = plainText(mark.plain(), bold+blue) // open or not, as the heading
+				mark = plainText(mark.plain(), bold+cStructure) // open or not, as the heading
 			}
 			var lns []row
 			if n.Kind == report.KindPlain {
@@ -306,7 +298,7 @@ func (a *app) rows(pv *view) []row {
 // section headings.
 func paraText(n *report.Node, base string) text {
 	if n.Head {
-		return inline(n.Text, base+bold+blue)
+		return inline(n.Text, base+bold+cStructure)
 	}
 	return inline(n.Text, base)
 }
@@ -341,15 +333,18 @@ func (a *app) listItem(sel bool, ind int, n *report.Node, base string, mark, rig
 func (a *app) code(n *report.Node, ind int) []row {
 	var rows []row
 	for _, ln := range n.Code {
+		// Tabs as they are drawn (clean: 4 spaces each), so the hang below
+		// is counted in the columns the line takes on screen.
+		ln = strings.ReplaceAll(ln, "\t", "    ")
 		st := cyan
 		if n.Lang == "diff" {
 			switch {
 			case strings.HasPrefix(ln, "@@"):
 				st = cyan
 			case strings.HasPrefix(ln, "+"):
-				st = green
+				st = cMove
 			case strings.HasPrefix(ln, "-"):
-				st = red
+				st = cBad
 			default:
 				st = ""
 			}
@@ -379,7 +374,8 @@ func (a *app) code(n *report.Node, ind int) []row {
 }
 
 // codeHang is where a code line's own text starts: past its leading
-// spaces, and for a diff past the sign and the spaces after it.
+// spaces, and for a diff past the sign and the spaces after it (tabs are
+// expanded before: see code).
 func codeHang(ln string, diff bool) int {
 	i := 0
 	if diff && len(ln) > 0 && strings.ContainsRune("+- ", rune(ln[0])) {

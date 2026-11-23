@@ -54,7 +54,7 @@ func (a *app) msgRows(msg string, right text) []string {
 
 // helpRows is the list of every key.
 func (a *app) helpRows() []row {
-	rows := []row{{}, {line: a.compose(false, 0, nil, plainText("キー", bold+blue), nil)}, {}}
+	rows := []row{{}, {line: a.compose(false, 0, nil, plainText("キー", bold+cStructure), nil)}, {}}
 	for _, k := range [][2]string{
 		{"j k ↑↓", "上下に動く (ctrl+n / ctrl+p も)。止まる行がその先になければ半画面スクロール。カーソルの行が画面の外にあれば、まずそこまで戻す"},
 		{"pgup pgdn", "半画面ずつスクロール"},
@@ -134,7 +134,10 @@ type hint struct {
 	k, d  string
 	alt   string // a shorter label tried before hints are left out
 	short string // the short form: these keys alone, without the label
-	rank  int    // when it is left out on a narrow line (see rankX)
+	// shortD is a word the short form keeps while it fits (then it goes
+	// too).
+	shortD string
+	rank   int // when it is left out on a narrow line (see rankX)
 }
 
 func keyHints(hs []hint) text {
@@ -223,7 +226,9 @@ func (a *app) bottom() []string {
 		x := hint{k: h.Key, d: h.Word, rank: page.DropRank(h.Do)}
 		switch h.Do {
 		case "wait":
-			x.short = h.Key
+			// Narrow, it keeps a short word while it fits (j k alone does
+			// not say what it is for).
+			x.short, x.shortD = h.Key, wordWaitNarrow
 		case "hide":
 			if pv.placed {
 				// Before the person moves, x is what works on the line (a
@@ -237,6 +242,10 @@ func (a *app) bottom() []string {
 	// shown, since writing works wherever the cursor is.
 	return a.oneLine(keys, right)
 }
+
+// wordWaitNarrow is the word of "j k" (move first) on a narrow line, in
+// place of page's longer one (the terminal's alone: a browser's line wraps).
+const wordWaitNarrow = "動かす"
 
 // commentHints is the keys on a comment (page's CommentHints): e to edit,
 // x to take it back.
@@ -310,11 +319,14 @@ func (a *app) oneLineKeep(keys []hint, keep, right text) []string {
 			}
 		}
 	}
-	shorten := func(ks []hint) []hint {
+	shorten := func(ks []hint, word bool) []hint {
 		out := make([]hint, len(ks))
 		for i, k := range ks {
 			if k.short != "" {
 				k.k, k.d = k.short, ""
+				if word {
+					k.d = k.shortD
+				}
 			}
 			out[i] = k
 		}
@@ -342,7 +354,7 @@ func (a *app) oneLineKeep(keys []hint, keep, right text) []string {
 		if lvl == rankC {
 			// A hint with a short form keeps its words until every key
 			// that can go has gone.
-			cands = append(cands, shorten(alt(ks)))
+			cands = append(cands, shorten(alt(ks), true), shorten(alt(ks), false))
 		}
 		for _, cand := range cands {
 			cand = append(cand, tail...)
@@ -368,7 +380,7 @@ func (a *app) oneLineKeep(keys []hint, keep, right text) []string {
 	// Too narrow for all: what the person must know to react (the short
 	// form of a kept hint) comes first, then "? キー".
 	var must []hint
-	for _, k := range shorten(keys) {
+	for _, k := range shorten(keys, false) {
 		if k.short != "" {
 			must = append(must, k)
 		}

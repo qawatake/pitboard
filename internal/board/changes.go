@@ -11,7 +11,11 @@ import (
 
 // Unsent counts what the person has not sent yet: what the next send would
 // deliver (a thought taken back before it was sent is not counted).
-func Unsent(evs []Event) int { return len(deliverable(evs, lastSend(evs), noCut)) }
+func Unsent(evs []Event) int { return len(UnsentEvents(evs)) }
+
+// UnsentEvents is what the person has done since the latest send, as it
+// would be told to the AI.
+func UnsentEvents(evs []Event) []Event { return deliverable(evs, lastSend(evs), noCut) }
 
 // SentUnread counts what was sent but the AI has not read yet.
 func SentUnread(evs []Event, seen int) int { return len(deliverable(evs, seen, lastSend(evs))) }

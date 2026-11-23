@@ -12,7 +12,7 @@ export function draw(cx, t, opts) {
   });
 }
 
-export const covers = {"kind": ["notice"]};
+export const covers = {"kind": {"notice": ["opens, closed (today)"]}};
 
 export const variants = [
   { name: 'opens, closed (today)', pick: 'restart' },

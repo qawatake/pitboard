@@ -20,7 +20,10 @@ import (
 // file, and restored when a server starts again. A board's id is the
 // shortest prefix of its session (8 characters at least) that no other
 // board registered shares; once given it does not change, so open tabs
-// keep their address.
+// keep their address. An id is never given to another board, not even
+// after its board is forgotten or dropped: the registry keeps a tombstone
+// (the id, the directory, the session), and the same board registered
+// again gets its id back, so its open tabs work again.
 
 // Registered is a board as the registry keeps it.
 type Registered struct {
@@ -28,6 +31,9 @@ type Registered struct {
 	Dir     string // where .pitboard/ is
 	Session string
 	Added   time.Time
+	// Gone: no longer shown (forgotten, or its directory went). Only its
+	// id is kept, for the same board.
+	Gone bool `json:",omitempty"`
 }
 
 type registryFile struct {
@@ -91,14 +97,20 @@ func sameDir(a, b string) bool {
 	return err1 == nil && err2 == nil && ra == rb
 }
 
-// newID is the id for session among the boards registered (s.mu held).
+// newID is the id for session among the boards registered and gone
+// (s.mu held).
 func (s *Server) newID(session string) string {
 	free := func(p string) bool {
-		if _, ok := s.boards[p]; ok {
+		if s.taken(p) {
 			return false
 		}
 		for _, b := range s.order {
 			if strings.HasPrefix(b.st.Session, p) {
+				return false
+			}
+		}
+		for _, r := range s.gone {
+			if strings.HasPrefix(r.Session, p) {
 				return false
 			}
 		}
@@ -132,7 +144,21 @@ func (s *Server) Register(dir, session string) (string, error) {
 	return id, err
 }
 
-// add registers st (with id, when restored) unless it is already.
+// taken says whether id is a board's, shown or gone (s.mu held).
+func (s *Server) taken(id string) bool {
+	if s.boards[id] != nil {
+		return true
+	}
+	for _, r := range s.gone {
+		if r.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+// add registers st (with id, when restored) unless it is already. A board
+// gone before gets its id back.
 func (s *Server) add(st *board.Store, id string, added time.Time) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -141,10 +167,18 @@ func (s *Server) add(st *board.Store, id string, added time.Time) (string, error
 			return b.id, nil
 		}
 	}
-	if id == "" || !validID(id) || s.boards[id] != nil {
+	revived := false
+	for i, r := range s.gone {
+		if r.Session == st.Session && (filepath.Join(r.Dir, ".pitboard", r.Session) == st.Dir || sameDir(filepath.Join(r.Dir, ".pitboard", r.Session), st.Dir)) {
+			id, revived = r.ID, true
+			s.gone = append(s.gone[:i:i], s.gone[i+1:]...)
+			break
+		}
+	}
+	if !revived && (id == "" || !validID(id) || s.taken(id)) {
 		id = s.newID(st.Session)
 	}
-	b := &hosted{id: id, st: st, added: added, tabs: map[string]*tab{}}
+	b := &hosted{id: id, st: st, added: added, tabs: map[string]*tab{}, gallery: s.gallery}
 	s.boards[id] = b
 	s.order = append(s.order, b)
 	return id, nil
@@ -159,33 +193,52 @@ func validID(id string) bool {
 }
 
 // Forget stops showing the board at dir/.pitboard/session; it says the
-// id it had ("" none).
+// id it had ("" none). Its open pages are told "gone" at once, and its
+// calls answer MsgGone, as for a board dropped.
 func (s *Server) Forget(dir, session string) string {
 	want := filepath.Join(dir, ".pitboard", session)
 	s.mu.Lock()
 	id := ""
-	for i, b := range s.order {
+	for _, b := range s.order {
 		if b.st.Dir == want || sameDir(b.st.Dir, want) {
 			id = b.id
-			delete(s.boards, b.id)
-			s.order = append(s.order[:i:i], s.order[i+1:]...)
+			s.bury(b)
 			break
 		}
 	}
 	s.mu.Unlock()
 	if id != "" {
 		s.save()
-		s.notify("")
+		s.notify(id) // its streams, and the index's
 	}
 	return id
 }
 
+// bury stops showing b and keeps its tombstone, so its id goes to no
+// other board (s.mu held).
+func (s *Server) bury(b *hosted) {
+	delete(s.boards, b.id)
+	for i, x := range s.order {
+		if x == b {
+			s.order = append(s.order[:i:i], s.order[i+1:]...)
+			break
+		}
+	}
+	s.gone = append(s.gone, Registered{ID: b.id, Dir: b.st.Base, Session: b.st.Session, Added: b.added, Gone: true})
+}
+
 // restore registers the boards of the registry that are still there; one
-// whose directory went is dropped without a word.
+// whose directory went is kept as a tombstone without a word.
 func (s *Server) restore() {
 	for _, r := range ReadRegistry(s.registry) {
 		st, err := CheckBoard(r.Dir, r.Session)
-		if err != nil {
+		if r.Gone || err != nil {
+			s.mu.Lock()
+			if validID(r.ID) && board.ReSession.MatchString(r.Session) && !s.taken(r.ID) {
+				r.Gone = true
+				s.gone = append(s.gone, r)
+			}
+			s.mu.Unlock()
 			continue
 		}
 		s.add(st, r.ID, r.Added)
@@ -216,18 +269,16 @@ func WriteRegistry(p string, bs []Registered) error {
 }
 
 // WritePrivate writes data to p readable by this user only (0600), by way
-// of p.tmp: a stale p.tmp is removed first and the new one made with
-// O_EXCL (a file left by someone else, or with a looser mode, is never
-// written into), and its mode is checked before it takes p's place.
+// of a new file beside it with a name of its own (made with O_EXCL and
+// 0600, so a file left by someone else, or with a looser mode, is never
+// written into, and two writers never touch each other's), whose mode is
+// checked before it takes p's place.
 func WritePrivate(p string, data []byte) error {
-	tmp := p + ".tmp"
-	if err := os.Remove(tmp); err != nil && !os.IsNotExist(err) {
-		return err
-	}
-	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	f, err := os.CreateTemp(filepath.Dir(p), filepath.Base(p)+".*.tmp")
 	if err != nil {
 		return err
 	}
+	tmp := f.Name()
 	_, werr := f.Write(data)
 	if cerr := f.Close(); werr == nil {
 		werr = cerr
@@ -246,20 +297,28 @@ func WritePrivate(p string, data []byte) error {
 	return os.Rename(tmp, p)
 }
 
+// save writes the registry: one write at a time, each of the boards as
+// they are when it starts, so the last write has the last change.
 func (s *Server) save() {
 	if s.registry == "" {
 		return
 	}
+	s.saveMu.Lock()
+	defer s.saveMu.Unlock()
 	s.mu.Lock()
-	bs := make([]Registered, 0, len(s.order))
+	bs := make([]Registered, 0, len(s.order)+len(s.gone))
 	for _, b := range s.order {
 		bs = append(bs, Registered{ID: b.id, Dir: b.st.Base, Session: b.st.Session, Added: b.added})
 	}
+	bs = append(bs, s.gone...)
 	s.mu.Unlock()
 	if err := WriteRegistry(s.registry, bs); err != nil {
-		fmt.Fprintln(os.Stderr, "pitboard: registry:", err)
+		logError("pitboard: registry: %v\n", err)
 	}
 }
+
+// logError says what went wrong to the log (stderr; tests watch it).
+var logError = func(format string, a ...any) { fmt.Fprintf(os.Stderr, format, a...) }
 
 // BoardRef is what register and forget take.
 type BoardRef struct{ Dir, Session string }
@@ -301,6 +360,7 @@ type BoardRow struct {
 	Title            string
 	Summary          []page.Word // 反応待ち 未読 AI 待機中 送信済 未送信, as the board's top right
 	Message          string      `json:",omitempty"` // no report yet, …
+	Gone             bool        `json:",omitempty"` // its directory is missing
 }
 
 // Index is what GET /api/boards returns.
@@ -310,6 +370,12 @@ type Index struct {
 }
 
 func (s *Server) handleBoards(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, s.index())
+}
+
+// index is the boards as the index lists them now. A board whose
+// directory is missing (the watcher has not dropped it yet) says so.
+func (s *Server) index() Index {
 	s.mu.Lock()
 	bs := append([]*hosted(nil), s.order...)
 	s.mu.Unlock()
@@ -325,9 +391,12 @@ func (s *Server) handleBoards(w http.ResponseWriter, r *http.Request) {
 				break
 			}
 		}
+		if _, err := os.Stat(b.st.Dir); err != nil {
+			row.Gone, row.Message, row.Summary = true, MsgGone, nil
+		}
 		out.Boards = append(out.Boards, row)
 	}
-	writeJSON(w, out)
+	return out
 }
 
 // MsgNoBoards is what the index says with no board registered.

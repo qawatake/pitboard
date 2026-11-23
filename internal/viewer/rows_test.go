@@ -322,7 +322,7 @@ func TestEmptyReport(t *testing.T) {
 	os.WriteFile(st.ReportPath(), nil, 0o644)
 	a := testApp(t, st)
 	lines, _ := screen(t, a)
-	if !strings.Contains(strings.Join(lines, "\n"), "報告はまだ空です。AI が書くと、ここに出ます。") {
+	if !strings.Contains(strings.Join(lines, "\n"), "報告はまだ空です。AI が書くと、ここに出ます") {
 		t.Errorf("empty report:\n%s", strings.Join(lines, "\n"))
 	}
 }
@@ -445,6 +445,24 @@ func TestCodeWrapHangs(t *testing.T) {
 	col := strings.Index(first, ".row")
 	if lead := len(second) - len(strings.TrimLeft(second, " ")); lead != col {
 		t.Errorf("continuation at %d, code at %d:\n%s\n%s", lead, col, first, second)
+	}
+}
+
+// A line indented with a tab hangs where the tab is drawn (4 columns), not
+// one column in (REVIEW14 f).
+func TestCodeWrapHangsTab(t *testing.T) {
+	for _, w := range []int{80, 40} {
+		a := &app{t: &term{w: w, h: 20, out: io.Discard}}
+		n := &report.Node{Kind: report.KindCode, Lang: "diff", Code: []string{" \tif err := doSomethingRatherLong(ctx, withAnArgument, andAnotherOne, andYetAnotherOne); err != nil {"}}
+		rows := a.code(n, 4)
+		if len(rows) < 2 {
+			t.Fatalf("%d: not wrapped: %v", w, rows)
+		}
+		first, second := reEsc.ReplaceAllString(rows[0].line, ""), reEsc.ReplaceAllString(rows[1].line, "")
+		col := strings.Index(first, "if")
+		if lead := len(second) - len(strings.TrimLeft(second, " ")); lead != col {
+			t.Errorf("%d: continuation at %d, code at %d:\n%s\n%s", w, lead, col, first, second)
+		}
 	}
 }
 

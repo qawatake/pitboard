@@ -35,7 +35,7 @@ func inline(s, base string) text {
 		case page.StyleCode:
 			st += cyan
 		case page.StyleLink:
-			st += blue
+			st += cStructure
 		case page.StyleBold:
 			st += bold
 		}

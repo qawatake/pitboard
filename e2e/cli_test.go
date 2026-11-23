@@ -616,7 +616,7 @@ func TestRemovedRowWarnings(t *testing.T) {
 	if r := ss.run("check"); r.code != 0 || strings.TrimSpace(r.stdout) != "" {
 		t.Fatalf("before: %d %q", r.code, r.stdout)
 	}
-	ss.appendEvents(ev(1, "thought", `"id":"c","text":"これは？"`))
+	ss.appendEvents(ev(1, "thought", `"id":"c","text":"これは？"`), ev(2, "send", ""))
 	ss.write("<Item id=\"keep\">残る行</Item>\n")
 	r := ss.run("check")
 	wantLines(t, r.stdout,
@@ -625,9 +625,25 @@ func TestRemovedRowWarnings(t *testing.T) {
 	if r.code != 0 {
 		t.Errorf("warnings changed the exit code: %d", r.code)
 	}
-	ss.appendEvents(ev(2, "send", ""))
 	if out := ss.mustRun("changes"); !strings.Contains(out, "report.md has 0 problem(s), 2 warning(s). Run: pitboard -s abcdef12 check") {
 		t.Errorf("changes: %q", out)
+	}
+	// Counted once on the other commands; check says them every time.
+	if out := ss.mustRun("changes"); strings.Contains(out, "warning(s)") {
+		t.Errorf("changes again: %q", out)
+	}
+	if r := ss.run("check"); strings.Count(r.stdout, "warning:") != 2 {
+		t.Errorf("check again: %q", r.stdout)
+	}
+	// -h says how to use it and forgets nothing.
+	if out := ss.mustRun("ack-removed", "-h"); !strings.Contains(out, "usage: pitboard -s SESSION ack-removed") {
+		t.Errorf("ack -h: %q", out)
+	}
+	if r := ss.run("check"); strings.Count(r.stdout, "warning:") != 2 {
+		t.Errorf("after -h: %q", r.stdout)
+	}
+	if out := s.mustRun("ack-removed", "--help"); !strings.Contains(out, "usage: pitboard -s SESSION ack-removed") {
+		t.Errorf("ack --help without a session: %q", out)
 	}
 	if out := ss.mustRun("ack-removed"); !strings.Contains(out, "acknowledged 2 removed row(s)") {
 		t.Errorf("ack: %q", out)

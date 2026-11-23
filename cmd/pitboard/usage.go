@@ -289,11 +289,13 @@ Manners:
     line still in progress) may stay.
   - When to remove a row: once the person hid it, or it is resolved (its
     question answered, its comments settled done). Do not drop a row the
-    person has not answered yet (look="y", ask="y" or an Ask they have not
-    reacted to, read or hidden) or one with a comment you have not settled
-    done: 'check' warns of each such removal (warning: row "ID" (title) was
-    removed but the person has not hidden or answered it / ... but it has an
-    open comment (N)). Put the row back, or, if removing it was right, settle
+    person has not answered yet (ask="y" or an Ask they have not answered
+    or hidden, wait="you" they have not acted on, look="y" they have not
+    read) or one with a sent comment you have not settled done: 'check'
+    warns of each such removal (warning: row "ID" (title) was removed but
+    the person has not hidden or answered it / ... but it has an open
+    comment (N); a Fold without an id: warning: Fold "title" was removed
+    ...), and the line other commands end with counts it once. Put the row back, or, if removing it was right, settle
     its comments and run 'pitboard -s SESS ack-removed'.
   - Mark with wait="you" every Item that needs the person's hand (its
     status words alone get no color).

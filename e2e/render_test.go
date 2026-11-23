@@ -476,7 +476,7 @@ func TestRenderAskNotice(t *testing.T) {
 // SPEC.md "画面": an empty report.
 func TestRenderEmptyReport(t *testing.T) {
 	t.Parallel()
-	v, _ := open(t, "\n", 60, 10, "報告はまだ空です。AI が書くと、ここに出ます。")
+	v, _ := open(t, "\n", 60, 10, "報告はまだ空です。AI が書くと、ここに出ます")
 	wantColor(t, v, "報告はまだ空です", "dim")
 }
 

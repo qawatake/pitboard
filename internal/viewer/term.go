@@ -33,6 +33,26 @@ const (
 	blue    = "\x1b[94m"
 )
 
+// The palette (page.Palette) on a terminal: each name's color. A color is
+// used for its name's meaning only. The colors kept outside it (SPEC 色:
+// inline code and the code block in cyan, the editor's label in cyan,
+// messages and format errors in magenta, g's letters in yellow, a diff's
+// @@ in cyan) are listed there, to be decided.
+const (
+	cNeed      = yellow // needs the person
+	cMove      = green  // moving; unread by you
+	cQuiet     = dim    // done, waiting, secondary
+	cStructure = blue   // headings, links, the cursor
+	cYours     = cyan   // what the person entered
+	cBad       = red    // errors, n, removed
+)
+
+// palette is each page.Palette name's color here.
+var palette = map[string]string{
+	page.ColorNeed: cNeed, page.ColorMove: cMove, page.ColorQuiet: cQuiet,
+	page.ColorStructure: cStructure, page.ColorYours: cYours, page.ColorBad: cBad,
+}
+
 func sty(code, s string) string {
 	if code == "" {
 		return s

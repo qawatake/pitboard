@@ -62,6 +62,10 @@ type Options struct {
 	// Listening is called once the server listens, with its port and token
 	// (for the state file of a background server).
 	Listening func(port int, token string)
+	// Gallery serves for the gallery's check (scripts/web-gallery.sh): a
+	// page may be put in a state by ?ui= (PageJSON.Gallery), and the clock
+	// is GalleryNow. Never set by a plain 'pitboard serve'.
+	Gallery bool
 	// Idle stops the server after this long with no page connected (an
 	// event stream of any board, or of the index); 0 never.
 	Idle time.Duration
@@ -73,10 +77,16 @@ type Server struct {
 	token    string
 	port     int
 	registry string
+	gallery  bool
 
 	mu     sync.Mutex
 	boards map[string]*hosted // by id
 	order  []*hosted          // as registered
+	// gone is the tombstones of the boards no longer shown: their ids go
+	// to no other board.
+	gone []Registered
+	// saveMu makes the registry's writes one at a time.
+	saveMu sync.Mutex
 	// subs is the open event streams, each with its board's id ("" the
 	// index: told of every change).
 	subs map[chan struct{}]string
@@ -88,13 +98,17 @@ type Server struct {
 
 // hosted is one board the server shows.
 type hosted struct {
-	id    string
-	st    *board.Store
-	added time.Time
+	id      string
+	st      *board.Store
+	added   time.Time
+	gallery bool // the server's Options.Gallery
 
 	mu    sync.Mutex // tabs
 	tabs  map[string]*tab
 	watch *page.Board // the board the watcher polls (its goroutine only)
+	// missed is how many polls in a row did not find its directory (the
+	// watcher's goroutine only).
+	missed int
 }
 
 // tab is one browser tab's board: its own undo history (page.Board.Hist),
@@ -128,9 +142,12 @@ func New(o Options) (*Server, error) {
 		return nil, err
 	}
 	s := &Server{
-		token: hex.EncodeToString(tok), port: o.Port, registry: o.Registry,
+		token: hex.EncodeToString(tok), port: o.Port, registry: o.Registry, gallery: o.Gallery,
 		boards: map[string]*hosted{}, subs: map[chan struct{}]string{}, done: make(chan struct{}),
 		lastSub: time.Now(),
+	}
+	if o.Gallery {
+		page.Clock = func() time.Time { return GalleryNow }
 	}
 	s.restore()
 	for _, st := range o.Boards {
@@ -319,8 +336,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		id, sub, _ := strings.Cut(rest, "/")
 		b := s.board(id)
 		if b == nil {
-			// Never registered, or dropped since (its directory went): its
-			// page says this on its banner.
+			// Never registered, or gone since (forgotten, or its directory
+			// went): its page says this on its banner, and tries again.
 			http.Error(w, MsgGone, http.StatusNotFound)
 			return
 		}
