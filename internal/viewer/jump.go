@@ -2,9 +2,9 @@ package viewer
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
+	"github.com/qawatake/pitboard/internal/page"
 	"github.com/qawatake/pitboard/internal/report"
 )
 
@@ -26,27 +26,10 @@ func (a *app) jumpTargets(pv *view) []*report.Node {
 
 // jumpLetter is the letter of the i-th place: a to z, skipping g (g in
 // goto mode always leaves it).
-func jumpLetter(i int) string {
-	if i >= 'g'-'a' {
-		i++
-	}
-	return string(rune('a' + i))
-}
+func jumpLetter(i int) string { return page.JumpLetter(i) }
 
 // jumpIndex is which place letter r goes to (-1: none).
-func jumpIndex(r rune, n int) int {
-	if r < 'a' || r > 'z' || r == 'g' {
-		return -1
-	}
-	i := int(r - 'a')
-	if r > 'g' {
-		i--
-	}
-	if i >= n {
-		return -1
-	}
-	return i
-}
+func jumpIndex(r rune, n int) int { return page.JumpIndex(r, n) }
 
 // startJump enters goto mode with the letters given now.
 func (a *app) startJump(pv *view) {
@@ -239,12 +222,5 @@ func (a *app) scrollToward(pv *view, d int) bool {
 // option's key): while that line is off the screen, it only brings it
 // back.
 func reactKey(pv *view, k key) bool {
-	if k.r == 0 {
-		return false
-	}
-	if strings.ContainsRune("ynxrc", k.r) {
-		return true
-	}
-	n := pv.nodeAt(pv.cur)
-	return n != nil && n.Kind == report.KindQuestion && n.Choice(string(k.r)) != nil
+	return k.r != 0 && page.ActKey(pv.nodeAt(pv.cur), string(k.r))
 }

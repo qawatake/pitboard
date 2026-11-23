@@ -11,6 +11,8 @@ import (
 	"syscall"
 	"time"
 	"unicode/utf8"
+
+	"github.com/qawatake/pitboard/internal/page"
 )
 
 // A minimal terminal layer on the standard library only. Raw mode and the
@@ -457,17 +459,7 @@ var ctrlKeys = map[byte]string{
 
 // runeWidth is the number of terminal cells a rune takes: 2 for CJK, kana,
 // full-width forms and emoji, 0 for combining marks, 1 otherwise.
-func runeWidth(r rune) int {
-	switch {
-	case r >= 0x300 && r <= 0x36f, r >= 0x200b && r <= 0x200f, r >= 0xfe00 && r <= 0xfe0f:
-		return 0
-	case r >= 0x1100 && r <= 0x115f, r >= 0x2e80 && r <= 0xa4cf, r >= 0xac00 && r <= 0xd7a3,
-		r >= 0xf900 && r <= 0xfaff, r >= 0xfe30 && r <= 0xfe4f, r >= 0xff00 && r <= 0xff60,
-		r >= 0xffe0 && r <= 0xffe6, r >= 0x1f300 && r <= 0x1faff, r >= 0x20000 && r <= 0x3fffd:
-		return 2
-	}
-	return 1
-}
+func runeWidth(r rune) int { return page.RuneWidth(r) }
 
 func width(s string) int {
 	w := 0

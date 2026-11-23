@@ -1,7 +1,9 @@
 package web
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/qawatake/pitboard/internal/board"
 	"github.com/qawatake/pitboard/internal/page"
@@ -30,6 +33,18 @@ type PageJSON struct {
 	NoBoard  bool   // there is no .pitboard/ at all (MsgNoBoard)
 	Base     string // where boards are looked for, when there is none
 	ImageMax int    // the largest image taken, in bytes
+	// Say is what to tell the person now (a hidden line came back), once.
+	Say string `json:",omitempty"`
+	// Words is what the page says by itself, by name: offline (it cannot
+	// reach the server: it cannot ask then, so it is given now), jumping (g
+	// waits for a letter), noMarked (space has nowhere to go),
+	// imageTooLarge.
+	Words map[string]string
+}
+
+var words = map[string]string{
+	"offline": page.MsgOffline, "jumping": page.MsgJumpLetter, "noMarked": page.MsgNoMarked,
+	"imageTooLarge": board.ErrTooLarge.Error(),
 }
 
 func writeJSON(w http.ResponseWriter, v any) {
@@ -44,7 +59,8 @@ func (s *Server) handlePage(w http.ResponseWriter, r *http.Request) {
 	t.fresh()
 	p := t.b.Page(r.URL.Query().Get("hidden") == "1")
 	t.remember(p)
-	out := PageJSON{Page: p, ImageMax: board.ImageMax}
+	out := PageJSON{Page: p, ImageMax: board.ImageMax, Say: t.say, Words: words}
+	t.say = ""
 	if st := t.b.Store; st != nil {
 		out.Session = board.ShortSession(st)
 	} else {
@@ -53,7 +69,22 @@ func (s *Server) handlePage(w http.ResponseWriter, r *http.Request) {
 		}
 		out.Base = s.base
 	}
-	writeJSON(w, out)
+	body, err := json.Marshal(out)
+	if err != nil {
+		http.Error(w, "pitboard: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	// The same page as last time is not sent again: the browser keeps
+	// what it drew.
+	sum := sha256.Sum256(body)
+	tag := `"` + hex.EncodeToString(sum[:12]) + `"`
+	w.Header().Set("ETag", tag)
+	if r.Header.Get("If-None-Match") == tag {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Write(body)
 }
 
 // remember keeps the lines of p by token, as the tab was shown them: an
@@ -66,7 +97,9 @@ func (t *tab) remember(p *page.Page) {
 	walk = func(ts []*page.Thing) {
 		for _, x := range ts {
 			if x.Stop && x.Node != nil {
-				t.seen[x.Token] = seenLine{seen: x.Seen, target: x.Target, title: x.Node.Title()}
+				if _, ok := t.seen[x.Token]; !ok {
+					t.seen[x.Token] = seenLine{seen: x.Seen, target: x.Target, title: x.Node.Title(), node: x.Node}
+				}
 			}
 			walk(x.Kids)
 		}
@@ -81,15 +114,15 @@ func (s *Server) post(w http.ResponseWriter, r *http.Request, f func(w http.Resp
 		http.Error(w, "pitboard: JSON で送ってください", http.StatusUnsupportedMediaType)
 		return
 	}
-	limit := int64(maxJSON)
+	limit, tooBigMsg := int64(maxJSON), page.MsgTooLong
 	if r.URL.Path == "/api/image" {
-		limit = int64(board.ImageMax)*4/3 + 4096 // base64
+		limit, tooBigMsg = int64(board.ImageMax)*4/3+4096, board.ErrTooLarge.Error() // base64
 	}
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, limit))
 	if err != nil {
 		var tooBig *http.MaxBytesError
 		if errors.As(err, &tooBig) {
-			writeJSON(w, Result{Message: board.ErrTooLarge.Error()})
+			writeJSON(w, Result{Message: tooBigMsg})
 			return
 		}
 		http.Error(w, "pitboard: 読めませんでした", http.StatusBadRequest)
@@ -100,7 +133,11 @@ func (s *Server) post(w http.ResponseWriter, r *http.Request, f func(w http.Resp
 
 // Act is what POST /api/act takes.
 type Act struct {
-	Action string // react hide comment edit retract read readall undo
+	// Action is key (a key pressed on the cursor's line, or its button),
+	// hint (what works there now), comment, edit, retract, readall, undo.
+	// react, hide and read are key with Value, x and r.
+	Action string
+	Key    string // key: y n x r c or an option's key
 	Target string // the line's Key ("" for none)
 	Seen   string // the line's Token, as shown
 	Value  string // react: y, n or an option key
@@ -109,6 +146,28 @@ type Act struct {
 	// ShowHidden: the page shows hidden lines (the words after hiding
 	// differ).
 	ShowHidden bool
+	// Cur is how the cursor came to the line (key, hint).
+	Cur Cur
+}
+
+// Cur is the facts the page knows of the cursor's line; the rules are
+// page's guard's (page.Touch).
+type Cur struct {
+	// Start: the person has not moved the cursor since the page put it on
+	// a line by itself (at start, or when lines appeared on a page that had
+	// none); the page may have moved it on since (app).
+	Start bool
+	// How the line became the cursor's: person (the person moved it there:
+	// keys, Tab, click), app (the page moved it there after the person's
+	// act took their line away, or for space / g), start (the page put it
+	// on its first line).
+	How string
+	// Ago is how long ago it became the cursor's line, in ms.
+	Ago int
+	// Sel is the line's Token when it became the cursor's ("": Seen).
+	Sel string
+	// Open says whether the line is open (an Ask's options shown).
+	Open bool
 }
 
 // Result is what an action returns: Message is the same notice the
@@ -117,9 +176,20 @@ type Act struct {
 type Result struct {
 	OK      bool
 	Message string
-	Changed bool `json:",omitempty"`
-	Hidden  bool `json:",omitempty"` // hide: the line is hidden now
-	Image   int  `json:",omitempty"` // image: its number
+	Changed bool   `json:",omitempty"`
+	Hidden  bool   `json:",omitempty"` // hide: the line is hidden now
+	Image   int    `json:",omitempty"` // image: its number
+	Do      string `json:",omitempty"` // key: what it did (page.Do)
+	// Offer is, for hint, what works on the line now.
+	Offer *OfferJSON `json:",omitempty"`
+}
+
+// OfferJSON is page.Offer for the browser.
+type OfferJSON struct {
+	Hints   []page.Hint
+	Options []string
+	Recheck int  // ms; 0 none
+	Locked  bool // the line was rewritten: nothing works until the person moves
 }
 
 func (s *Server) handleAct(w http.ResponseWriter, r *http.Request, body []byte) {
@@ -141,6 +211,35 @@ func (t *tab) line(key, tok string) (seenLine, bool) {
 	return l, ok && key != "" && l.seen.Key == key
 }
 
+// now is the line key in the report as it is now (nil: gone).
+func (t *tab) now(key string) *report.Node {
+	var now *report.Node
+	report.WalkAll(t.b.Report.Nodes, func(n *report.Node) {
+		if now == nil && key != "" && n.Key == key && page.Stops(n) {
+			now = n
+		}
+	})
+	return now
+}
+
+// touch is a's facts as page's guard takes them.
+func (t *tab) touch(a Act, now *report.Node) page.Touch {
+	c := a.Cur
+	tc := page.Touch{Placed: c.Start, Open: c.Open, Again: t.again}
+	if c.How == "app" {
+		tc.Auto, tc.Shown = true, time.Duration(max(c.Ago, 0))*time.Millisecond
+	}
+	sel := c.Sel
+	if sel == "" {
+		sel = a.Seen
+	}
+	// Rewritten (or gone) since the cursor came to it: locked, as the
+	// terminal locks its cursor when a reload changes its line.
+	l, ok := t.seen[sel]
+	tc.Locked = !ok || l.seen.Key != a.Target || page.Rewritten(l.node, now)
+	return tc
+}
+
 func (t *tab) act(a Act) Result {
 	b := t.b
 	res := func(msg string, err error) Result {
@@ -155,23 +254,53 @@ func (t *tab) act(a Act) Result {
 	changed := Result{Message: page.MsgChanged, Changed: true}
 	switch a.Action {
 	case "react":
-		l, ok := t.line(a.Target, a.Seen)
-		if !ok {
-			return changed
-		}
-		return res(b.React(l.seen, a.Value))
+		a.Action, a.Key = "key", a.Value
 	case "hide":
+		a.Action, a.Key = "key", "x"
+	case "read":
+		a.Action, a.Key = "key", "r"
+	}
+	switch a.Action {
+	case "hint":
+		now := t.now(a.Target)
+		if _, ok := t.line(a.Target, a.Seen); !ok || now == nil {
+			return Result{OK: true, Offer: &OfferJSON{Locked: true}}
+		}
+		tc := t.touch(a, now)
+		o := b.Offer(now, tc)
+		return Result{OK: true, Offer: &OfferJSON{Hints: o.Hints, Options: o.Options, Recheck: int(o.Recheck.Milliseconds()), Locked: tc.Locked}}
+	case "key":
 		l, ok := t.line(a.Target, a.Seen)
-		if !ok {
+		now := t.now(a.Target)
+		if !ok || now == nil {
 			return changed
 		}
-		msg, hidden, err := b.Hide(l.seen)
-		if err == nil && hidden && !a.ShowHidden {
-			msg += " (H で表示)"
+		v := b.Allow(now, a.Key, t.touch(a, now))
+		t.again = v.Again
+		switch v.Do {
+		case page.DoNothing:
+			return Result{Message: v.Msg}
+		case page.DoOpen, page.DoComment:
+			return Result{OK: true, Do: string(v.Do)}
+		case page.DoReact:
+			out := res(b.React(l.seen, v.Value))
+			out.Do = string(v.Do)
+			return out
+		case page.DoHide:
+			msg, hidden, err := b.Hide(l.seen, a.ShowHidden)
+			out := res(msg, err)
+			out.Hidden, out.Do = hidden, string(v.Do)
+			return out
+		case page.DoRead:
+			// Only on the line as it is now: a line rewritten since is the
+			// person's to look at again.
+			if page.SeenOf(now) != l.seen {
+				return changed
+			}
+			out := res(b.Read(l.seen.Key, "r (読んだ)"))
+			out.Do = string(v.Do)
+			return out
 		}
-		out := res(msg, err)
-		out.Hidden = hidden
-		return out
 	case "comment":
 		target, title := "", ""
 		if a.Target != "" {
@@ -185,28 +314,12 @@ func (t *tab) act(a Act) Result {
 	case "edit":
 		return res(b.Edit(a.N, a.Text))
 	case "retract":
-		msg, err := b.Retract(a.N)
-		if err == nil {
-			msg += " (u で戻す)"
+		// A comment the page just moved the cursor to (after x) waits, as
+		// a line does: x pressed twice takes back only the first.
+		if (page.Touch{Auto: a.Cur.How == "app", Shown: time.Duration(max(a.Cur.Ago, 0)) * time.Millisecond}).Settling() {
+			return Result{}
 		}
-		return res(msg, err)
-	case "read":
-		l, ok := t.line(a.Target, a.Seen)
-		if !ok {
-			return changed
-		}
-		// Only on the line as it is now: a line rewritten since is the
-		// person's to look at again.
-		var now *report.Node
-		report.WalkAll(b.Report.Nodes, func(n *report.Node) {
-			if now == nil && n.Key == l.seen.Key {
-				now = n
-			}
-		})
-		if now == nil || page.SeenOf(now) != l.seen {
-			return changed
-		}
-		return res(b.Read(l.seen.Key, "r (読んだ)"))
+		return res(b.Retract(a.N))
 	case "readall":
 		return res(b.ReadAll("A (すべて読んだことにする)"))
 	case "undo":

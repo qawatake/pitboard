@@ -1,6 +1,8 @@
-// pitboard in a browser. The rules (what a line is, its marks, its words,
-// what can be done on it) all come from the server (internal/page); this
-// file only draws them and sends the person's actions.
+// pitboard in a browser. The rules (what a line is, its marks, its signs,
+// its words, what a key does on it and what to say when it does nothing)
+// all come from the server (internal/page); this file only draws them,
+// reports the facts of the cursor (how it came to its line, and when), and
+// sends the person's keys.
 // Report and comment text is data: it is only ever put in the page with
 // textContent and created elements, never as HTML.
 
@@ -27,13 +29,23 @@ const tabId = (() => {
 
 const S = {
   data: null,        // the page (GET /api/page)
+  etag: '',
   open: new Map(),   // key -> open (what the person opened or closed)
   copen: new Map(),  // comment row key -> open
-  cur: '',           // the selected row's key
-  curTitle: '',      // what it said when selected (to notice a rewrite)
-  placed: true,      // the page put the selection there, not the person
-  lock: false,       // the selected line was rewritten or went: no reactions until moved
-  autoAt: 0,         // when the page moved the selection by itself
+  // The cursor, and the facts of how it came there (the server decides
+  // what they mean): start (the person has not moved it since the page put
+  // it there), how (person / app), at (when), sel (the line's token then).
+  cur: '',
+  start: true,
+  how: 'start',
+  at: 0,
+  sel: '',
+  lastIndex: 0,
+  going: '',         // the line the person's own act is taking away
+  reportCur: null,   // the cursor on the report while the comment list is shown
+  offer: null,       // the server's hint for the cursor's line: {key, sel, offer}
+  hintSeq: 0,
+  hintTimer: 0,
   showHidden: false,
   list: false,       // the comment list instead of the report
   editor: null,      // {kind, key, token, n, at, label}
@@ -41,8 +53,9 @@ const S = {
   busy: false,
   composing: false,
   pending: false,    // a refresh waiting for the input method
+  offline: false,
 };
-const SETTLE = 400;
+const words = (k) => (S.data && S.data.Words && S.data.Words[k]) || '';
 const draftKey = (ed) => 'pitboard-draft:' + ed.kind + ':' + (ed.kind === 'edit' ? ed.n : ed.key);
 const store = {
   get(k) { try { return sessionStorage.getItem(k); } catch { return null; } },
@@ -52,63 +65,118 @@ const store = {
 
 // ---- talking to the server ----
 
-async function api(path, body) {
-  const opt = { headers: { 'X-Pitboard-Tab': tabId }, credentials: 'same-origin' };
+class Offline extends Error {}
+
+// request sends a request; it says the page is offline when the server
+// cannot be reached or no longer takes it.
+async function request(path, body, headers = {}) {
+  const opt = { headers: { 'X-Pitboard-Tab': tabId, ...headers }, credentials: 'same-origin' };
   if (body !== undefined) {
     opt.method = 'POST';
     opt.headers['Content-Type'] = 'application/json';
     opt.body = JSON.stringify(body);
   }
-  const r = await fetch(path, opt);
-  if (!r.ok) throw new Error((await r.text()).trim() || r.statusText);
-  return r.json();
+  let r;
+  try {
+    r = await fetch(path, opt);
+  } catch {
+    setOffline(true);
+    throw new Offline(words('offline'));
+  }
+  if (r.status === 403) {
+    // The server was started again (a new key), or the cookie is gone.
+    setOffline(true);
+    throw new Offline(words('offline'));
+  }
+  if (!r.ok && r.status !== 304) throw new Error((await r.text()).trim() || r.statusText);
+  return r;
+}
+
+async function api(path, body) {
+  return (await request(path, body)).json();
+}
+
+// setOffline shows (or clears) that the page is not live: what it shows
+// may be old, and nothing done on it reaches the board.
+function setOffline(on) {
+  if (S.offline === on) return;
+  S.offline = on;
+  const b = $('offline');
+  b.textContent = on ? words('offline') : '';
+  b.hidden = !on;
+  document.body.classList.toggle('offline', on);
+  syncPadding();
+  // Keep trying quietly: the first page that comes back clears it.
+  clearInterval(S.retryTimer);
+  if (on) S.retryTimer = setInterval(() => { S.etag = ''; refresh(); }, 3000);
 }
 
 async function refresh() {
   if (S.composing) { S.pending = true; return; }
+  let d;
   try {
-    S.data = await api('/api/page' + (S.showHidden ? '?hidden=1' : ''));
+    const r = await request('/api/page' + (S.showHidden ? '?hidden=1' : ''), undefined, S.etag ? { 'If-None-Match': S.etag } : {});
+    if (r.status === 304) {
+      setOffline(false);
+      requestHint(); // the same page as drawn
+      return;
+    }
+    d = await r.json();
+    S.etag = r.headers.get('ETag') || '';
   } catch (e) {
-    say('読めませんでした: ' + e.message);
+    // The banner says it (Offline); a message on the status line stays.
+    if (!(e instanceof Offline)) console.warn('pitboard: page', e);
     return;
   }
+  setOffline(false);
+  const first = !S.data;
+  S.data = d;
   render();
+  if (first) focusCur();
+  if (d.Say) say(d.Say);
 }
 
 function say(msg) {
   const s = $('status');
   s.textContent = '';
   // A new text each time, so it is read out even when it repeats.
-  requestAnimationFrame(() => { s.textContent = msg || ''; });
+  requestAnimationFrame(() => { s.textContent = msg || ''; syncPadding(); });
+}
+
+// facts is how the cursor came to line t, for the server's guard.
+function facts(t) {
+  return { Start: S.start, How: S.how, Ago: Math.round(Date.now() - S.at), Sel: S.sel || t.Token, Open: isOpen(t) };
 }
 
 async function act(action, extra = {}) {
   if (S.busy) return null;
+  let r;
   try {
-    const r = await api('/api/act', { Action: action, ShowHidden: S.showHidden, ...extra });
-    say(r.Message);
-    await refresh();
-    return r;
-  } finally {
-    S.going = '';
+    r = await api('/api/act', { Action: action, ShowHidden: S.showHidden, ...extra });
+  } catch (e) {
+    if (!(e instanceof Offline)) say('できませんでした: ' + e.message);
+    return null;
   }
+  if (r.Message) say(r.Message);
+  return r;
 }
 
 // ---- walking the page ----
 
-function allThings() {
-  const out = [];
-  const walk = (ts) => { for (const t of ts || []) { out.push(t); walk(t.Kids); } };
+let things = new Map(); // key -> the line one can point at (Stop)
+function index() {
+  things = new Map();
+  const walk = (ts) => { for (const t of ts || []) { if (t.Stop) things.set(t.Key, t); walk(t.Kids); } };
   if (S.data) { walk(S.data.Notices); walk(S.data.Things); }
-  return out;
 }
-const byKey = (k) => allThings().find((t) => t.Key === k && t.Stop);
+const byKey = (k) => things.get(k);
 const comments = () => (S.data && S.data.Comments) || [];
 const commentOf = (n) => comments().find((c) => c.N === n);
-const isOpen = (t) => (S.open.has(t.Key) ? S.open.get(t.Key) : t.Open);
+const isOpen = (t) => (S.open.has(t.Key) ? S.open.get(t.Key) : !!t.Open);
 const canWrite = () => S.data && S.data.CanWrite;
-const navRows = () => Array.from(document.querySelectorAll('[data-nav]'));
 const plain = (spans) => (spans || []).map((s) => s.Text).join('');
+const rowOf = (key) => rows.get(key);
+const navOf = (key) => { const r = rowOf(key); return r && r.querySelector(':scope > .rowbtn'); };
 
 // ---- drawing ----
 
@@ -144,39 +212,23 @@ function word(w, extra) {
   return el('span', w.Tone + (extra ? ' ' + extra : ''), w.Text);
 }
 
-function rightOf(t) {
+function rightOf(t, open) {
   const r = t.Right || {};
   const box = el('span', 'right');
-  const mine = [];
   if (r.Reaction) {
     const cls = r.Reaction === 'y' ? 'yes' : r.Reaction === 'n' ? 'no' : 'optkey';
-    mine.push(el('span', cls, r.Reaction));
-    if (t.Kind === 'ask' && r.Option && !isOpen(t)) {
-      const head = [...r.Option].length > 12 ? [...r.Option].slice(0, 11).join('') + '…' : r.Option;
-      mine.push(el('span', 'faint', head));
-    }
+    box.appendChild(el('span', cls, r.Reaction));
+    if (t.Kind === 'ask' && r.OptionHead && !open) box.appendChild(el('span', 'faint ohead', r.OptionHead));
   }
   if (r.Input && r.Input.Text) {
     const w = el('span', '', '');
     if (r.Count > 0) w.appendChild(el('span', 'faint', r.Count + ' '));
     w.appendChild(word(r.Input));
-    mine.push(w);
+    box.appendChild(w);
   }
-  for (const m of mine) box.appendChild(m);
   if (r.AtText) box.appendChild(el('span', 'faint', r.AtText));
   else if (r.Status && r.Status.Text) box.appendChild(word(r.Status));
   return box;
-}
-
-function signOf(t, open) {
-  if (t.Hidden) return '⌀';
-  if (t.Kind === 'link') return '→';
-  if (t.Kind === 'item' && t.State === 'done') return '✓';
-  if (t.Kind === 'ask') return '?';
-  if (t.CanOpen) return open ? '▾' : '▸';
-  if (t.Kind === 'notice') return '!';
-  if (t.Kind === 'list') return t.Num || (t.Level === 1 ? '-' : '·');
-  return '·';
 }
 
 function markOf(t) {
@@ -189,9 +241,56 @@ function markOf(t) {
   return m;
 }
 
+// Rows are kept by key between drawings: a row whose line says the same is
+// not drawn again (only what it holds is put back in).
+let rows = new Map();     // key -> row element now on the page
+let cache = new Map();    // key -> {sig, box, kids}
+
+// patch makes parent's children kids, moving only what is not already in
+// place: rows kept from the last drawing stay where they are.
+function patch(parent, kids) {
+  const keep = new Set(kids);
+  let cur = parent.firstChild;
+  for (const k of kids) {
+    while (cur && !keep.has(cur)) {
+      const next = cur.nextSibling;
+      parent.removeChild(cur);
+      cur = next;
+    }
+    if (cur === k) { cur = cur.nextSibling; continue; }
+    parent.insertBefore(k, cur);
+  }
+  while (cur) {
+    const next = cur.nextSibling;
+    parent.removeChild(cur);
+    cur = next;
+  }
+}
+
+function rowSig(t, open, extra) {
+  const { Kids, ...own } = t;
+  return JSON.stringify(own) + '|' + open + '|' + (S.jumping && t.JumpKey ? 'j' : '') + '|' + (extra || '');
+}
+
 // row draws a line the person can point at, and what it shows open.
 function row(t, opts = {}) {
   const open = t.CanOpen && isOpen(t);
+  const sig = rowSig(t, open, opts.heading ? 'h' : '');
+  let c = cache.get(t.Key);
+  if (!c || c.sig !== sig) {
+    c = { sig, ...drawRow(t, open, opts) };
+    cache.set(t.Key, c);
+  }
+  if (c.kids) {
+    const kids = [];
+    things2({ appendChild: (x) => { kids.push(x); return x; } }, t.Kids);
+    patch(c.kids, kids);
+  }
+  rows.set(t.Key, c.box);
+  return c.box;
+}
+
+function drawRow(t, open, opts) {
   const box = el('div', 'row');
   box.dataset.key = t.Key;
   if (t.Kind === 'notice') box.classList.add('notice');
@@ -201,22 +300,19 @@ function row(t, opts = {}) {
   if (t.Hidden) box.classList.add('hidden');
   if (opts.heading && !t.Hidden) box.classList.add('heading');
   if (open) box.classList.add('open');
-  if (t.Key === S.cur && !S.list) box.classList.add('cur');
   const b = el('button', 'rowbtn');
   b.type = 'button';
   b.dataset.nav = t.Key;
   if (t.CanOpen) b.setAttribute('aria-expanded', String(open));
-  if (t.Key === S.cur) b.setAttribute('aria-current', 'true');
   b.appendChild(markOf(t));
-  b.appendChild(el('span', 'sign', signOf(t, open)));
+  b.appendChild(el('span', 'sign', open ? t.OpenSign : t.Sign));
   const title = el('span', 'title');
-  if (S.jumping && opts.jump) title.appendChild(el('span', 'jumpkey', opts.jump));
+  if (S.jumping && t.JumpKey) title.appendChild(el('span', 'jumpkey', t.JumpKey));
   if (t.Jump) box.dataset.jump = String(t.Jump);
   spans(title, t.Title, true);
   if (t.Hidden) title.appendChild(el('span', 'sr', ' (隠した行)'));
   b.appendChild(title);
-  b.appendChild(rightOf(t));
-  b.addEventListener('click', () => clickRow(t.Key));
+  b.appendChild(rightOf(t, open));
   box.appendChild(b);
   if (t.Kind === 'link') {
     const tg = el('div', 'target');
@@ -231,29 +327,32 @@ function row(t, opts = {}) {
     }
     box.appendChild(tg);
   }
-  if (t.Key === S.cur && !S.list) box.appendChild(actionsOf(t));
-  if (S.editor && S.editor.at === t.Key && !S.list) box.appendChild(editorBox());
+  if (t.Kind === 'list' && t.Subs && t.Subs.length) {
+    const s = el('div', 'subs body');
+    for (const x of t.Subs) s.appendChild(block(x));
+    box.appendChild(s);
+  }
+  let kids = null;
   if (open) {
     if (t.Kind === 'fold') {
       box.appendChild(commentsOn(t, 'body'));
-      const kids = el('div', 'kids');
-      things(kids, t.Kids);
+      kids = el('div', 'kids');
       box.appendChild(kids);
     } else {
       box.appendChild(contents(t));
       if (t.Kind === 'ask') {
         for (const o of t.Kids || []) {
           const line = el('div', 'option');
-          const k = el('span', o.Chosen ? 'chosen' : 'faint', (o.Chosen ? '● ' : '') + o.OptionKey);
+          const k = el('span', 'okey ' + (o.Chosen ? 'chosen' : 'faint'), (o.Chosen ? '● ' : '') + o.OptionKey);
           if (o.Chosen) k.appendChild(el('span', 'sr', ' (選んだ答え)'));
           line.appendChild(k);
-          line.appendChild(spans(el('span'), o.Title));
+          line.appendChild(spans(el('span', 'otext'), o.Title));
           box.appendChild(line);
         }
       }
     }
   }
-  return box;
+  return { box, kids };
 }
 
 function contents(t) {
@@ -352,9 +451,8 @@ function block(t) {
   }
 }
 
-function things(parent, ts, top) {
+function things2(parent, ts, top) {
   for (const t of ts || []) {
-    const jump = t.Jump ? jumpLetter(t.Jump - 1) : '';
     switch (t.Kind) {
       case 'title':
         parent.appendChild(spans(el('h1'), t.Title));
@@ -362,70 +460,111 @@ function things(parent, ts, top) {
       case 'section': {
         const h = el('h2', 'section');
         if (t.Jump) h.dataset.jump = String(t.Jump);
-        if (S.jumping && jump) h.appendChild(el('span', 'jumpkey', jump));
+        if (S.jumping && t.JumpKey) h.appendChild(el('span', 'jumpkey', t.JumpKey));
         spans(h, t.Title);
         parent.appendChild(h);
-        things(parent, t.Kids);
+        things2(parent, t.Kids);
         break;
       }
       default:
-        if (t.Stop) {
-          const r = row(t, { heading: top && t.Kind === 'fold', jump });
-          if (t.Kind === 'list' && t.Subs && t.Subs.length) {
-            const s = el('div', 'subs body');
-            for (const x of t.Subs) s.appendChild(block(x));
-            r.insertBefore(s, r.children[1] || null);
-          }
-          parent.appendChild(r);
-        } else {
-          parent.appendChild(block(t));
-        }
+        if (t.Stop) parent.appendChild(row(t, { heading: top && t.Kind === 'fold' }));
+        else parent.appendChild(block(t));
     }
   }
 }
 
-// actionsOf is the buttons of the selected line: the terminal's hint words.
-function actionsOf(t) {
-  const box = el('div', 'actions');
-  box.setAttribute('role', 'group');
-  box.setAttribute('aria-label', 'この行でできること');
-  const a = t.Actions || {};
-  const add = (label, key, fn, primary) => {
-    const b = el('button', primary ? 'primary' : '', label);
-    b.type = 'button';
-    if (key) {
-      b.append(' ', el('kbd', '', key));
-      b.setAttribute('aria-keyshortcuts', key);
-    }
-    b.addEventListener('click', (e) => { e.stopPropagation(); S.placed = false; S.lock = false; fn(); });
-    box.appendChild(b);
-  };
-  const askOpen = t.Kind === 'ask' && isOpen(t);
-  if (askOpen) for (const k of a.Options || []) {
-    const o = (t.Kids || []).find((x) => x.OptionKey === k);
-    add((o ? plain(o.Title) : k), k, () => react(t, k));
+// ---- the buttons of the cursor's line ----
+
+const actionsBox = el('div', 'actions');
+actionsBox.setAttribute('role', 'group');
+actionsBox.setAttribute('aria-label', 'この行でできること');
+
+function button(label, key, fn) {
+  const b = el('button', '', label);
+  b.type = 'button';
+  if (key) {
+    b.append(' ', el('kbd', '', key));
+    b.setAttribute('aria-keyshortcuts', key === 'enter' ? 'Enter' : key);
+    b.dataset.key = key;
   }
-  if (t.CanOpen) add(isOpen(t) ? '閉じる' : '開く', 'enter', () => toggle(t.Key));
-  if (a.Read) add('読んだ', 'r', () => read(t));
-  if (a.YN) {
-    add('よし', 'y', () => react(t, 'y'));
-    add('だめ', 'n', () => react(t, 'n'));
-  }
-  if (a.Comment) add('行に書く', 'c', () => openEditor({ kind: 'comment', key: t.Key, token: t.Token, at: t.Key, label: '「' + plain(t.Title) + '」にコメント' }));
-  if (a.Hide) add(t.Hidden ? '表示に戻す' : '隠す', 'x', () => hide(t));
-  return box;
+  b.addEventListener('click', (e) => { e.stopPropagation(); fn(); });
+  return b;
 }
+
+// drawActions puts the buttons of the cursor's line under it: what the
+// server offers for it (a key it would refuse is never shown).
+function drawActions() {
+  const had = actionsBox.contains(document.activeElement) ? document.activeElement.dataset.key : null;
+  actionsBox.replaceChildren();
+  const r = rowOf(S.cur);
+  if (!r || S.list && !S.cur.startsWith('#')) { actionsBox.remove(); return; }
+  const c = S.cur.startsWith('#') ? commentOf(Number(S.cur.slice(3))) : null;
+  if (c) {
+    if (!canWrite()) { actionsBox.remove(); return; }
+    const open = !!S.copen.get(S.cur);
+    actionsBox.setAttribute('aria-label', 'このコメントでできること');
+    actionsBox.append(
+      button(open ? '閉じる' : '開く', 'enter', () => toggle(S.cur)),
+      button('直す', 'e', () => editComment(c, S.cur)),
+      button('取り消す', 'x', () => retract(c)),
+    );
+  } else {
+    actionsBox.setAttribute('aria-label', 'この行でできること');
+    const t = byKey(S.cur);
+    const o = S.offer && S.offer.key === S.cur && S.offer.sel === S.sel ? S.offer.offer : null;
+    for (const h of (o && o.Hints) || []) {
+      switch (h.Do) {
+        case 'open': case 'close': actionsBox.appendChild(button(h.Word, 'enter', () => toggle(t.Key))); break;
+        case 'wait': actionsBox.appendChild(el('span', 'faint wait', h.Key + ' ' + h.Word)); break;
+        case 'answer':
+          for (const k of o.Options || []) {
+            const opt = (t.Kids || []).find((x) => x.OptionKey === k);
+            actionsBox.appendChild(button(opt ? plain(opt.Title) : k, k, () => press(k)));
+          }
+          break;
+        default: actionsBox.appendChild(button(h.Word, h.Key, () => press(h.Key)));
+      }
+    }
+  }
+  const at = r.querySelector(':scope > .target') || r.querySelector(':scope > .rowbtn');
+  if (actionsBox.previousElementSibling !== at) at.after(actionsBox);
+  if (had != null) {
+    const b = actionsBox.querySelector(`[data-key="${CSS.escape(had)}"]`) || navOf(S.cur);
+    if (b) b.focus({ preventScroll: true });
+  }
+}
+
+// requestHint asks the server what works on the cursor's line now.
+async function requestHint() {
+  clearTimeout(S.hintTimer);
+  const t = byKey(S.cur);
+  if (!t || S.list) { drawActions(); return; }
+  const seq = ++S.hintSeq;
+  const key = S.cur;
+  const sel = S.sel;
+  let r;
+  try {
+    r = await api('/api/act', { Action: 'hint', Target: t.Key, Seen: t.Token, Cur: facts(t) });
+  } catch { return; }
+  if (seq !== S.hintSeq || !r || !r.Offer) return;
+  S.offer = { key, sel, offer: r.Offer };
+  drawActions();
+  if (r.Offer.Recheck > 0) S.hintTimer = setTimeout(requestHint, r.Offer.Recheck + 20);
+}
+
+// ---- drawing the page ----
 
 function render() {
   const d = S.data;
   if (!d) return;
+  navKeys = null;
+  index();
   // Keep what the person is looking at where it is on screen.
-  const anchor = document.querySelector('.row.cur') || document.querySelector('.editor');
-  const before = anchor ? anchor.getBoundingClientRect().top : null;
-  const focusRow = document.activeElement && document.activeElement.dataset && document.activeElement.dataset.nav;
+  const anchor = rowOf(S.cur) || document.querySelector('.editor');
+  const before = anchor && anchor.isConnected ? anchor.getBoundingClientRect().top : null;
+  const ae = document.activeElement;
+  const focusRow = ae && ae !== document.body && ae.closest && !!ae.closest('.row');
   const ed = saveEditor();
-
-  checkCursor();
 
   // top right
   const sum = $('summary');
@@ -434,37 +573,60 @@ function render() {
   if (d.Hidden > 0) sum.appendChild(el('span', 'faint', `隠した行 ${d.Hidden}` + (S.showHidden ? ' (表示中)' : '')));
 
   const nb = $('notices');
-  nb.replaceChildren();
   const board = $('board');
-  board.replaceChildren();
   const pane = $('pane');
-  pane.replaceChildren();
-
+  rows = new Map();
+  const nbKids = [];
+  const boardKids = [];
+  const paneKids = [];
+  const sink = (arr) => ({ appendChild: (x) => { arr.push(x); return x; } });
   if (S.list) {
-    renderList(board);
+    renderList(sink(boardKids));
   } else {
-    for (const t of d.Notices || []) nb.appendChild(row(t, { jump: t.Jump ? jumpLetter(t.Jump - 1) : '' }));
-    if (d.Message) board.appendChild(el('p', 'msg', d.Message));
-    if (d.Err) board.appendChild(el('p', 'err', '読めませんでした: ' + d.Err));
-    if (d.ReadErr) board.appendChild(el('p', 'err', d.ReadErr));
+    for (const t of d.Notices || []) nbKids.push(row(t));
+    if (d.Message) boardKids.push(el('p', 'msg', d.Message));
+    if (d.Err) boardKids.push(el('p', 'err', '読めませんでした: ' + d.Err));
+    if (d.ReadErr) boardKids.push(el('p', 'err', d.ReadErr));
     if (d.Problems && d.Problems.length) {
       const p = el('div', 'err');
-      p.appendChild(el('strong', '', '報告に書き方の誤りがあります' + (d.Partial ? ' (読めた所までを出しています)' : '')));
+      p.appendChild(el('strong', '', d.ProblemHead));
       for (const l of d.Problems) p.appendChild(el('div', '', l));
-      board.appendChild(p);
+      boardKids.push(p);
     }
-    things(board, d.Things, true);
-    if (S.editor && !S.editor.at) board.appendChild(editorBox());
-    renderPane(pane);
+    things2(sink(boardKids), d.Things, true);
+    renderPane(sink(paneKids));
   }
+  patch(nb, nbKids);
+  patch(board, boardKids);
+  patch(pane, paneKids);
+  // Rows of lines no longer there are forgotten.
+  for (const k of cache.keys()) if (!rows.has(k)) cache.delete(k);
+
+  checkCursor();
+  markCursor(null);
+  placeEditor();
   restoreEditor(ed);
   renderBar();
+  requestHint();
+  drawActions();
 
-  const now = document.querySelector('.row.cur') || document.querySelector('.editor');
+  const now = rowOf(S.cur) || document.querySelector('.editor');
   if (now && before != null) window.scrollBy(0, now.getBoundingClientRect().top - before);
   if (focusRow && !ed.focused) {
-    const b = document.querySelector(`[data-nav="${CSS.escape(S.cur)}"]`);
+    const b = navOf(S.cur);
     if (b) b.focus({ preventScroll: true });
+  }
+}
+
+function placeEditor() {
+  if (!S.editor) return;
+  const box = editorBox();
+  const r = S.editor.at && rowOf(S.editor.at);
+  if (r) {
+    const at = actionsBox.parentNode === r ? actionsBox : (r.querySelector(':scope > .target') || r.querySelector(':scope > .rowbtn'));
+    at.after(box);
+  } else {
+    $('board').appendChild(box);
   }
 }
 
@@ -482,13 +644,12 @@ function renderBar() {
 // commentRow draws one comment as a line of the comment area or list.
 function commentRow(c, key, numbered) {
   const open = !!S.copen.get(key);
-  const box = el('div', 'row' + (open ? ' open' : '') + (key === S.cur ? ' cur' : '') + (c.Finished ? ' done' : ''));
+  const box = el('div', 'row' + (open ? ' open' : '') + (c.Finished ? ' done' : ''));
   box.dataset.key = key;
   const b = el('button', 'rowbtn');
   b.type = 'button';
   b.dataset.nav = key;
   b.setAttribute('aria-expanded', String(open));
-  if (key === S.cur) b.setAttribute('aria-current', 'true');
   b.appendChild(el('span', 'dot'));
   b.appendChild(el('span', 'sign', open ? '▾' : '▸'));
   const title = el('span', 'title');
@@ -504,26 +665,7 @@ function commentRow(c, key, numbered) {
   const r = el('span', 'right');
   r.appendChild(word(c.Word));
   b.appendChild(r);
-  b.addEventListener('click', () => clickRow(key));
   box.appendChild(b);
-  if (key === S.cur && canWrite()) {
-    const a = el('div', 'actions');
-    a.setAttribute('role', 'group');
-    a.setAttribute('aria-label', 'このコメントでできること');
-    const add = (label, k, fn) => {
-      const x = el('button', '', label);
-      x.type = 'button';
-      x.append(' ', el('kbd', '', k));
-      x.setAttribute('aria-keyshortcuts', k);
-      x.addEventListener('click', (e) => { e.stopPropagation(); fn(); });
-      a.appendChild(x);
-    };
-    add(open ? '閉じる' : '開く', 'enter', () => toggle(key));
-    add('直す', 'e', () => editComment(c, key));
-    add('取り消す', 'x', () => retract(c));
-    box.appendChild(a);
-  }
-  if (S.editor && S.editor.at === key) box.appendChild(editorBox());
   if (open) {
     const d = el('div', 'cdetail');
     if (c.About) {
@@ -545,6 +687,7 @@ function commentRow(c, key, numbered) {
     d.appendChild(thumbs(c.Images));
     box.appendChild(d);
   }
+  rows.set(key, box);
   return box;
 }
 
@@ -560,55 +703,18 @@ function renderList(board) {
   const cs = [...comments()].sort((a, b) => b.N - a.N);
   if (!cs.length) board.appendChild(el('p', 'msg', 'コメントはまだありません。m で書けます'));
   for (const c of cs) board.appendChild(commentRow(c, '#l:' + c.N, true));
-  if (S.editor && !S.editor.at) board.appendChild(editorBox());
 }
 
-// ---- the selection ----
+// ---- the cursor ----
 
-// checkCursor keeps the selection on the same line across a refresh. A line
-// gone, or rewritten into another, moves or locks it: nothing is done on it
-// until the person moves.
-function checkCursor() {
-  const keys = navKeysOf();
-  if (!keys.length) { S.cur = ''; return; }
-  if (!S.cur || !keys.includes(S.cur)) {
-    const had = S.cur !== '';
-    const i = had ? Math.min(S.lastIndex || 0, keys.length - 1) : 0;
-    const expected = had && S.cur === S.going;
-    S.cur = keys[Math.max(i, 0)];
-    S.curTitle = titleOf(S.cur);
-    if (expected) {
-      // The person took the line away (hid it, took the comment back): the
-      // selection goes to what is next, and waits a moment there.
-      S.autoAt = Date.now();
-    } else if (had) {
-      lockNow();
-    } else {
-      S.placed = true;
-    }
-    S.going = '';
-    return;
-  }
-  const t = titleOf(S.cur);
-  if (S.curTitle && t !== S.curTitle) lockNow();
-  S.curTitle = t;
-  S.lastIndex = keys.indexOf(S.cur);
-}
-
-function lockNow() {
-  if (!S.lock) say('報告が書き換わりました。カーソルの行を確かめてください');
-  S.lock = true;
-  S.autoAt = 0;
-}
-
-function titleOf(key) {
-  if (key.startsWith('#')) return 'comment';
-  const t = byKey(key);
-  return t ? t.Kind + '|' + plain(t.Title) : '';
-}
-
-// navKeysOf is the keys of the lines one can point at, in the order shown.
+// navKeysOf is the keys of the lines one can point at, in the order shown
+// (kept until the page is drawn again).
+let navKeys = null;
 function navKeysOf() {
+  if (!navKeys) navKeys = walkNav();
+  return navKeys;
+}
+function walkNav() {
   const out = [];
   if (S.list) {
     for (const c of [...comments()].sort((a, b) => b.N - a.N)) out.push('#l:' + c.N);
@@ -625,19 +731,73 @@ function navKeysOf() {
   return out;
 }
 
-function select(key, how) {
-  if (S.lock) say('');
+// checkCursor keeps the cursor on the same line across a drawing. When its
+// line went, it goes to the nearest: as the page's own move if the
+// person's act took the line away, else keeping what it came to (the
+// server then finds the line rewritten, and refuses keys until the person
+// moves).
+function checkCursor() {
+  const keys = navKeysOf();
+  const going = S.going;
+  S.going = '';
+  if (!keys.length) { S.cur = ''; return; }
+  if (S.cur && keys.includes(S.cur)) {
+    S.lastIndex = keys.indexOf(S.cur);
+    return;
+  }
+  const had = S.cur !== '';
+  const i = had ? Math.min(S.lastIndex || 0, keys.length - 1) : 0;
+  const expected = had && S.cur === going;
+  S.cur = keys[Math.max(i, 0)];
+  S.lastIndex = i;
+  if (expected || !had) {
+    // The person took the line away (hid it, took the comment back): the
+    // page's own move. Or the page put the cursor on its first line.
+    S.how = had ? 'app' : 'start';
+    S.at = Date.now();
+    const t = byKey(S.cur);
+    S.sel = t ? t.Token : '';
+    if (!had) S.start = true;
+  }
+}
+
+let curRow = null;
+// markCursor shows the cursor on its row (and only there): two rows change.
+function markCursor(prev) {
+  const now = S.list && !S.cur.startsWith('#') ? null : rowOf(S.cur);
+  for (const r of [curRow, prev]) {
+    if (r && r !== now) {
+      r.classList.remove('cur');
+      const b = r.querySelector(':scope > .rowbtn');
+      if (b) b.removeAttribute('aria-current');
+    }
+  }
+  if (now) {
+    now.classList.add('cur');
+    const b = now.querySelector(':scope > .rowbtn');
+    if (b) b.setAttribute('aria-current', 'true');
+  }
+  curRow = now;
+}
+
+// setCursor moves the cursor to key: by the person (keys, Tab, click) or
+// by the page (space, g). Nothing else is drawn again.
+function setCursor(key, how, focus = true) {
+  const prev = rowOf(S.cur);
+  const t = byKey(key);
   S.cur = key;
-  S.curTitle = titleOf(key);
+  S.how = how;
+  S.at = Date.now();
+  S.sel = t ? t.Token : '';
+  S.start = false;
   S.lastIndex = navKeysOf().indexOf(key);
-  S.lock = false;
-  S.placed = false;
-  S.autoAt = how === 'auto' ? Date.now() : 0;
-  render();
-  const b = document.querySelector(`[data-nav="${CSS.escape(key)}"]`);
-  if (b) {
-    b.focus({ preventScroll: true });
-    b.scrollIntoView({ block: 'nearest' });
+  markCursor(prev);
+  drawActions();
+  requestHint();
+  if (focus) {
+    const b = navOf(key);
+    if (b && document.activeElement !== b) b.focus({ preventScroll: true });
+    if (b) b.scrollIntoView({ block: 'nearest' });
   }
 }
 
@@ -646,27 +806,7 @@ function move(d) {
   if (!keys.length) return;
   let i = keys.indexOf(S.cur);
   i = i < 0 ? 0 : Math.max(0, Math.min(keys.length - 1, i + d));
-  select(keys[i]);
-}
-
-// settled says whether reactions may go on the selected line: the person
-// pointed at it, it was not rewritten, and a line the page moved to has
-// been on screen a moment.
-function settled() {
-  return !S.placed && !S.lock && (!S.autoAt || Date.now() - S.autoAt >= SETTLE);
-}
-
-function clickRow(key) {
-  S.cur = key;
-  S.curTitle = titleOf(key);
-  S.lastIndex = navKeysOf().indexOf(key);
-  S.lock = false;
-  S.placed = false;
-  S.autoAt = 0;
-  const t = byKey(key);
-  if (key.startsWith('#')) toggle(key);
-  else if (t && t.CanOpen) toggle(key);
-  else render();
+  setCursor(keys[i], 'person');
 }
 
 function toggle(key) {
@@ -678,36 +818,54 @@ function toggle(key) {
     S.open.set(key, !isOpen(t));
   }
   render();
-  const b = document.querySelector(`[data-nav="${CSS.escape(key)}"]`);
+  const b = navOf(key);
   if (b) b.focus({ preventScroll: true });
 }
 
 // ---- actions ----
 
-async function guarded(fn) {
-  try {
-    await fn();
-  } catch (e) {
-    say('できませんでした: ' + e.message);
-  }
+// focusCur puts the focus on the cursor's row after an action (or a button
+// of it): the focus is the cursor.
+function focusCur() {
+  if (S.editor || !$('help').hidden || !$('viewer').hidden) return;
+  const b = navOf(S.cur);
+  if (b && document.activeElement !== b) b.focus({ preventScroll: true });
 }
 
-function react(t, value) {
-  // The options of a closed Ask are not on screen: the key only opens it.
-  if (t.Kind === 'ask' && !isOpen(t) && value !== 'y' && value !== 'n') { toggle(t.Key); return; }
-  guarded(() => act('react', { Target: t.Key, Seen: t.Token, Value: value }));
+// press sends a key pressed on the cursor's line (or its button): the
+// server says what it does there, or why not.
+async function press(k) {
+  const t = byKey(S.cur);
+  if (!t) return;
+  const r = await act('key', { Key: k, Target: t.Key, Seen: t.Token, Cur: facts(t) });
+  if (!r) return;
+  switch (r.Do) {
+    case 'open': S.open.set(t.Key, true); render(); return;
+    case 'comment': openEditor({ kind: 'comment', key: t.Key, token: t.Token, at: t.Key, label: '「' + plain(t.Title) + '」にコメント' }); return;
+    case 'hide': if (r.OK) S.going = t.Key; break;
+  }
+  if (r.OK || r.Changed) await refresh();
+  else requestHint();
+  focusCur();
 }
-function hide(t) {
-  S.going = t.Key;
-  guarded(() => act('hide', { Target: t.Key, Seen: t.Token }));
+
+async function retract(c) {
+  const r = await act('retract', { N: c.N, Cur: { How: S.how, Ago: Math.round(Date.now() - S.at) } });
+  if (r && r.OK) { S.going = S.cur; await refresh(); }
+  focusCur();
 }
-function read(t) { guarded(() => act('read', { Target: t.Key, Seen: t.Token })); }
-function retract(c) {
+async function undo() {
   S.going = S.cur;
-  guarded(() => act('retract', { N: c.N }));
+  const r = await act('undo');
+  if (r && r.OK) await refresh();
+  S.going = '';
+  focusCur();
 }
-function undo() { S.going = S.cur; guarded(() => act('undo')); }
-function readAll() { if (canWrite()) guarded(() => act('readall')); }
+async function readAll() {
+  if (!canWrite()) return;
+  const r = await act('readall');
+  if (r && r.OK) await refresh();
+}
 
 async function send() {
   if (S.busy || !canWrite()) return;
@@ -719,11 +877,12 @@ async function send() {
     const r = await api('/api/send', {});
     say(r.Message);
   } catch (e) {
-    say('送れませんでした: ' + e.message);
+    if (!(e instanceof Offline)) say('送れませんでした: ' + e.message);
   } finally {
     S.busy = false;
     document.body.removeAttribute('aria-busy');
     await refresh();
+    renderBar();
   }
 }
 
@@ -773,7 +932,7 @@ function saveEditor() {
 }
 function restoreEditor(ed) {
   if (!edArea || !edBox.isConnected || !ed.focused) return;
-  edArea.focus({ preventScroll: true });
+  if (document.activeElement !== edArea) edArea.focus({ preventScroll: true });
   edArea.setSelectionRange(ed.start, ed.end);
 }
 
@@ -782,7 +941,7 @@ function openEditor(ed) {
   S.editor = ed;
   editorBox();
   edArea.value = store.get(draftKey(ed)) ?? (ed.text || '');
-  render();
+  placeEditor();
   drawThumbs();
   edArea.focus();
   edArea.setSelectionRange(edArea.value.length, edArea.value.length);
@@ -797,32 +956,25 @@ function closeEditor() {
   const at = S.editor && S.editor.at;
   S.editor = null;
   if (edBox) edBox.remove();
-  render();
-  const b = at && document.querySelector(`[data-nav="${CSS.escape(at)}"]`);
+  const b = (at && navOf(at)) || navOf(S.cur);
   if (b) b.focus({ preventScroll: true }); else $('board').focus({ preventScroll: true });
 }
 
 async function place() {
   const ed = S.editor;
   const text = edArea.value;
-  if (!text.trim()) {
-    store.del(draftKey(ed));
-    say('空だったので書きませんでした');
-    closeEditor();
-    return;
-  }
   let r;
   try {
     if (ed.kind === 'edit') r = await api('/api/act', { Action: 'edit', N: ed.n, Text: text });
     else r = await api('/api/act', { Action: 'comment', Target: ed.key || '', Seen: ed.token || '', Text: text });
   } catch (e) {
-    say('置けませんでした: ' + e.message);
+    if (!(e instanceof Offline)) say('置けませんでした: ' + e.message);
     return;
   }
-  if (!r.OK) { say(r.Message); return; }
+  say(r.Message);
+  if (!r.OK) return;
   store.del(draftKey(ed));
   edArea.value = '';
-  say(r.Message || (ed.kind === 'edit' ? 'コメントを直しました' : 'コメントを置きました (s で送る)'));
   closeEditor();
   await refresh();
 }
@@ -838,7 +990,7 @@ function editorKey(e) {
 
 function upload(file) {
   if (file.size > S.data.ImageMax) {
-    say(`画像が大きすぎるので貼りませんでした (${S.data.ImageMax >> 20} MiB まで)`);
+    say(words('imageTooLarge'));
     return;
   }
   const rd = new FileReader();
@@ -848,7 +1000,7 @@ function upload(file) {
     try {
       r = await api('/api/image', { Data: data });
     } catch (e) {
-      say('貼れませんでした: ' + e.message);
+      if (!(e instanceof Offline)) say('貼れませんでした: ' + e.message);
       return;
     }
     say(r.Message);
@@ -868,7 +1020,18 @@ function drawThumbs() {
   edThumbs.replaceWith(edThumbs = thumbs([...new Set(ns)]));
 }
 
-// ---- images ----
+// ---- dialogs ----
+
+// A dialog keeps the focus inside it while open, and gives it back to
+// where it was when it closes.
+function trapFocus(e, dialog) {
+  if (e.key !== 'Tab') return;
+  const fs = [...dialog.querySelectorAll('button, a[href], textarea, [tabindex]:not([tabindex="-1"])')].filter((x) => !x.disabled);
+  if (!fs.length) { e.preventDefault(); return; }
+  const i = fs.indexOf(document.activeElement);
+  e.preventDefault();
+  fs[(i + (e.shiftKey ? -1 : 1) + fs.length) % fs.length].focus();
+}
 
 let viewerReturn = null;
 function showImage(n, from) {
@@ -884,10 +1047,8 @@ function closeImage() {
   if (viewerReturn && viewerReturn.isConnected) viewerReturn.focus();
 }
 
-// ---- keys ----
-
 const HELP = [
-  ['j k ↑↓', '上下の行へ (日本語入力のままでも全角の ｊ ｋ が効く)'],
+  ['j k ↑↓', '上下の行へ (日本語入力のままでも全角の ｊ ｋ が効く)。Tab やクリックで行に移っても同じ'],
   ['enter', '開く・閉じる (行をクリックしても同じ)'],
   ['space', 'カーソルより下で、いちばん近い印のある行 (黄の ●・人待ちの項目・緑の ●) へ。下に無ければ上から。折りたたみは開く'],
   ['g', '節へ飛ぶ: お知らせ・節・いちばん外の折りたたみに a b c … が付く。その字でそこへ。esc でやめる'],
@@ -924,36 +1085,29 @@ let helpReturn = null;
 function openHelp() { helpReturn = document.activeElement; $('help').hidden = false; $('help-close').focus(); }
 function closeHelp() { $('help').hidden = true; if (helpReturn && helpReturn.isConnected) helpReturn.focus(); }
 
-function jumpLetter(i) { return String.fromCharCode(97 + (i >= 6 ? i + 1 : i)); }
-function jumpIndex(ch, n) {
-  if (ch < 'a' || ch > 'z' || ch === 'g') return -1;
-  let i = ch.charCodeAt(0) - 97;
-  if (ch > 'g') i--;
-  return i < n ? i : -1;
-}
+// ---- going places ----
 
 // goTo goes to place i of g: its line (a Section's first), its heading at
 // the top of the screen.
 function goTo(i) {
   const key = S.data.JumpTo[i];
-  if (key) select(key, 'auto');
-  else render();
+  if (key) setCursor(key, 'app');
   const h = document.querySelector(`[data-jump="${i + 1}"]`);
   if (h) h.scrollIntoView({ block: 'start' });
 }
 
 function jumpNext() {
   const d = S.data;
-  const order = [];
-  const walk = (ts) => { for (const t of ts || []) { if (t.Stop) order.push(t.Key); walk(t.Kids); } };
-  walk(d.Notices); walk(d.Things);
+  const order = [...things.keys()];
   const at = order.indexOf(S.cur);
   const next = d.Next || [];
-  if (!next.length) { say('印のある行はありません'); return; }
+  if (!next.length) { say(words('noMarked')); return; }
   const pos = (k) => order.indexOf(k);
   const target = next.find((x) => pos(x.Key) > at) || next[0];
-  for (const f of target.Folds || []) S.open.set(f, true);
-  select(target.Key, 'auto');
+  let opened = false;
+  for (const f of target.Folds || []) if (!S.open.get(f)) { S.open.set(f, true); opened = true; }
+  if (opened) render();
+  setCursor(target.Key, 'app');
 }
 
 // imeFree makes keys work with a Japanese input method left on: full-width
@@ -967,13 +1121,31 @@ function imeFree(k) {
   return k;
 }
 
+function toggleList() {
+  S.list = !S.list;
+  if (S.list) {
+    S.reportCur = { cur: S.cur, how: S.how, at: S.at, sel: S.sel, start: S.start };
+    S.cur = '';
+  } else if (S.reportCur) {
+    // Back to the report: the cursor is where it was, as it was.
+    Object.assign(S, S.reportCur);
+  }
+  S.editor = null;
+  if (edBox) edBox.remove();
+  render();
+  const b = navOf(S.cur);
+  if (b) b.focus({ preventScroll: true }); else $('board').focus({ preventScroll: true });
+}
+
 function onKey(e) {
   if (!$('viewer').hidden) {
     if (e.key === 'Escape') { e.preventDefault(); closeImage(); }
+    trapFocus(e, $('viewer'));
     return;
   }
   if (!$('help').hidden) {
     if (e.key === 'Escape' || e.key === '?' || e.key === 'q') { e.preventDefault(); closeHelp(); }
+    trapFocus(e, $('help'));
     return;
   }
   const tg = e.target;
@@ -984,13 +1156,13 @@ function onKey(e) {
   const onButton = tg && tg.tagName === 'BUTTON' && !tg.dataset.nav;
   if (S.jumping) {
     e.preventDefault();
+    const t = findJump(k);
     S.jumping = false;
-    const i = jumpIndex(k, (S.data.JumpTo || []).length);
-    if (i >= 0) goTo(i);
-    else { say(''); render(); }
+    say('');
+    render();
+    if (t) goTo(t.Jump - 1);
     return;
   }
-  const t = byKey(S.cur);
   const c = S.cur.startsWith('#') ? commentOf(Number(S.cur.slice(3))) : null;
   const done = () => e.preventDefault();
   switch (k) {
@@ -1006,62 +1178,94 @@ function onKey(e) {
     case 'u': done(); undo(); return;
     case 's': done(); send(); return;
     case 'm': done(); openEditor({ kind: 'comment', key: '', at: S.list ? '' : S.cur, label: '宛先なしのコメント' }); return;
-    case 'H': done(); S.showHidden = !S.showHidden; refresh(); return;
+    case 'H': done(); S.showHidden = !S.showHidden; S.going = S.cur; S.etag = ''; refresh(); return;
     case 'A': done(); readAll(); return;
     case 'g':
       if (S.list || !(S.data.JumpTo || []).length) return;
-      done(); S.jumping = true; say('飛ぶ先の字を押してください (esc やめる)'); render(); return;
+      done(); S.jumping = true; say(words('jumping')); render(); return;
     case 'Escape': return;
   }
   if (c) {
     if (k === 'e') { done(); editComment(c, S.cur); }
-    if (k === 'x' && settled()) { done(); retract(c); }
+    if (k === 'x') { done(); retract(c); }
     return;
   }
-  if (!t || S.list) return;
-  const a = t.Actions || {};
-  switch (k) {
-    case 'r': done(); if (a.Read && !S.lock && settled()) read(t); return;
-    case 'c': done(); if (a.Comment && !S.lock) openEditor({ kind: 'comment', key: t.Key, token: t.Token, at: t.Key, label: '「' + plain(t.Title) + '」にコメント' }); return;
-    case 'x': done(); if (a.Hide && settled()) hide(t); return;
-  }
-  if (k.length !== 1) return;
-  const ask = t.Kind === 'ask';
-  if (ask && !isOpen(t) && (a.Options || []).includes(k)) { done(); toggle(t.Key); return; }
-  if (!settled()) {
-    if ((a.YN && (k === 'y' || k === 'n')) || (a.Options || []).includes(k)) {
-      done();
-      say(S.lock ? '報告が書き換わりました。カーソルの行を確かめてください' : '行を動かすと効きます (j k)');
-    }
-    return;
-  }
-  if ((a.YN && (k === 'y' || k === 'n')) || (ask && (a.Options || []).includes(k))) { done(); react(t, k); }
+  if (S.list || !byKey(S.cur) || k.length !== 1 || !/[a-zA-Z]/.test(k)) return;
+  // Any other letter goes to the server's guard: it says what it does on
+  // this line (or why it does nothing).
+  done();
+  press(k);
+}
+
+// findJump is the place g goes to with letter k (null none).
+function findJump(k) {
+  let found = null;
+  const walk = (ts) => { for (const t of ts || []) { if (!found && t.JumpKey === k) found = t; walk(t.Kids); } };
+  walk(S.data.Notices);
+  walk(S.data.Things);
+  return found;
 }
 
 // ---- start ----
 
+// syncPadding keeps the end of the page above the bar at the bottom,
+// however tall the status above it is.
+function syncPadding() {
+  const h = $('foot').offsetHeight;
+  document.body.style.paddingBottom = (h + 24) + 'px';
+  document.documentElement.style.scrollPaddingBottom = (h + 8) + 'px';
+}
+
+let es = null;
+let retry = 2000;
+function connect() {
+  es = new EventSource('/api/events');
+  es.addEventListener('changed', () => refresh());
+  es.addEventListener('open', () => { retry = 2000; refresh(); });
+  es.addEventListener('error', () => {
+    // The server is gone, or no longer takes this page (started again):
+    // say so until it does, and keep trying quietly.
+    setOffline(true);
+    if (es.readyState === EventSource.CLOSED) {
+      es.close();
+      setTimeout(connect, retry);
+      retry = Math.min(retry * 2, 30000);
+    }
+  });
+}
+
 function start() {
   drawHelp();
   document.addEventListener('keydown', onKey);
+  // Focus is the cursor: a row reached by Tab or a click is the cursor's.
+  document.addEventListener('focusin', (e) => {
+    const b = e.target;
+    if (!b || !b.dataset || !b.dataset.nav || b.dataset.nav === S.cur) return;
+    setCursor(b.dataset.nav, 'person', false);
+  });
+  for (const id of ['board', 'notices', 'pane']) {
+    $(id).addEventListener('click', (e) => {
+      const b = e.target.closest && e.target.closest('.rowbtn');
+      if (!b || e.target.closest('a')) return;
+      const key = b.dataset.nav;
+      if (key !== S.cur) setCursor(key, 'person', false);
+      const t = byKey(key);
+      if (key.startsWith('#') || (t && t.CanOpen)) toggle(key);
+      else b.focus({ preventScroll: true });
+    });
+  }
   $('b-write').addEventListener('click', () => openEditor({ kind: 'comment', key: '', at: S.list ? '' : S.cur, label: '宛先なしのコメント' }));
   $('b-send').addEventListener('click', send);
   $('b-undo').addEventListener('click', undo);
   $('b-keys').addEventListener('click', openHelp);
-  $('b-list').addEventListener('click', () => {
-    S.list = !S.list;
-    S.cur = '';
-    S.editor = null;
-    if (edBox) edBox.remove();
-    render();
-    $('board').focus({ preventScroll: true });
-  });
+  $('b-list').addEventListener('click', toggleList);
   $('help-close').addEventListener('click', closeHelp);
   $('viewer-close').addEventListener('click', closeImage);
   $('viewer').addEventListener('click', (e) => { if (e.target === $('viewer')) closeImage(); });
   $('help').addEventListener('click', (e) => { if (e.target === $('help')) closeHelp(); });
-  const es = new EventSource('/api/events');
-  es.addEventListener('changed', () => refresh());
-  es.addEventListener('open', () => refresh());
+  if (window.ResizeObserver) new ResizeObserver(syncPadding).observe($('foot'));
+  syncPadding();
+  connect();
   refresh();
 }
 

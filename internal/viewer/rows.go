@@ -85,7 +85,7 @@ func indentOf(n *report.Node) int {
 }
 
 // answerHead is how much of the chosen option a closed question shows.
-const answerHead = 12
+const answerHead = page.AnswerHead
 
 // markOf is the mark at the head of a line. Done items always show ✓;
 // otherwise opening wins over the kind.

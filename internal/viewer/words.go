@@ -15,14 +15,14 @@ const (
 	msgNoBoard   = page.MsgNoBoard
 	msgNoSession = page.MsgNoSession
 
-	// Why a key did nothing.
-	msgBack          = "カーソルの行に戻りました"
-	msgPlacedYN      = "j k で動かすと y n が効きます"
-	msgPlacedAnswer  = "j k で動かすと答えられます"
-	msgSettlingReact = "いま移った行です。もう一度押すと付きます"
-	msgSettlingHide  = "いま移った行です。もう一度押すと隠れます"
-	msgSettlingShow  = "いま移った行です。もう一度押すと表示に戻ります"
-	msgReappeared    = "隠した行が書き換わったので、また出しました: "
+	// Why a key did nothing (page's guard says which).
+	msgBack          = page.MsgBack
+	msgPlacedYN      = page.MsgPlacedYN
+	msgPlacedAnswer  = page.MsgPlacedAnswer
+	msgSettlingReact = page.MsgSettlingReact
+	msgSettlingHide  = page.MsgSettlingHide
+	msgSettlingShow  = page.MsgSettlingShow
+	msgReappeared    = page.MsgReappeared
 )
 
 // settleHead is the head word of what the AI wrote on a comment.

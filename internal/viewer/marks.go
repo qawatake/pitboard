@@ -103,36 +103,3 @@ func (a *app) viewAll(pv *view) {
 	}
 	a.msg, _ = a.b.ReadAll("A (すべて読んだことにする)")
 }
-
-// readTarget is the line r acts on: the cursor's line, on screen, with a
-// green mark (its own, or for a Fold, of what it holds; not a line whose
-// mark is yellow), and the page not changed under it.
-func (a *app) readTarget(pv *view) *report.Node {
-	if !pv.curShown || pv.lock || !a.canWrite() {
-		return nil
-	}
-	n := pv.nodeAt(pv.cur)
-	if n == nil || a.markOfLine(pv, n) != markNew {
-		return nil
-	}
-	if pv.placed && !a.b.ActionsOf(n).Untouched().Read {
-		return nil
-	}
-	return n
-}
-
-// read marks the cursor's line as read (r): its green mark goes. u takes it
-// back. Only the person says a line is read; moving the cursor, opening or
-// showing it does not.
-func (a *app) read(pv *view) {
-	n := a.readTarget(pv)
-	if n == nil {
-		return
-	}
-	a.b.Read(n.Key, "r (読んだ)")
-	if pv.settling() {
-		// On a line the viewer just moved the cursor to, r works (the line
-		// stays, and u takes it back), but says which line it was.
-		a.msg = "読んだことにしました: " + report.PlainOf(n.Title()) + " (u で戻す)"
-	}
-}

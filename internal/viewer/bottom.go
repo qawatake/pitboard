@@ -5,8 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/qawatake/pitboard/internal/report"
 )
 
 // bottomLines is everything under the scrolling part: the editor while
@@ -220,68 +218,30 @@ func (a *app) bottom() []string {
 		}
 		return a.oneLineKeep(keys, where, right)
 	}
-	var enter, read, answer, yn, write, hide []hint
-	switch {
-	case a.canOpen(pv, n) && pv.open[pv.cur]:
-		enter = []hint{{k: "enter", d: "閉じる", rank: rankEnter}}
-	case a.canOpen(pv, n):
-		enter = []hint{{k: "enter", d: "開く", rank: rankEnter}}
-	}
-	ask := n.Kind == report.KindQuestion
-	askOpen := ask && pv.open[pv.cur]
-	t := a.target(pv)
-	if t != nil {
-		y, choices, thought := keysFor(t)
-		if !askOpen {
-			choices = nil // the options of a closed Ask are not on screen
-		}
-		if pv.placed {
-			// Placed by the viewer, not by the person: say how to react.
-			switch {
-			case askOpen:
-				answer = []hint{{k: "j k", d: "動かすと答えられる", short: "j k"}}
-			case y:
-				answer = []hint{{k: "j k", d: "動かすと y n が効く", short: "j k"}}
+	// The keys for this line, in the order shown (page's Offer: never a
+	// key its guard refuses); an open Ask leads with its options.
+	for _, h := range a.b.Offer(n, pv.touch()).Hints {
+		x := hint{k: h.Key, d: h.Word}
+		switch h.Do {
+		case "open", "close":
+			x.rank = rankEnter
+		case "read", "answer", "y":
+			x.rank = rankY
+		case "n":
+			x.rank = rankN
+		case "comment":
+			x.rank = rankC
+		case "wait":
+			x.short = h.Key
+		case "hide":
+			x.rank = rankX
+			if pv.placed {
+				// Before the person moves, x is what works on the line (a
+				// notice read and done with): kept over g, space and enter.
+				x.rank = rankN
 			}
-			y, choices = false, nil
 		}
-		if pv.settling() {
-			// A line the viewer just moved the cursor to: these keys are
-			// dropped for a moment, so they are not offered.
-			y, choices = false, nil
-		}
-		if y {
-			yn = []hint{{k: "y", d: "よし", rank: rankY}, {k: "n", d: "だめ", rank: rankN}}
-		}
-		if len(choices) > 0 {
-			answer = []hint{{k: strings.Join(choices, " "), d: "答える", rank: rankY}}
-		}
-		if thought {
-			write = []hint{{k: "c", d: "行に書く", rank: rankC}}
-		}
-	}
-	if a.readTarget(pv) != nil {
-		read = []hint{{k: "r", d: "読んだ", rank: rankY}}
-	}
-	if a.hideTarget(pv) != nil && !pv.settling() {
-		rank := rankX
-		if pv.placed {
-			// Before the person moves, x is what works on the line (a
-			// notice read and done with): kept over g, space and enter.
-			rank = rankN
-		}
-		if pv.isHidden(n) {
-			hide = []hint{{k: "x", d: "表示に戻す", rank: rank}}
-		} else {
-			hide = []hint{{k: "x", d: "隠す", rank: rank}}
-		}
-	}
-	// The keys for this line, in the order shown; an open Ask leads with
-	// its options.
-	if askOpen {
-		keys = concat(answer, enter, read, write, hide)
-	} else {
-		keys = concat(enter, read, answer, yn, write, hide)
+		keys = append(keys, x)
 	}
 	// m tab q H work everywhere: the list of keys (?) tells them; m is also
 	// shown, since writing works wherever the cursor is.

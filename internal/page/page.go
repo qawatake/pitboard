@@ -23,8 +23,10 @@ type Page struct {
 	ReadErr string // the last read failed (a bug); what was read before is shown
 	// Problems are the report's format errors, as shown under MsgProblems
 	// (+ MsgPartial when Partial: some of it could not be shown).
-	Problems []string
-	Partial  bool
+	Problems []string `json:",omitempty"`
+	Partial  bool     `json:",omitempty"`
+	// ProblemHead is the heading over Problems (MsgProblems, + MsgPartial).
+	ProblemHead string `json:",omitempty"`
 
 	Notices []*Thing // shown above the page, in their order
 	Things  []*Thing // the page, in order (notices left out)
@@ -96,46 +98,54 @@ type Thing struct {
 	Node *report.Node `json:"-"` // what it was built from
 	// Key says which line it is (the cursor follows it); Target is what
 	// reactions and comments on it are recorded against ("" when none).
-	Key, Target string
-	Title       []Span // the line (a paragraph's or list line's text too)
+	Key    string `json:",omitempty"`
+	Target string `json:",omitempty"`
+	Title  []Span `json:",omitempty"` // the line (a paragraph's or list line's text too)
 	// Stop: the person can point at it (and so act on it).
-	Stop    bool
-	CanOpen bool
-	Actions Actions
-	Mark    Mark
+	Stop    bool    `json:",omitempty"`
+	CanOpen bool    `json:",omitempty"`
+	Actions Actions `json:",omitzero"`
+	Mark    Mark    `json:",omitempty"`
+	// Sign is the mark at the head of the line (SignOf), closed and open.
+	Sign     string `json:",omitempty"`
+	OpenSign string `json:",omitempty"`
 	// You: an Item with wait="you" (it cannot move on until the person
 	// does something). Not a mark, but a place to be taken to.
-	You    bool
-	Hidden bool // hidden by the person (shown only with showHidden)
-	Seen   Seen `json:"-"` // what an action on it must carry
+	You    bool `json:",omitempty"`
+	Hidden bool `json:",omitempty"` // hidden by the person (shown only with showHidden)
+	Seen   Seen `json:"-"`          // what an action on it must carry
 	// Token stands for Seen (Seen.Token): a screen that cannot keep Seen
 	// itself carries this instead.
-	Token string
+	Token string `json:",omitempty"`
 	// Open says whether it starts open (StartsOpen).
-	Open  bool
-	Right Right
-	State string    // an Item's: todo, doing, done
-	Note  string    // an Item's note: why its status (shown when opened)
-	Path  string    // a Link's file path, as written
-	URL   string    // a Link's URL
-	At    time.Time // a Notice's: when the AI put it up
+	Open  bool      `json:",omitempty"`
+	Right Right     `json:",omitzero"`
+	State string    `json:",omitempty"` // an Item's: todo, doing, done
+	Note  string    `json:",omitempty"` // an Item's note: why its status (shown when opened)
+	Path  string    `json:",omitempty"` // a Link's file path, as written
+	URL   string    `json:",omitempty"` // a Link's URL
+	At    time.Time `json:",omitzero"`  // a Notice's: when the AI put it up
 	// Comments are the comments written on it, oldest first.
-	Comments []*Comment
+	Comments []*Comment `json:",omitempty"`
 	// Body is what opening an Item or Notice shows (paragraphs, list
 	// lines, code); Kids what a Section or Fold holds, or an Ask's
 	// options; Subs the lines nested under a list line.
-	Body, Kids, Subs []*Thing
-	OptionKey        string   // an Option's key
-	Chosen           bool     // an Option the person chose
-	Num              string   // a numbered list line's number as written ("1.")
-	Level            int      // a list line's nesting (0-2)
-	Head             bool     // a paragraph that is a small heading
-	Gap              bool     // a blank line came before it
-	Lang             string   // Code: its language ("diff" is colored)
-	Code             []string // Code: its lines
-	Depth            int      // how deep in Folds (and Asks, for options)
-	// Jump is which of Page.Jumps it is (1 for the first; 0 none).
-	Jump int
+	Body      []*Thing `json:",omitempty"`
+	Kids      []*Thing `json:",omitempty"`
+	Subs      []*Thing `json:",omitempty"`
+	OptionKey string   `json:",omitempty"` // an Option's key
+	Chosen    bool     `json:",omitempty"` // an Option the person chose
+	Num       string   `json:",omitempty"` // a numbered list line's number as written ("1.")
+	Level     int      `json:",omitempty"` // a list line's nesting (0-2)
+	Head      bool     `json:",omitempty"` // a paragraph that is a small heading
+	Gap       bool     `json:",omitempty"` // a blank line came before it
+	Lang      string   `json:",omitempty"` // Code: its language ("diff" is colored)
+	Code      []string `json:",omitempty"` // Code: its lines
+	Depth     int      `json:",omitempty"` // how deep in Folds (and Asks, for options)
+	// Jump is which of Page.Jumps it is (1 for the first; 0 none), and
+	// JumpKey the letter g goes there with (JumpLetter).
+	Jump    int    `json:",omitempty"`
+	JumpKey string `json:",omitempty"`
 }
 
 // firstStop is the key of the line going to t goes to: t's, or the first
@@ -199,6 +209,12 @@ func (b *Board) Page(showHidden bool) *Page {
 		p.Problems = append(p.Problems, ProblemLine(pr))
 	}
 	p.Partial = report.Partial(r.Probs)
+	if len(p.Problems) > 0 {
+		p.ProblemHead = MsgProblems
+		if p.Partial {
+			p.ProblemHead += MsgPartial
+		}
+	}
 	p.Waiting, p.Unread = b.Counts(showHidden)
 	p.Summary = b.Summary(showHidden)
 	p.Hidden = b.HiddenCount()
@@ -239,6 +255,7 @@ func (b *Board) Page(showHidden bool) *Page {
 		if t := byNode[n]; t != nil {
 			p.Jumps = append(p.Jumps, t)
 			t.Jump = len(p.Jumps)
+			t.JumpKey = JumpLetter(t.Jump - 1)
 			p.JumpTo = append(p.JumpTo, firstStop(t))
 		}
 	}
@@ -300,6 +317,7 @@ func (b *Board) thing(n *report.Node, comments map[int]*Comment) *Thing {
 	if !t.Right.At.IsZero() {
 		t.Right.AtText = AtWord(t.Right.At, time.Now())
 	}
+	t.Sign, t.OpenSign = SignOf(n, t.CanOpen, false, t.Hidden), SignOf(n, t.CanOpen, true, t.Hidden)
 	if t.Target != "" {
 		for _, th := range b.State.On(t.Target) {
 			if c := comments[th.N]; c != nil {

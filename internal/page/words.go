@@ -100,8 +100,10 @@ type Right struct {
 	// Reaction is the person's y, n or option key ("" for none, or when it
 	// is being taken back).
 	Reaction string
-	// Option is, on an Ask with a reaction, the chosen option's text.
-	Option string
+	// Option is, on an Ask with a reaction, the chosen option's text, and
+	// OptionHead its head as a closed Ask shows it (AnswerHead cells).
+	Option     string
+	OptionHead string
 	// Count is how many comments the line has, when the latest input is a
 	// comment and there are more than one (0 otherwise).
 	Count int
@@ -151,6 +153,7 @@ func (b *Board) RightOf(n *report.Node) Right {
 		r.Reaction = e.Value
 		if ch := n.Choice(e.Value); n.Kind == report.KindQuestion && ch != nil {
 			r.Option = report.PlainOf(ch.Text)
+			r.OptionHead = Cut(r.Option, AnswerHead)
 		}
 	}
 	cs := b.State.On(id)

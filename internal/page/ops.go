@@ -11,8 +11,9 @@ import (
 )
 
 // The person's actions. Each records on the board, reads it again, and
-// returns what to tell the person ("" when nothing needs saying) or an
-// error whose text says what went wrong. The screen decides which line the
+// returns what to tell the person or an error whose text says what went
+// wrong. Every action says something, for a screen that reads it out; the
+// terminal leaves out what its screen shows by itself (see each). The screen decides which line the
 // person is acting on, and whether they may act on it at all (pointed at
 // it, it is on screen); what is checked here holds on every screen.
 
@@ -20,6 +21,19 @@ import (
 // person saw (Seen): nothing was recorded, and the screen should show the
 // report as it is now (and MsgChanged).
 var ErrChanged = errors.New(MsgChanged)
+
+// What actions say.
+const (
+	MsgEmptyComment = "空だったので書きませんでした"
+	MsgCommented    = "コメントを置きました (s で送る)"
+	MsgEdited       = "コメントを直しました"
+	MsgRetracted    = "取り消しました (u で戻す)"
+	MsgTooLong      = "長すぎるので受け取れませんでした"
+	MsgOffline      = "つながっていません。pitboard serve が出した URL を開き直してください"
+)
+
+// ErrNoComment is Edit or Retract of a comment that is not there.
+var ErrNoComment = errors.New("そのコメントはありません")
 
 // ErrNothingToUndo is Undo with nothing to take back.
 var ErrNothingToUndo = errors.New("取り消せる操作がありません")
@@ -51,7 +65,8 @@ func (b *Board) node(key string) *report.Node {
 }
 
 // React records the person's y, n or option key (value) on the line seen,
-// if it still says what they saw. The line is then read.
+// if it still says what they saw. The line is then read. What it says
+// ("y を付けました: …") the terminal leaves out: the line shows it.
 func (b *Board) React(seen Seen, value string) (string, error) {
 	if !b.CanWrite() {
 		return "", errCannotWrite
@@ -80,11 +95,11 @@ func (b *Board) React(seen Seen, value string) (string, error) {
 		e.Option = report.PlainOf(ch.Text)
 	}
 	rec, err := b.Store.Append(e)
+	what := value + " "
+	if now.Kind == report.KindQuestion {
+		what = "答え " + value + " "
+	}
 	if err == nil {
-		what := value + " "
-		if now.Kind == report.KindQuestion {
-			what = "答え " + value + " "
-		}
 		b.did(rec, what+"を取り消しました: "+report.PlainOf(now.Title()))
 	}
 	b.MarkViewed(n)
@@ -92,14 +107,15 @@ func (b *Board) React(seen Seen, value string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("記録できませんでした: %w", err)
 	}
-	return "", nil
+	return what + "を付けました: " + report.PlainOf(now.Title()) + " (u で戻す)", nil
 }
 
 // Hide hides the line seen, or shows it again when it is hidden, if it
 // still says what the person saw. The report is not changed: the record
 // says what the line says, and screens leave out lines that say that.
-// hidden reports whether the line is hidden now.
-func (b *Board) Hide(seen Seen) (msg string, hidden bool, err error) {
+// hidden reports whether the line is hidden now; showHidden whether the
+// screen shows hidden lines (what is said differs).
+func (b *Board) Hide(seen Seen, showHidden bool) (msg string, hidden bool, err error) {
 	if !b.CanWrite() {
 		return "", false, errCannotWrite
 	}
@@ -136,16 +152,22 @@ func (b *Board) Hide(seen Seen) (msg string, hidden bool, err error) {
 	}
 	b.did(rec, undoMsg+report.PlainOf(n.Title()))
 	b.Load()
+	if op == "hide" && !showHidden {
+		msg += " (H で表示、u で戻す)"
+	} else {
+		msg += " (u で戻す)"
+	}
 	return msg, op == "hide", nil
 }
 
 // Comment records a comment: on the line target (title: what the line said
 // when the person began writing), or on no line (target ""). Empty text
-// records nothing. A comment on a line makes the line read.
+// records nothing (MsgEmptyComment). A comment on a line makes the line
+// read. The terminal leaves out what it says: the comment shows below.
 func (b *Board) Comment(target, title, text string) (string, error) {
 	text = strings.TrimSpace(text)
 	if text == "" {
-		return "", nil
+		return MsgEmptyComment, nil
 	}
 	if !b.CanWrite() {
 		return "", errCannotWrite
@@ -167,21 +189,25 @@ func (b *Board) Comment(target, title, text string) (string, error) {
 		}
 	}
 	b.Load()
-	return "", nil
+	return MsgCommented, nil
 }
 
-// Edit rewrites comment n. The same text, or a comment that is gone,
-// records nothing.
+// Edit rewrites comment n. The same text records nothing; a comment that
+// is not there is ErrNoComment. The terminal leaves out what it says.
 func (b *Board) Edit(n int, text string) (string, error) {
 	text = strings.TrimSpace(text)
 	if text == "" {
-		return "", nil // to take a comment back, Retract
+		return MsgEmptyComment, nil // to take a comment back, Retract
 	}
 	if !b.CanWrite() {
 		return "", errCannotWrite
 	}
-	if t := b.Thought(n); t == nil || strings.TrimSpace(t.Text) == text {
-		return "", nil
+	t := b.Thought(n)
+	if t == nil {
+		return "", ErrNoComment
+	}
+	if strings.TrimSpace(t.Text) == text {
+		return MsgEdited, nil
 	}
 	rec, err := b.Store.Append(board.Event{Op: "edit", Thought: n, Text: text})
 	if err != nil {
@@ -189,30 +215,32 @@ func (b *Board) Edit(n int, text string) (string, error) {
 	}
 	b.did(rec, "コメントの直しを取り消しました: "+TextHead(text))
 	b.Load()
-	return "", nil
+	return MsgEdited, nil
 }
 
-// Retract takes comment n back.
+// Retract takes comment n back (one that is not there: ErrNoComment).
 func (b *Board) Retract(n int) (string, error) {
 	if !b.CanWrite() {
 		return "", errCannotWrite
 	}
-	head := ""
-	if t := b.Thought(n); t != nil {
-		head = TextHead(t.Text)
+	t := b.Thought(n)
+	if t == nil {
+		return "", ErrNoComment
 	}
+	head := TextHead(t.Text)
 	rec, err := b.Store.Append(board.Event{Op: "retract", Thought: n})
 	if err != nil {
 		return "", fmt.Errorf("取り消せませんでした: %w", err)
 	}
 	b.did(rec, "取り消したコメントを戻しました: "+head)
 	b.Load()
-	return "取り消しました", nil
+	return MsgRetracted, nil
 }
 
 // Read says the line key is read: its MarkNew goes (for a Fold, of what it
 // holds too). how is what the screen calls the act, for what Undo says
-// ("r (読んだ)").
+// ("r (読んだ)"). The terminal says what it says only on a line it just
+// moved the cursor to (elsewhere the mark going says it).
 func (b *Board) Read(key, how string) (string, error) {
 	n := b.node(key)
 	if n == nil || !b.CanWrite() || b.MarkOf(n) != MarkNew {
@@ -221,7 +249,7 @@ func (b *Board) Read(key, how string) (string, error) {
 	if hs := b.MarkViewed(b.UnreadIn(n)...); len(hs) > 0 {
 		b.Hist = append(b.Hist, Done{Viewed: hs, Desc: how + " を取り消しました: " + report.PlainOf(n.Title())})
 	}
-	return "", nil
+	return "読んだことにしました: " + report.PlainOf(n.Title()) + " (u で戻す)", nil
 }
 
 // ReadAll says every line now in the report is read. how is what the

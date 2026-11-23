@@ -50,6 +50,9 @@ h2.section { font-size: 1.1em; color: var(--head); margin: 1.4rem 0 .3rem; }
 .list > .lm { color: var(--faint); flex: none; min-width: 1em; }
 .subs { padding-left: 1.4em; }
 .row { margin: 0; }
+/* A long report: rows off screen are not laid out or painted until near. */
+#board > .row, #board .kids > .row, #pane > .row { content-visibility: auto; contain-intrinsic-size: auto 2em; }
+#board > .row.cur, #board .kids > .row.cur { content-visibility: visible; }
 .rowbtn {
   all: unset; box-sizing: border-box; display: grid; width: 100%;
   grid-template-columns: 1.1em 1.2em 1fr auto; column-gap: .3em; align-items: baseline;
@@ -77,8 +80,15 @@ h2.section { font-size: 1.1em; color: var(--head); margin: 1.4rem 0 .3rem; }
 .body { padding-left: calc(2.3em + .6rem); padding-bottom: .3rem; }
 .kids { padding-left: 1.6em; }
 .target { padding-left: calc(2.3em + .6rem); color: var(--faint); font-size: .9em; overflow-wrap: anywhere; }
-.option { display: flex; gap: .6em; padding-left: calc(2.3em + .6rem); }
+.option { display: grid; grid-template-columns: max-content 1fr; column-gap: .6em; padding-left: calc(2.3em + .6rem); }
+.option .okey { white-space: nowrap; }
+.option .otext { overflow-wrap: anywhere; min-width: 0; }
 .option .chosen { color: var(--opt); }
+.ohead { max-width: 12em; overflow: hidden; text-overflow: ellipsis; }
+.actions .wait { align-self: center; font-size: .9em; }
+#offline { position: sticky; top: 0; z-index: 5; background: var(--need-bg); color: var(--fg); border-bottom: 2px solid var(--need); padding: .5rem 1rem; text-align: center; font-weight: 700; }
+#offline[hidden] { display: none; }
+body.offline #top, body.offline #board, body.offline #pane { opacity: .55; }
 .comment { margin: .3rem 0; }
 .comment .ctext { white-space: pre-wrap; overflow-wrap: anywhere; }
 .imgref { color: var(--faint); }

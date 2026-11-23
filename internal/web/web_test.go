@@ -47,7 +47,9 @@ type fixture struct {
 	things map[string]*thingJSON
 }
 
-func setup(t *testing.T) *fixture {
+func setup(t *testing.T) *fixture { t.Helper(); return setupWith(t, src) }
+
+func setupWith(t *testing.T, src string) *fixture {
 	t.Helper()
 	t.Setenv("PITBOARD_SEND", "")
 	base := t.TempDir()
@@ -268,7 +270,7 @@ func TestPageJSON(t *testing.T) {
 	b, _ := io.ReadAll(resp.Body)
 	s := string(b)
 	for _, w := range []string{`"Kind":"notice"`, `"Kind":"ask"`, `"Kind":"item"`, `"Kind":"option"`, `"Kind":"section"`,
-		`"Mark":"waiting"`, `"Mark":"new"`, `"Tone":"move"`, `"Style":"plain"`, `"Token":"`, `"Open":false`,
+		`"Mark":"waiting"`, `"Mark":"new"`, `"Tone":"move"`, `"Style":"plain"`, `"Token":"`, `"Sign":"?"`, `"Words":{`,
 		`"AtText":"`, `"反応待ち 2"`, `"未読 1"`, `"JumpTo":["note","unit"]`, `"Session":"sess1234"`, `"Next":[`} {
 		if !strings.Contains(s, w) {
 			t.Errorf("page lacks %s", w)
@@ -293,13 +295,13 @@ func TestActRoundTrips(t *testing.T) {
 		op   string
 		want string
 	}{
-		{Act{Action: "react", Target: "hook", Seen: hook.Token, Value: "y"}, "react", ""},
-		{Act{Action: "react", Target: "unit", Seen: f.thing("unit").Token, Value: "b"}, "react", ""},
-		{Act{Action: "comment", Target: "hook", Seen: hook.Token, Text: "なぜ?"}, "thought", ""},
-		{Act{Action: "comment", Text: "宛先なし"}, "thought", ""},
-		{Act{Action: "edit", N: 3, Text: "なぜ? (直した)"}, "edit", ""},
+		{Act{Action: "react", Target: "hook", Seen: hook.Token, Value: "y"}, "react", "y を付けました: hook を入れるか決める (u で戻す)"},
+		{Act{Action: "key", Key: "b", Target: "unit", Seen: f.thing("unit").Token, Cur: Cur{Open: true}}, "react", "答え b を付けました: ページの単位 (u で戻す)"},
+		{Act{Action: "comment", Target: "hook", Seen: hook.Token, Text: "なぜ?"}, "thought", page.MsgCommented},
+		{Act{Action: "comment", Text: "宛先なし"}, "thought", page.MsgCommented},
+		{Act{Action: "edit", N: 3, Text: "なぜ? (直した)"}, "edit", page.MsgEdited},
 		{Act{Action: "retract", N: 4}, "retract", "取り消しました (u で戻す)"},
-		{Act{Action: "hide", Target: "-1:ただの行", Seen: f.thing("-1:ただの行").Token}, "hide", "隠しました (H で表示)"},
+		{Act{Action: "hide", Target: "-1:ただの行", Seen: f.thing("-1:ただの行").Token}, "hide", "隠しました (H で表示、u で戻す)"},
 	}
 	for _, st := range steps {
 		r := f.act("tab1", st.a)
@@ -371,9 +373,16 @@ func TestStaleSeen(t *testing.T) {
 	os.WriteFile(f.st.ReportPath(), []byte(strings.Replace(src, "hook を入れるか決める", "hook を入れない", 1)), 0o644)
 	future := time.Now().Add(2 * time.Second)
 	os.Chtimes(f.st.ReportPath(), future, future)
+	// The line under the cursor was rewritten: locked, as in the terminal.
 	for _, a := range []Act{
 		{Action: "react", Target: "hook", Seen: old, Value: "y"},
 		{Action: "hide", Target: "hook", Seen: old},
+	} {
+		if r := f.act("tab1", a); r.OK || r.Message != page.MsgMoved {
+			t.Errorf("%s %s: %+v", a.Action, a.Target, r)
+		}
+	}
+	for _, a := range []Act{
 		{Action: "comment", Target: "hook", Seen: "made-up", Text: "x"},
 		{Action: "react", Target: "unit", Seen: old, Value: "a"}, // another line's token
 		{Action: "read", Target: "impl", Seen: old},

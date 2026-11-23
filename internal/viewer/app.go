@@ -50,7 +50,7 @@ type view struct {
 	auto   string
 	autoAt time.Time
 	// again is the line and key of a press dropped while settling: the
-	// same key pressed again there works (see dropSettling).
+	// same key pressed again there works (page.Touch.Again).
 	again string
 	// atEnd says whether the last frame showed the end of the page: j past
 	// the last stop then goes into the thoughts pane.
@@ -61,7 +61,7 @@ type view struct {
 
 // settleDelay is how long a line the viewer moved the cursor to must have
 // been on screen before x y n and options work on it.
-const settleDelay = 400 * time.Millisecond
+const settleDelay = page.SettleDelay
 
 // clock is the time (tests replace it).
 var clock = time.Now
@@ -264,22 +264,14 @@ func (a *app) tickReload() {
 // point at.
 func (a *app) reload(pv *view) {
 	old := pv.nodeAt(pv.cur)
-	hidden := map[string]bool{}
-	report.WalkAll(pv.Nodes, func(n *report.Node) {
-		if n.Key != "" && pv.isHidden(n) {
-			hidden[n.Key] = true
-		}
-	})
+	hidden := a.b.HiddenKeys()
 	pv.Load()
-	// A line the person hid comes back when the AI rewrites it (hiding goes
-	// by what it says): say so, or it looks as if x did nothing. This is
-	// newer than any message still shown.
-	said := false
-	report.WalkAll(pv.Nodes, func(n *report.Node) {
-		if !said && hidden[n.Key] && !pv.isHidden(n) && report.HideKey(n) != "" {
-			a.msg, a.msgLines, said = msgReappeared+report.PlainOf(n.Title()), 0, true
-		}
-	})
+	// A line the person hid comes back when the AI rewrites it: say so, or
+	// it looks as if x did nothing. This is newer than any message still
+	// shown.
+	if msg := a.b.Reappeared(hidden); msg != "" {
+		a.msg, a.msgLines = msg, 0
+	}
 	if old == nil {
 		return
 	}
@@ -293,7 +285,7 @@ func (a *app) reload(pv *view) {
 		// kind of part) is a change the person must look at before reacting.
 		// A Fold's title is only a label, and status, note and state are not
 		// what the line is.
-		if now.Part() != old.Part() || (old.Kind != report.KindDetails && now.Title() != old.Title()) {
+		if page.Rewritten(old, now) {
 			pv.follow, pv.lock = true, true
 		}
 		return

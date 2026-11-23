@@ -144,8 +144,8 @@ func TestReactOnlyOnWhatWasSeen(t *testing.T) {
 func TestHideAndUndo(t *testing.T) {
 	b := open(t, src)
 	impl := find(b.Page(false).Things, "impl")
-	msg, hidden, err := b.Hide(impl.Seen)
-	if err != nil || !hidden || msg != "隠しました" {
+	msg, hidden, err := b.Hide(impl.Seen, false)
+	if err != nil || !hidden || msg != "隠しました (H で表示、u で戻す)" {
 		t.Fatalf("hide: %q %v %v", msg, hidden, err)
 	}
 	if find(b.Page(false).Things, "impl") != nil {
@@ -155,7 +155,7 @@ func TestHideAndUndo(t *testing.T) {
 	if h := find(p.Things, "impl"); h == nil || !h.Hidden || h.Mark != MarkNone || p.Hidden != 1 {
 		t.Errorf("showHidden: %+v", h)
 	}
-	if msg, hidden, err := b.Hide(find(p.Things, "impl").Seen); err != nil || hidden || msg != "表示に戻しました" {
+	if msg, hidden, err := b.Hide(find(p.Things, "impl").Seen, true); err != nil || hidden || msg != "表示に戻しました (u で戻す)" {
 		t.Errorf("unhide: %q %v %v", msg, hidden, err)
 	}
 	b.Undo()
@@ -194,7 +194,7 @@ func TestCommentsAndSend(t *testing.T) {
 	if c := b.Page(false).Comments[0]; c.Text != "まだですか" || c.Word.Text != "送信済" {
 		t.Errorf("sent comment %+v", c)
 	}
-	if msg, err := b.Retract(c.N); err != nil || msg != "取り消しました" || len(b.Page(false).Comments) != 0 {
+	if msg, err := b.Retract(c.N); err != nil || msg != "取り消しました (u で戻す)" || len(b.Page(false).Comments) != 0 {
 		t.Errorf("retract: %q %v", msg, err)
 	}
 }

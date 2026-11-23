@@ -7,27 +7,29 @@ import (
 	"github.com/qawatake/pitboard/internal/report"
 )
 
-// settling says whether the cursor's line was put there by the viewer and
-// has not been on screen for settleDelay yet.
-func (pv *view) settling() bool {
-	return pv.auto != "" && pv.auto == pv.cur && (pv.autoAt.IsZero() || clock().Sub(pv.autoAt) < settleDelay)
+// touch is how the cursor came to its line, for page's guard.
+func (pv *view) touch() page.Touch {
+	t := page.Touch{Placed: pv.placed, Locked: pv.lock, Open: pv.open[pv.cur], Again: pv.again}
+	if pv.auto != "" && pv.auto == pv.cur {
+		t.Auto = true
+		if !pv.autoAt.IsZero() {
+			t.Shown = clock().Sub(pv.autoAt)
+		}
+	}
+	return t
 }
 
-// dropSettling says whether key r is dropped because the cursor's line was
-// just moved to by the viewer (settling). The first press is dropped (the
-// caller says so); the same key pressed again on the same line works, as
-// the person has then been told which line it is.
-func (pv *view) dropSettling(r rune) bool {
-	if !pv.settling() {
-		return false
+// settling says whether the cursor's line was put there by the viewer and
+// has not been on screen for settleDelay yet.
+func (pv *view) settling() bool { return pv.touch().Settling() }
+
+// shownLine is the cursor's line while it is on screen (keys act only on
+// it), or nil.
+func (pv *view) shownLine() *report.Node {
+	if !pv.curShown {
+		return nil
 	}
-	k := pv.cur + "\x00" + string(r)
-	if pv.again == k {
-		pv.again = ""
-		return false
-	}
-	pv.again = k
-	return true
+	return pv.nodeAt(pv.cur)
 }
 
 // nearest is the key of the stop closest to screen row r.

@@ -32,6 +32,7 @@ import (
 
 	"github.com/qawatake/pitboard/internal/board"
 	"github.com/qawatake/pitboard/internal/page"
+	"github.com/qawatake/pitboard/internal/report"
 )
 
 //go:embed static
@@ -80,13 +81,20 @@ type tab struct {
 	gen  int
 	used time.Time
 	seen map[string]seenLine
+	// again is the press last dropped while the cursor's line settled
+	// (page.Touch.Again).
+	again string
+	// say is what to tell the person with the next page (a hidden line
+	// came back), once.
+	say string
 }
 
 // seenLine is a line as a tab was shown it.
 type seenLine struct {
 	seen   page.Seen
-	target string // what comments on it are recorded against
-	title  string // its title then (report.Node.Title)
+	target string       // what comments on it are recorded against
+	title  string       // its title then (report.Node.Title)
+	node   *report.Node // the line then (to tell whether it was rewritten)
 }
 
 // New makes a server for o (not yet listening).
@@ -317,6 +325,15 @@ func (t *tab) fresh() {
 		if _, err := os.Stat(t.b.Store.Dir); err == nil {
 			t.b = page.Open(t.b.Store)
 			return
+		}
+	}
+	if t.b.Report.Path != "" && t.b.Report.Stale() {
+		// As the terminal: a hidden line the AI rewrote comes back, and
+		// the person is told (the record as it was, the report as it is).
+		hidden := t.b.HiddenKeys()
+		t.b.Report.Load()
+		if msg := t.b.Reappeared(hidden); msg != "" {
+			t.say = msg
 		}
 	}
 	t.b.Changed()

@@ -2,7 +2,6 @@ package viewer
 
 import (
 	"errors"
-	"slices"
 	"time"
 
 	"github.com/qawatake/pitboard/internal/board"
@@ -68,8 +67,8 @@ func (a *app) handle(k key) (quit bool) {
 		a.msg = msgBack
 	case pv.lock && pv.curShown && reactKey(pv, k):
 		// The line under the cursor was rewritten: no key acts on it until
-		// j/k, and every one says so.
-		a.msg = msgMoved
+		// j/k, and every one says so (page's guard).
+		a.react(pv, k.r)
 	case k.r == 'j' || k.name == "down":
 		// What is between the cursor's line and the next stop is read
 		// first, half a screen at a time; the cursor stays. Reading on is
@@ -95,7 +94,7 @@ func (a *app) handle(k key) (quit bool) {
 	case k.r == 'A':
 		a.viewAll(pv)
 	case k.r == 'r':
-		a.read(pv)
+		a.react(pv, k.r)
 	case k.r == 'k' || k.name == "up":
 		if a.scrollToward(pv, -1) {
 			pv.placed = false
@@ -121,7 +120,7 @@ func (a *app) handle(k key) (quit bool) {
 	case k.name == "enter" && pv.curShown:
 		a.enter(pv)
 	case k.r == 'x':
-		a.hide(pv)
+		a.react(pv, k.r)
 	case k.r == 'H':
 		before, i := pv.navKeys(), index(pv.navKeys(), pv.cur)
 		pv.showHidden = !pv.showHidden
@@ -153,45 +152,34 @@ func imeFree(k key) key {
 // keysFor lists what the reaction keys do on n, in the order shown.
 func keysFor(n *report.Node) (yn bool, choices []string, thought bool) { return page.KeysFor(n) }
 
+// react is a key that acts on the cursor's line (y n x r c, an option's
+// key, or any other letter): page's guard says what it does there.
 func (a *app) react(pv *view, r rune) {
-	n := a.target(pv)
-	if n == nil {
-		return
-	}
-	yn, choices, thought := keysFor(n)
-	if n.Kind == report.KindQuestion && !pv.open[n.Key] && slices.Contains(choices, string(r)) {
-		// The options are not on screen: the key only opens the question.
-		pv.open[n.Key] = true
-		return
-	}
-	value := ""
-	switch s := string(r); {
-	case yn && (s == "y" || s == "n"):
-		value = s
-	case slices.Contains(choices, s):
-		value = s
-	case thought && s == "c":
-		a.in = newInput(report.Target(n), n.Title(), "「"+plainText(n.Title(), "").trunc(max(a.textWidth()-24, 8)).plain()+"」にコメント")
-		return
-	default:
-		return
-	}
-	if pv.placed {
-		// The person has not pointed at this line yet: answers wait.
-		if u := a.b.ActionsOf(n).Untouched(); !(u.YN && (value == "y" || value == "n")) && !slices.Contains(u.Options, value) {
-			a.msg = msgPlacedYN
-			if n.Kind == report.KindQuestion {
-				a.msg = msgPlacedAnswer
-			}
-			return
+	n := pv.shownLine()
+	v := a.b.Allow(n, string(r), pv.touch())
+	pv.again = v.Again
+	switch v.Do {
+	case page.DoNothing:
+		if v.Msg != "" {
+			a.msg = v.Msg
 		}
-	}
-	if pv.dropSettling(r) {
-		a.msg = msgSettlingReact
-		return
-	}
-	if _, err := a.b.React(page.SeenOf(n), value); err != nil {
-		a.failed(pv, err)
+	case page.DoOpen:
+		pv.open[n.Key] = true
+	case page.DoComment:
+		a.in = newInput(report.Target(n), n.Title(), "「"+plainText(n.Title(), "").trunc(max(a.textWidth()-24, 8)).plain()+"」にコメント")
+	case page.DoReact:
+		if _, err := a.b.React(page.SeenOf(n), v.Value); err != nil {
+			a.failed(pv, err)
+		}
+	case page.DoHide:
+		a.hide(pv, n)
+	case page.DoRead:
+		// Only the person says a line is read; u takes it back. On a line
+		// the viewer just moved the cursor to, it says which line it was.
+		settling := pv.settling()
+		if msg, _ := a.b.Read(n.Key, "r (読んだ)"); settling {
+			a.msg = msg
+		}
 	}
 }
 
@@ -208,50 +196,17 @@ func (a *app) failed(pv *view, err error) {
 	a.msg = err.Error()
 }
 
-// hideTarget is the line x acts on: the cursor's line under the same rules
-// as reactions (on screen, pointed at by the person, page unchanged).
-func (a *app) hideTarget(pv *view) *report.Node {
-	if !pv.curShown || pv.lock || !a.canWrite() {
-		return nil
-	}
-	n := pv.nodeAt(pv.cur)
-	if n == nil || report.HideKey(n) == "" {
-		return nil
-	}
-	if pv.placed && !a.b.ActionsOf(n).Untouched().Hide {
-		return nil
-	}
-	return n
-}
-
-// hide hides the cursor's line, or shows it again when it is hidden (and
+// hide hides n, the cursor's line, or shows it again when it is hidden (and
 // hidden lines are being shown). The report is not changed: the record says
 // what the line says, and the viewer leaves out lines that say that.
-func (a *app) hide(pv *view) {
-	n := a.hideTarget(pv)
-	if n == nil {
-		return
-	}
-	if pv.dropSettling('x') {
-		// x pressed twice must not hide a line the person has not seen.
-		a.msg = msgSettlingHide
-		if pv.isHidden(n) {
-			a.msg = msgSettlingShow
-		}
-		return
-	}
+func (a *app) hide(pv *view, n *report.Node) {
 	before, i := pv.navKeys(), index(pv.navKeys(), pv.cur)
-	msg, hidden, err := a.b.Hide(page.SeenOf(n))
+	msg, _, err := a.b.Hide(page.SeenOf(n), pv.showHidden)
 	if err != nil {
 		a.failed(pv, err)
 		return
 	}
 	pv.moveFrom(before, i)
-	if hidden && !pv.showHidden {
-		msg += " (H で表示、u で戻す)"
-	} else {
-		msg += " (u で戻す)"
-	}
 	a.msg = msg
 }
 
@@ -401,7 +356,7 @@ func (a *app) retract(order []*board.Thought, n int, move func(n int)) {
 			a.tauto, a.tautoAt = next, time.Time{}
 		}
 	}
-	a.msg = msg + " (u で戻す)"
+	a.msg = msg
 }
 
 // undoLast takes back the newest thing the person did since the viewer
