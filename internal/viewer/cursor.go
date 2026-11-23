@@ -13,6 +13,23 @@ func (pv *view) settling() bool {
 	return pv.auto != "" && pv.auto == pv.cur && (pv.autoAt.IsZero() || clock().Sub(pv.autoAt) < settleDelay)
 }
 
+// dropSettling says whether key r is dropped because the cursor's line was
+// just moved to by the viewer (settling). The first press is dropped (the
+// caller says so); the same key pressed again on the same line works, as
+// the person has then been told which line it is.
+func (pv *view) dropSettling(r rune) bool {
+	if !pv.settling() {
+		return false
+	}
+	k := pv.cur + "\x00" + string(r)
+	if pv.again == k {
+		pv.again = ""
+		return false
+	}
+	pv.again = k
+	return true
+}
+
 // nearest is the key of the stop closest to screen row r.
 func (a *app) nearest(pv *view, r int) string {
 	best, bd := "", -1

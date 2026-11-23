@@ -200,7 +200,8 @@ func TestSmallDisplayFixes(t *testing.T) {
 	if pv.cur != "unit" || !pv.placed {
 		t.Fatalf("cursor %q placed %v", pv.cur, pv.placed)
 	}
-	if s := reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), ""); !strings.Contains(s, "j k") || strings.Contains(s, "→") || (!strings.Contains(s, "動かすと x が効く") && strings.Contains(s, "↑↓")) {
+	if s := reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), ""); strings.Contains(s, "動かすと") || strings.Contains(s, "→") {
+		// Nothing is refused on a closed Ask (x works, options open it).
 		t.Errorf("placed on a closed Ask: %q", s)
 	}
 	a.handle(key{name: "enter"})
