@@ -67,10 +67,12 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	c := make(chan struct{}, 1)
 	s.mu.Lock()
 	s.subs[c] = true
+	s.lastSub = time.Now()
 	s.mu.Unlock()
 	defer func() {
 		s.mu.Lock()
 		delete(s.subs, c)
+		s.lastSub = time.Now()
 		s.mu.Unlock()
 	}()
 	w.Header().Set("Content-Type", "text/event-stream")

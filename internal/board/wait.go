@@ -190,3 +190,21 @@ func (s *Store) Wait(ctx context.Context, timeout time.Duration, out io.Writer) 
 		}
 	}
 }
+
+// ProcessStart is when process pid started, as ps(1) says it ("" when it
+// cannot be found): kept with a pid, it tells a reused pid apart.
+func ProcessStart(pid int) string { return startOf(pid) }
+
+// ProcessLive says whether process pid runs and, when start is known, is
+// the process that started then (the same check as the waiting file).
+func ProcessLive(pid int, start string) bool {
+	if pid <= 0 || !alive(pid) {
+		return false
+	}
+	if start != "" {
+		if now := startOf(pid); now != "" && now != start {
+			return false
+		}
+	}
+	return true
+}

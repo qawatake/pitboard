@@ -281,26 +281,28 @@ func (a *app) oneLine(keys []hint, right text) []string {
 // every key: the keys, "m 書く" and "? キー" included, are left out before
 // it is.
 func (a *app) oneLineKeep(keys []hint, keep, right text) []string {
-	q := hint{k: "?", d: "キー"}
+	// The keys after the line's own, and the ones kept to the end, are
+	// page's (Bar): the same on every screen.
+	more, tailHints := a.b.Bar(a.top().showHidden)
 	var tail []hint
-	if a.canWrite() && a.b.Unsent > 0 {
-		tail = append(tail, hint{k: "s", d: "送る"}) // kept to the end, as m and ?
+	for _, h := range tailHints {
+		tail = append(tail, hint{k: h.Key, d: h.Word})
 	}
-	if a.canWrite() {
-		tail = append(tail, hint{k: "m", d: "書く"})
-	}
-	tail = append(tail, q)
-	if a.canWrite() && len(a.b.Hist) > 0 {
-		// Something to take back: dropped first when narrow.
-		keys = append(append([]hint{}, keys...), hint{k: "u", d: "取り消す", rank: rankU})
-	}
-	if !a.list && !a.inPane {
-		if a.anyMarked(a.top()) {
-			// Where to go next: before "m 書く", dropped first when narrow.
-			keys = append(append([]hint{}, keys...), hint{k: "space", d: "次へ", rank: rankX})
-		}
-		if len(a.jumpTargets(a.top())) > 0 {
-			keys = append(append([]hint{}, keys...), hint{k: "g", d: "飛ぶ", rank: rankG})
+	q := tail[len(tail)-1] // "? キー" (Bar ends with it)
+	for _, h := range more {
+		switch h.Do {
+		case "undo":
+			// Something to take back: dropped first when narrow.
+			keys = append(append([]hint{}, keys...), hint{k: h.Key, d: h.Word, rank: rankU})
+		case "next":
+			if !a.list && !a.inPane {
+				// Where to go next: before "m 書く", dropped first when narrow.
+				keys = append(append([]hint{}, keys...), hint{k: h.Key, d: h.Word, rank: rankX})
+			}
+		case "jump":
+			if !a.list && !a.inPane && len(a.jumpTargets(a.top())) > 0 {
+				keys = append(append([]hint{}, keys...), hint{k: h.Key, d: h.Word, rank: rankG})
+			}
 		}
 	}
 	shorten := func(ks []hint) []hint {

@@ -292,3 +292,27 @@ func (b *Board) Reappeared(before map[string]bool) string {
 	})
 	return msg
 }
+
+// Bar is the keys a screen offers after the line's own (Offer), in the
+// order the terminal's hint line has them: more (u to take back, space to
+// the next marked line, g to jump; the first to go when there is no room)
+// and tail (s to send, m to write, ? for the keys; kept to the end).
+func (b *Board) Bar(showHidden bool) (more, tail []Hint) {
+	if b.CanWrite() && len(b.Hist) > 0 {
+		more = append(more, Hint{"undo", "u", "取り消す"})
+	}
+	if b.AnyMarked(showHidden) {
+		more = append(more, Hint{"next", "space", "次へ"})
+	}
+	if b.Store != nil && !b.NoSession && !b.Report.Missing && len(b.Jumps(showHidden)) > 0 {
+		more = append(more, Hint{"jump", "g", "飛ぶ"})
+	}
+	if b.CanWrite() && b.Unsent > 0 {
+		tail = append(tail, Hint{"send", "s", "送る"})
+	}
+	if b.CanWrite() {
+		tail = append(tail, Hint{"write", "m", "書く"})
+	}
+	tail = append(tail, Hint{"keys", "?", "キー"})
+	return more, tail
+}

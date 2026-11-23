@@ -55,7 +55,13 @@ type Options struct {
 	Store *board.Store // the session; nil: the first one to appear under Base
 	Port  int          // 0: a free port chosen by the system
 	Open  bool         // open the URL in the default browser
-	Out   io.Writer    // where the URL is printed
+	Out   io.Writer    // where the URL is printed (nil: nowhere; the token is never logged)
+	// Listening is called once the server listens, with its port and token
+	// (for the state file of a background server).
+	Listening func(port int, token string)
+	// Idle stops the server after this long with no page connected (its
+	// event stream); 0 never.
+	Idle time.Duration
 }
 
 // Server is the board in a browser.
@@ -64,13 +70,16 @@ type Server struct {
 	port  int
 	base  string
 
-	mu    sync.Mutex
-	st    *board.Store
-	gen   int // counts up when st changes: tabs of an older one start anew
-	tabs  map[string]*tab
-	subs  map[chan struct{}]bool
-	done  chan struct{}
-	watch *page.Board // the board the watcher polls
+	mu   sync.Mutex
+	st   *board.Store
+	gen  int // counts up when st changes: tabs of an older one start anew
+	tabs map[string]*tab
+	subs map[chan struct{}]bool
+	done chan struct{}
+	// lastSub is when a page last connected or left (or the start): what
+	// Idle counts from.
+	lastSub time.Time
+	watch   *page.Board // the board the watcher polls
 }
 
 // tab is one browser tab's board: its own undo history (page.Board.Hist),
@@ -106,6 +115,7 @@ func New(o Options) (*Server, error) {
 	return &Server{
 		token: hex.EncodeToString(tok), port: o.Port, base: o.Base, st: o.Store,
 		tabs: map[string]*tab{}, subs: map[chan struct{}]bool{}, done: make(chan struct{}),
+		lastSub: time.Now(),
 	}, nil
 }
 
@@ -122,9 +132,18 @@ func Run(ctx context.Context, o Options) error {
 	}
 	s.port = ln.Addr().(*net.TCPAddr).Port
 	url := s.URL()
-	fmt.Fprintln(o.Out, url)
+	if o.Out != nil {
+		fmt.Fprintln(o.Out, url)
+	}
+	if o.Listening != nil {
+		o.Listening(s.port, s.token)
+	}
 	if o.Open {
-		openBrowser(url)
+		OpenBrowser(url)
+	}
+	idle := make(chan struct{})
+	if o.Idle > 0 {
+		go s.idleLoop(o.Idle, idle)
 	}
 	hs := &http.Server{Handler: s, ReadHeaderTimeout: 10 * time.Second}
 	go s.watchLoop()
@@ -132,6 +151,7 @@ func Run(ctx context.Context, o Options) error {
 	go func() { errc <- hs.Serve(ln) }()
 	select {
 	case <-ctx.Done():
+	case <-idle:
 	case err := <-errc:
 		s.Close()
 		return err
@@ -171,7 +191,29 @@ func (s *Server) Token() string { return s.token }
 // per port, so two servers at once each have their own.
 func (s *Server) CookieName() string { return "pitboard_" + strconv.Itoa(s.port) }
 
-func openBrowser(url string) {
+// idleLoop closes idle once no page has been connected for d.
+func (s *Server) idleLoop(d time.Duration, idle chan struct{}) {
+	tick := time.NewTicker(max(min(d/4, 30*time.Second), 10*time.Millisecond))
+	defer tick.Stop()
+	for {
+		select {
+		case <-s.done:
+			return
+		case <-tick.C:
+		}
+		s.mu.Lock()
+		quiet := len(s.subs) == 0 && time.Since(s.lastSub) >= d
+		s.mu.Unlock()
+		if quiet {
+			close(idle)
+			return
+		}
+	}
+}
+
+// OpenBrowser opens url in the default browser; failing is not an error
+// (the URL is printed).
+func OpenBrowser(url string) {
 	cmd := "xdg-open"
 	if runtime.GOOS == "darwin" {
 		cmd = "open"

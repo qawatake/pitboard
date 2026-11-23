@@ -40,6 +40,9 @@ type PageJSON struct {
 	// waits for a letter), noMarked (space has nowhere to go),
 	// imageTooLarge.
 	Words map[string]string
+	// More and Tail are the keys of the bar after the line's own (page's
+	// Bar, in the terminal's order).
+	More, Tail []page.Hint
 }
 
 var words = map[string]string{
@@ -60,6 +63,7 @@ func (s *Server) handlePage(w http.ResponseWriter, r *http.Request) {
 	p := t.b.Page(r.URL.Query().Get("hidden") == "1")
 	t.remember(p)
 	out := PageJSON{Page: p, ImageMax: board.ImageMax, Say: t.say, Words: words}
+	out.More, out.Tail = t.b.Bar(r.URL.Query().Get("hidden") == "1")
 	t.say = ""
 	if st := t.b.Store; st != nil {
 		out.Session = board.ShortSession(st)
@@ -190,6 +194,9 @@ type OfferJSON struct {
 	Options []string
 	Recheck int  // ms; 0 none
 	Locked  bool // the line was rewritten: nothing works until the person moves
+	// Message is what the bar says instead of keys (Locked: MsgMoved, as
+	// the terminal's hint line).
+	Message string `json:",omitempty"`
 }
 
 func (s *Server) handleAct(w http.ResponseWriter, r *http.Request, body []byte) {
@@ -264,11 +271,15 @@ func (t *tab) act(a Act) Result {
 	case "hint":
 		now := t.now(a.Target)
 		if _, ok := t.line(a.Target, a.Seen); !ok || now == nil {
-			return Result{OK: true, Offer: &OfferJSON{Locked: true}}
+			return Result{OK: true, Offer: &OfferJSON{Locked: true, Message: page.MsgMoved}}
 		}
 		tc := t.touch(a, now)
 		o := b.Offer(now, tc)
-		return Result{OK: true, Offer: &OfferJSON{Hints: o.Hints, Options: o.Options, Recheck: int(o.Recheck.Milliseconds()), Locked: tc.Locked}}
+		out := &OfferJSON{Hints: o.Hints, Options: o.Options, Recheck: int(o.Recheck.Milliseconds()), Locked: tc.Locked}
+		if tc.Locked {
+			out.Message = page.MsgMoved
+		}
+		return Result{OK: true, Offer: out}
 	case "key":
 		l, ok := t.line(a.Target, a.Seen)
 		now := t.now(a.Target)

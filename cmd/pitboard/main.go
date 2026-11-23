@@ -15,7 +15,6 @@ import (
 	"github.com/qawatake/pitboard/internal/board"
 	"github.com/qawatake/pitboard/internal/report"
 	"github.com/qawatake/pitboard/internal/viewer"
-	"github.com/qawatake/pitboard/internal/web"
 )
 
 // hookStdin is where `pitboard hook` reads the hook's JSON (tests replace it).
@@ -283,42 +282,4 @@ func runWait(st *board.Store, args []string, out io.Writer) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	return st.Wait(ctx, timeout, out)
-}
-
-// runServe is 'pitboard serve [--port N] [--no-open]': the board in a
-// browser, on 127.0.0.1, until ctrl+c.
-func runServe(base string, st *board.Store, args []string, out io.Writer) error {
-	o := web.Options{Base: base, Store: st, Open: true, Out: out}
-	for len(args) > 0 {
-		a := args[0]
-		v, hasV := "", false
-		if k, val, ok := strings.Cut(a, "="); ok {
-			a, v, hasV = k, val, true
-		}
-		switch a {
-		case "--no-open", "-no-open":
-			if hasV {
-				return fmt.Errorf("serve: %s takes no value", a)
-			}
-			o.Open, args = false, args[1:]
-		case "--port", "-port":
-			if !hasV {
-				if len(args) < 2 {
-					return errors.New("--port needs a number")
-				}
-				v, args = args[1], args[1:]
-			}
-			args = args[1:]
-			p, err := strconv.Atoi(v)
-			if err != nil || p < 0 || p > 65535 {
-				return fmt.Errorf("--port %q: give a port number (0: any free one)", v)
-			}
-			o.Port = p
-		default:
-			return fmt.Errorf("serve: unknown argument %q (usage: pitboard serve [--port N] [--no-open])", args[0])
-		}
-	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-	return web.Run(ctx, o)
 }

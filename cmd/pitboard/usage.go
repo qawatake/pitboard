@@ -15,8 +15,9 @@ const usageText = `pitboard - a board beside an AI session: the AI reports, the 
 Usage:
   pitboard [-s SESSION] [view]     the viewer (without -s: the most recently updated session)
                                    (-s may also come after the command)
-  pitboard [-s SESSION] serve [--port N] [--no-open]
-                                   the same board in a browser (see Browser)
+  pitboard [-s SESSION] serve [--port N] [--no-open] [--foreground]
+                                   the same board in a browser, in the background
+                                   (see Browser); serve --stop, serve --status [--url]
   pitboard -s SESSION path         print the path of the session's report.md (write the report there)
   pitboard -s SESSION changes      print what the person has sent since the last call, one per line
   pitboard -s SESSION settle N [--doing|--hold|--done] TEXT
@@ -386,10 +387,16 @@ Thoughts:
 Browser:
   'pitboard -s ID serve' shows the same board in the person's browser: the
   same parts, words, marks and rules as the viewer, and the two may run at
-  once (each sees what the other does). It prints one URL and opens it
-  (--no-open: only prints it). It listens on 127.0.0.1 only, and the URL
-  holds a key that changes each time it starts. If the person would rather
-  use a browser than a terminal pane, tell them to run:
+  once (each sees what the other does). It starts a server in the
+  background (or finds the session's running one), prints its URL, opens it
+  (--no-open: only prints it) and returns at once. It listens on 127.0.0.1
+  only, and the URL holds a key that changes each time a server starts.
+  The server stops by itself after 30 minutes with no page open;
+  'pitboard -s ID serve --stop' stops it now, 'pitboard serve --status'
+  lists the running ones (--url: with their URLs), --foreground keeps it in
+  the terminal (ctrl+c stops it). Its log: .pitboard/<session>/serve.log.
+  If the person would rather use a browser than a terminal pane, tell them
+  to run:
     pitboard -s ID serve
   It does not change what you do: write report.md, read 'changes'.
 
