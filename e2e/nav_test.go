@@ -60,6 +60,13 @@ func TestReadTallContents(t *testing.T) {
 		t.Errorf("the cursor row should be off screen:\n%s", v.dump())
 	}
 	wantColor(t, v, "↑ カーソルは上", "dim")
+	// It wins over every key in the guide, even at a narrow width.
+	v.Resize(24, 16)
+	v.Until("the mark kept when narrow", func() bool {
+		return strings.Contains(v.Bottom(), "カーソルは上") && v.CursorRow() < 0
+	})
+	v.Resize(60, 16)
+	v.WaitBottom("↑ カーソルは上")
 	// A reaction key brings the cursor back and is not taken.
 	v.Keys("y")
 	v.WaitCursorOn("高い項目")
@@ -122,16 +129,19 @@ func TestJump(t *testing.T) {
 	v.Keys("g")
 	// The guide lists the targets; labels in yellow at the start of the
 	// heading rows (the cursor column).
-	v.WaitBottom("esc やめる")
+	v.WaitFor("esc やめる")
 	guide := joinedAll(strings.Join(v.Lines()[24-3:], "\n"))
-	// Titles shrink to fit; 26 targets at most (the last is z).
-	for _, x := range []string{"a お", "c 進", "d 決", "e 節0", "z 節"} {
+	// esc やめる comes first; g is never a label (a-f, h-z: 25 at most).
+	if !strings.HasPrefix(guide, "esc やめる") {
+		t.Errorf("the guide does not start with esc やめる:\n%s", v.dump())
+	}
+	for _, x := range []string{"a お知らせ", "c 進行中", "e 節0", "f 節1", "h 節2", "z 節20"} {
 		if !strings.Contains(guide, x) {
 			t.Errorf("guide without %q:\n%s", x, v.dump())
 		}
 	}
-	if !strings.HasSuffix(strings.TrimSpace(strings.TrimSuffix(guide, "esc やめる")), "z 節…") {
-		t.Errorf("the last target is not z:\n%s", v.dump())
+	if strings.Contains(guide, "g 節") || strings.Contains(guide, "節21") {
+		t.Errorf("g used as a label, or more than 25 targets:\n%s", v.dump())
 	}
 	// A Fold inside a Section is not a target: no label on its row.
 	if l := v.Line(rowOf(t, v, "中の畳み")); l[0] != ' ' {
@@ -141,7 +151,9 @@ func TestJump(t *testing.T) {
 	if !strings.HasPrefix(v.Line(r), "c") || v.ColorAt(r, 0) != "yellow" {
 		t.Errorf("label not yellow at the heading row:\n%s", v.dump())
 	}
-	v.Keys("c")
+	v.Keys("h")
+	v.WaitCursorOn("節の項目2")
+	v.Keys("g", "c")
 	v.WaitCursorOn("項目C")
 	// The heading comes to the top (under the counts row).
 	if r := rowOf(t, v, "進行中"); r > 2 {
@@ -152,22 +164,38 @@ func TestJump(t *testing.T) {
 	v.Sync()
 	ss.noRecords(t, "react")
 
+	t.Run("g again leaves", func(t *testing.T) {
+		v.In(t).Keys("g")
+		v.WaitFor("esc やめる")
+		v.Keys("g")
+		v.Until("left jump mode", func() bool { return !strings.Contains(v.Screen(), "esc やめる") })
+		v.WaitCursorOn("項目C")
+	})
+
+	t.Run("a rewrite while jumping leaves and says so", func(t *testing.T) {
+		v.In(t).Keys("g")
+		v.WaitFor("esc やめる")
+		ss.write(strings.Replace(b.String(), "項目A", "項目A改", 1))
+		v.WaitForJoined("報告が書き換わりました。カーソルの行を確かめてください")
+		v.Until("left jump mode", func() bool { return !strings.Contains(v.Screen(), "esc やめる") })
+	})
+
 	t.Run("esc and unknown letters leave", func(t *testing.T) {
 		v.In(t).Keys("g")
-		v.WaitBottom("esc やめる")
+		v.WaitFor("esc やめる")
 		v.Keys("esc")
-		v.Until("left jump mode", func() bool { return !strings.Contains(v.Bottom(), "esc やめる") })
+		v.Until("left jump mode", func() bool { return !strings.Contains(v.Screen(), "esc やめる") })
 		v.WaitCursorOn("項目C")
 		v.Keys("g")
-		v.WaitBottom("esc やめる")
+		v.WaitFor("esc やめる")
 		v.Keys("8")
-		v.Until("left jump mode", func() bool { return !strings.Contains(v.Bottom(), "esc やめる") })
+		v.Until("left jump mode", func() bool { return !strings.Contains(v.Screen(), "esc やめる") })
 		v.WaitCursorOn("項目C")
 	})
 
 	t.Run("a Fold target: onto the Fold, not opened", func(t *testing.T) {
 		v.In(t).Keys("g")
-		v.WaitBottom("esc やめる")
+		v.WaitFor("esc やめる")
 		v.Keys("d")
 		v.WaitCursorOn("決まったこと")
 		if strings.Contains(v.Screen(), "項目D") {

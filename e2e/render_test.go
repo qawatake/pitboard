@@ -401,18 +401,17 @@ const askNoticeReport = `<Notice id="n1" at="2020-11-22 21:46">開き直して�
     <Option key="a">セッションごと</Option>
     <Option key="b">プロジェクトごと</Option>
   </Ask>
-  <Item id="a1" re="1">結論の一文
-    詳しい答え
+  <Item id="a1" look="y">> 質問の文です
+    結論の一文
   </Item>
-  <Item id="a2" re="99">番号違いの返事</Item>
+  <Item id="a2">番号違いの返事</Item>
 </Section>
 `
 
-// SPEC-format.md "描き方": Ask, Notice and re.
-func TestRenderAskNoticeRe(t *testing.T) {
+// SPEC-format.md "描き方": Ask, Notice and answer lines.
+func TestRenderAskNotice(t *testing.T) {
 	t.Parallel()
-	v, _ := open(t, askNoticeReport, 80, 30, "番号違いの返事",
-		ev(1, "thought", `"text":"質問の文\nです"`))
+	v, _ := open(t, askNoticeReport, 80, 30, "番号違いの返事")
 
 	t.Run("Notice: pinned on top, yellow title, ! or ▸, at faint at the right", func(t *testing.T) {
 		v.In(t)
@@ -437,19 +436,13 @@ func TestRenderAskNoticeRe(t *testing.T) {
 			t.Errorf("Ask head: %q", v.Line(r))
 		}
 	})
-	t.Run("re: the thought quoted as the first row, the title under it", func(t *testing.T) {
+	t.Run("an answer line: a title starting with > is plain text", func(t *testing.T) {
 		v.In(t)
-		r := rowOf(t, v, "> 質問の文 です")
-		if !strings.Contains(v.Line(r+1), "結論の一文") {
-			t.Errorf("title not under the quote:\n%s", v.dump())
-		}
-		if colOfText(t, v, "結論の一文") != colOfText(t, v, "質問の文") {
-			t.Errorf("title not aligned with the quote's first character")
-		}
-		wantColor(t, v, "質問の文", "")
-		// No such thought: an ordinary Item.
-		if strings.Contains(v.Line(rowOf(t, v, "番号違いの返事")), ">") {
-			t.Errorf("re to a missing thought quotes something")
+		// SPEC-format.md "描き方": "道具は > で始まる題をただの文として描く".
+		r := rowOf(t, v, "> 質問の文です")
+		wantColor(t, v, "> 質問の文です", "")
+		if strings.Contains(v.Line(r+1), "結論の一文") {
+			t.Errorf("contents shown while closed:\n%s", v.dump())
 		}
 	})
 	t.Run("Ask opened: options indented; an answer marks one and shows at the right when closed", func(t *testing.T) {

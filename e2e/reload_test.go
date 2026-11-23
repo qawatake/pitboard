@@ -246,16 +246,21 @@ func mustParseTime(t *testing.T, s string) time.Time {
 	return tm
 }
 
-// SPEC-format.md "描き方" (Notice: "題は切らない (全部折り返す)") and SPEC.md
-// "エディタの置き場所" ("画面の高さが足りないときは、空行から先に削る (入力の
-// 行と案内を残す)"), at 20 columns.
+// SPEC-format.md "描き方": a Notice title wraps whole while it fits the
+// pinned area (a third of the height); a Notice taller than that is
+// shortened with …, its right-end word dropped when it has no row. SPEC.md
+// "エディタの置き場所": the input row and the guide stay on a low screen.
 func TestTinyNotice(t *testing.T) {
-	t.Skip("spec mismatch (E2E1-result.md): at 20 columns a Notice title is cut with … and its at wraps one character per row; at 20x5, c on it leaves no input row on screen")
 	t.Parallel()
 	report := "<Notice id=\"restart\" at=\"2020-01-02 03:04\">pitboard を開き直してください</Notice>\n<Item id=\"a\">項目A</Item>\n"
-	v, _ := open(t, report, 20, 8, "pitboard")
+	v, _ := open(t, report, 20, 30, "pitboard")
 	v.WaitForJoined("pitboard を開き直してください")
 	v.Resize(20, 5)
+	v.Until("the title shortened to one row", func() bool {
+		l := v.Line(0)
+		return strings.Contains(l, "pitboard") && strings.HasSuffix(strings.TrimSpace(l), "…") && !strings.Contains(v.Line(1), "03:0")
+	})
 	v.Keys("c")
 	v.WaitFor("❯")
+	v.WaitForJoined("enter 置く")
 }

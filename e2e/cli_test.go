@@ -199,11 +199,14 @@ func TestCheck(t *testing.T) {
 		{"bad wait", `<Item id="a" wait="me">x</Item>`, 1, "wait"},
 		{"wait on done", `<Item id="a" state="done" wait="you">x</Item>`, 1, "wait"},
 		{"bad look", `<Item id="a" look="n">x</Item>`, 1, "look"},
-		{"bad re", `<Item id="a" re="x">x</Item>`, 1, "re"},
+		// re was dropped (FIX13): now an unknown attribute.
+		{"re is unknown", `<Item id="a" re="1">x</Item>`, 1, `no attribute "re"`},
 		{"Link with both", `<Link id="l" path="a" url="https://x">l</Link>`, 1, "exactly one"},
 		{"Link with neither", `<Link id="l">l</Link>`, 1, "exactly one"},
 		{"Link non-http url", `<Link id="l" url="ftp://x">l</Link>`, 1, "http"},
 		{"bad at", `<Notice id="n" at="yesterday">x</Notice>`, 1, "YYYY-MM-DD HH:MM"},
+		{"at not zero-padded", `<Notice id="n" at="2026-11-23 9:05">x</Notice>`, 1, "YYYY-MM-DD HH:MM"},
+		{"at not a real date", `<Notice id="n" at="2026-02-30 10:00">x</Notice>`, 1, "YYYY-MM-DD HH:MM"},
 		{"list indent not even", "- a\n   - b", 2, "2 spaces"},
 		{"four list levels", "- a\n  - b\n    - c\n      - d", 4, "level"},
 	}
