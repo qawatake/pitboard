@@ -46,8 +46,6 @@ func touchOf(c guardtable.Case) page.Touch {
 		t.Auto, t.Shown = true, 50*time.Millisecond
 	case guardtable.Settled:
 		t.Auto, t.Shown = true, page.SettleDelay
-	case guardtable.Hid:
-		t.Auto, t.Shown, t.Hid = true, 50*time.Millisecond, true
 	}
 	return t
 }

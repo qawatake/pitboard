@@ -28,7 +28,6 @@ const (
 	Locked   = "locked"   // the line was rewritten under it
 	Settling = "settling" // the screen just moved it there (after x, space, g)
 	Settled  = "settled"  // the same, SettleDelay ago
-	Hid      = "hid"      // the screen just moved it there because x hid the line
 )
 
 // Case is one key on one line.
@@ -65,8 +64,6 @@ var Cases = []Case{
 	{Name: "settling x twice", Line: "a", How: Settling, Key: "x", Twice: true, Do: page.DoHide, Op: "hide"},
 	{Name: "settling r reads", Line: "b", How: Settling, Key: "r", Do: page.DoRead},
 	{Name: "settling c writes", Line: "a", How: Settling, Key: "c", Do: page.DoComment},
-	{Name: "hid x hides at once", Line: "a", How: Hid, Key: "x", Do: page.DoHide, Op: "hide"},
-	{Name: "hid option waits", Line: "q", How: Hid, Open: true, Key: "b", Msg: page.MsgSettlingReact},
 	{Name: "settled option", Line: "q", How: Settled, Open: true, Key: "a", Do: page.DoReact, Op: "react"},
 	{Name: "person y on an item does nothing", Line: "a", How: Person, Key: "y"},
 	{Name: "person n on an item does nothing", Line: "a", How: Person, Key: "n"},

@@ -347,7 +347,7 @@ async function pressOnce(k) {
   switch (r.Do) {
     case 'open': set(S.setOpen(ui, [t.Key])); requestHint(); return;
     case 'comment': openEditor({ kind: 'comment', key: t.Key, token: t.Token, at: t.Key, label: '「' + plain(t.Title) + '」にコメント' }); return;
-    case 'hide': if (r.OK) ui = { ...ui, going: t.Key, hiding: true }; break;
+    case 'hide': if (r.OK) ui = { ...ui, going: t.Key }; break;
   }
   if (r.OK || r.Changed) await refresh();
   else requestHint();

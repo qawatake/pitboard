@@ -19,11 +19,8 @@ func TestGuardTable(t *testing.T) {
 			a.render()
 			pv.cur, pv.follow = c.Line, true
 			pv.open[c.Line] = c.Open
-			if c.How == guardtable.Settling || c.How == guardtable.Settled || c.How == guardtable.Hid {
+			if c.How == guardtable.Settling || c.How == guardtable.Settled {
 				pv.auto = c.Line
-			}
-			if c.How == guardtable.Hid {
-				pv.hidTo = c.Line
 			}
 			a.render()
 			if !pv.curShown {
@@ -31,7 +28,7 @@ func TestGuardTable(t *testing.T) {
 			}
 			pv.placed, pv.lock = c.How == guardtable.Placed, c.How == guardtable.Locked
 			switch c.How {
-			case guardtable.Settling, guardtable.Hid:
+			case guardtable.Settling:
 				pv.autoAt = clock()
 			case guardtable.Settled:
 				pv.autoAt = clock().Add(-page.SettleDelay)

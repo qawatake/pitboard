@@ -2,6 +2,8 @@ package web
 
 import (
 	"testing"
+
+	"github.com/qawatake/pitboard/internal/page"
 )
 
 const fix22Src = `<Title>t</Title>
@@ -13,17 +15,24 @@ const fix22Src = `<Title>t</Title>
 </Section>
 `
 
-// FIX22: x x x hides a, b and c: after the first, each press is on the line
-// the page moved the cursor to (how "hid"), at once. A press still on the
-// line just hidden (sent before the page came back) does not show it again.
-// u takes back the last only.
+// FIX22, FIX23: hiding a, b and c is x, then x x on each line the page
+// moved the cursor to: the first x there is dropped with the settling
+// message, the second hides it. A press still on the line just hidden (sent
+// before the page came back) does not show it again. u takes back the last
+// only.
 func TestHideRowsInARowWeb(t *testing.T) {
 	f := setupWith(t, fix22Src)
 	f.page("tab1")
 	cur := Cur{How: "person"}
-	for _, k := range []string{"a", "b", "c"} {
+	for i, k := range []string{"a", "b", "c"} {
 		tok := f.thing(k).Token
 		cur.Sel = tok
+		if i > 0 {
+			r := f.act("tab1", Act{Action: "key", Key: "x", Target: k, Seen: tok, Cur: cur})
+			if r.OK || r.Message != page.MsgSettlingHide {
+				t.Fatalf("first x on moved-to %s: %+v", k, r)
+			}
+		}
 		r := f.act("tab1", Act{Action: "key", Key: "x", Target: k, Seen: tok, Cur: cur})
 		if !r.OK || !r.Hidden {
 			t.Fatalf("x on %s: %+v", k, r)
@@ -33,7 +42,7 @@ func TestHideRowsInARowWeb(t *testing.T) {
 			t.Fatalf("x again on hidden %s: %+v", k, r)
 		}
 		f.page("tab1")
-		cur = Cur{How: "hid", Ago: 0}
+		cur = Cur{How: "app", Ago: 0}
 	}
 	if got := f.ops(); len(got) != 3 || got[0] != "hide" || got[1] != "hide" || got[2] != "hide" {
 		t.Fatalf("ops %v", got)

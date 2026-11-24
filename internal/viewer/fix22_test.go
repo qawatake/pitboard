@@ -4,6 +4,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/qawatake/pitboard/internal/page"
 )
 
 const fix22Report = `<Title>t</Title>
@@ -15,8 +17,9 @@ const fix22Report = `<Title>t</Title>
 </Section>
 `
 
-// FIX22: x pressed again and again hides line after line, each at once on
-// the line the last x moved the cursor to; u brings back the last only.
+// FIX22, FIX23: hiding line after line is x, then x x on each line the
+// last x moved the cursor to (the first x there is dropped); u brings back
+// the last only.
 func TestHideRowsInARow(t *testing.T) {
 	st := testStore(t)
 	os.WriteFile(st.ReportPath(), []byte(fix22Report), 0o644)
@@ -29,6 +32,12 @@ func TestHideRowsInARow(t *testing.T) {
 	for i, want := range []string{"one", "two", "three"} {
 		if n := pv.nodeAt(pv.cur); n == nil || !strings.Contains(n.Title(), want) {
 			t.Fatalf("press %d: cursor on %q, want %q", i+1, pv.cur, want)
+		}
+		if i > 0 {
+			a.handle(key{r: 'x'})
+			if evs := st.Events(); len(evs) != i || a.msg != page.MsgSettlingHide {
+				t.Fatalf("press %d: first x on a moved-to line: %q %+v", i+1, a.msg, evs)
+			}
 		}
 		a.handle(key{r: 'x'})
 		a.render() // no time passes: the presses come one right after another
