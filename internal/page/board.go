@@ -24,6 +24,10 @@ type Board struct {
 	Waiter bool // a 'pitboard wait' is waiting: sending reaches the AI
 	// SentAt is when the person last sent (zero: never).
 	SentAt time.Time
+	// SentThoughts is the numbers of the thoughts the latest send carried
+	// (written, edited, brought back or changed by an undo since the send
+	// before it).
+	SentThoughts []int
 	// Hist is what the person did since the screen opened, oldest first:
 	// what Undo takes back, newest first.
 	Hist []Done
@@ -49,7 +53,7 @@ func Open(st *board.Store) *Board {
 // Load reads the record again.
 func (b *Board) Load() {
 	if b.Store == nil {
-		b.State, b.Unsent, b.Unread, b.SentAt = board.Replay(nil, 0), 0, 0, time.Time{}
+		b.State, b.Unsent, b.Unread, b.SentAt, b.SentThoughts = board.Replay(nil, 0), 0, 0, time.Time{}, nil
 		b.Viewed = map[string]bool{}
 		return
 	}
@@ -60,18 +64,55 @@ func (b *Board) Load() {
 	b.State = board.Replay(evs, seen)
 	b.Unsent, b.Unread = PendingCount(board.UnsentEvents(evs)), board.SentUnread(evs, seen)
 	b.SentAt = time.Time{}
+	prev := 0 // the send before the latest
 	for _, e := range evs {
+		if e.Op == "send" && e.N < b.State.Sent {
+			prev = e.N
+		}
 		if e.N == b.State.Sent && e.Op == "send" {
 			b.SentAt, _ = time.Parse(time.RFC3339Nano, e.T)
 		}
 	}
+	b.SentThoughts = sentThoughts(evs, prev, b.State.Sent)
 }
 
-// AITurn says whether it is the AI's turn (AI の番): the person sent and
-// the report was not rewritten since, or a comment the AI settled as doing
-// is still doing. Otherwise it is the person's turn (あなたの番). The
-// report counts as rewritten when the version on screen is newer
-// (Report.Shown): a rewrite with problems shown as Fixing is not.
+// sentThoughts is the numbers of the thoughts touched by the events
+// between the sends prev and last.
+func sentThoughts(evs []board.Event, prev, last int) []int {
+	byN := map[int]board.Event{}
+	for _, e := range evs {
+		byN[e.N] = e
+	}
+	var out []int
+	for _, e := range evs {
+		if e.N <= prev || e.N >= last {
+			continue
+		}
+		switch e.Op {
+		case "thought":
+			out = append(out, e.N)
+		case "edit", "unretract":
+			out = append(out, e.Thought)
+		case "undo":
+			if x, ok := byN[e.Undo]; ok {
+				if x.Op == "thought" {
+					out = append(out, x.N)
+				} else if x.Thought != 0 {
+					out = append(out, x.Thought)
+				}
+			}
+		}
+	}
+	return out
+}
+
+// AITurn says whether it is the AI's turn (AI の番): the person sent, the
+// report was not rewritten since, and a thought that send carried is not
+// settled yet (a send that carried no thought waits for the rewrite
+// alone); or a comment the AI settled as doing is still doing. Otherwise
+// it is the person's turn (あなたの番). The report counts as rewritten when
+// the version on screen is newer (Report.Shown): a rewrite with problems
+// shown as Fixing is not.
 func (b *Board) AITurn() bool {
 	if b.State == nil {
 		return false
@@ -81,7 +122,21 @@ func (b *Board) AITurn() bool {
 			return true
 		}
 	}
-	return !b.SentAt.IsZero() && !b.Report.Shown.After(b.SentAt)
+	if b.SentAt.IsZero() || b.Report.Shown.After(b.SentAt) {
+		return false
+	}
+	carried := false
+	for _, n := range b.SentThoughts {
+		if t := b.Thought(n); t != nil {
+			carried = true
+			if t.SettledState == "" {
+				return true
+			}
+		}
+	}
+	// Settling every thought of the send gives the turn back; a send of
+	// answers and hides alone waits for the rewrite.
+	return !carried
 }
 
 // LoadViewed reads again what the person has looked at (another screen of
