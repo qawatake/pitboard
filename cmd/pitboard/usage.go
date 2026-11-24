@@ -129,10 +129,11 @@ Writing report.md:
       <Item id="parts" status="waiting on you" wait="you" note="needs the answer above">Fix the part list</Item>
     </Section>
 
-    <Fold title="Decided (1)">
+    <Fold title="Decided (2)">
       <Item id="one-col" state="done">One column: the viewer sits beside the chat
         A narrow pane has no room for two.
       </Item>
+      <Item id="r-chat" state="done">Rule: in the chat, one or two lines; details go on the board</Item>
     </Fold>
 
   Parts (anything else is an error):
@@ -212,8 +213,13 @@ A layout to start from:
        says 作業中 itself) and next, with a status only for something else:
        waiting on you, queued, on hold. (They see what moves without
        asking.)
-    5. "Decided": in a Fold, one decision per line, with its reason.
-       (Decisions made in the chat are not lost.)
+    5. "Decided": in a Fold, one per line: each decision with its reason,
+       and the person's standing rules on how to work with them (how to
+       write, what to ask first, what never to do). It is your memory as
+       much as theirs: your context may be summarized or the session
+       resumed, and the chat fades while the report stays. After a resume
+       or a summary, read it before acting. (The name is yours; such a
+       place is the point.)
   Manners for it: the more a section needs the person's hand, the higher it
   goes. Leave out a section that would be empty. When a line is done, drop
   it from "In progress" (git keeps the history; do not pile done lines up).
