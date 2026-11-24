@@ -7,7 +7,8 @@ import (
 
 // Two marks keep the person from losing track of what wants them:
 //
-//	MarkWaiting  an Ask not answered yet (on what it says now)
+//	MarkWaiting  an Ask not answered yet (on what it says now): no option
+//	             chosen and no comment written on it
 //	MarkNew      unread: the AI marked the line look="y", and the person
 //	             has not looked at what it says now
 //
@@ -28,14 +29,22 @@ const (
 // ViewKey is what a line says, for "unread" (board.ViewKey).
 func ViewKey(n *report.Node) string { return board.ViewKey(n) }
 
-// Waiting says whether n is an Ask with no answer on what it says now.
+// Waiting says whether n is an Ask with no answer on what it says now:
+// neither an option chosen nor a comment written on it.
 func (b *Board) Waiting(n *report.Node) bool {
-	if n.ID == "" {
+	if n.ID == "" || n.Kind != report.KindQuestion {
 		return false
 	}
-	e, ok := b.State.React[n.ID]
-	answered := ok && e.Line == n.Sig()
-	return n.Kind == report.KindQuestion && !answered
+	sig := n.Sig()
+	if e, ok := b.State.React[n.ID]; ok && e.Line == sig {
+		return false
+	}
+	for _, t := range b.State.On(n.ID) {
+		if t.Line == sig {
+			return false
+		}
+	}
+	return true
 }
 
 // IsNew says whether n is unread: the AI asked for it to be read

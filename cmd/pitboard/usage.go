@@ -183,10 +183,10 @@ Writing report.md:
   (ask="y" was removed: to get a yes or no, write an Ask.)
 
   Marks: the board puts a yellow ● beside each Ask not answered yet (on
-  what it says now) and a green ● (unread) beside each line with look="y"
-  that they have not read since it last changed. Only the person clears
-  it, with r (read) on the line, by answering or by writing on it; the
-  cursor does
+  what it says now: no option chosen and no comment written on it) and a
+  green ● (unread) beside each line with look="y" that they have not read
+  since it last changed. Only the person clears a mark: by answering or
+  writing on the line, or (green) with r (read) on it; the cursor does
   not. space takes them to the nearest marked line below the cursor
   (yellow, green, or an Item with wait="you"; all alike), from the top
   when there is none below. Lines without look="y" get no green mark,

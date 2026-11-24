@@ -33,7 +33,7 @@ func (s *Store) rowsPath() string { return filepath.Join(s.Dir, "rows.json") }
 // seenRow is a row as it was remembered.
 type seenRow struct {
 	Title   string
-	Ask     bool   `json:",omitempty"` // an Ask: answered by an option or hiding
+	Ask     bool   `json:",omitempty"` // an Ask: answered by an option, a sent comment or hiding
 	Wait    bool   `json:",omitempty"` // wait="you": a reaction, hiding or a sent comment
 	Look    bool   `json:",omitempty"` // look="y": reading it is enough
 	HideKey string `json:",omitempty"`
@@ -199,9 +199,7 @@ func removedWarnings(key string, r seenRow, st *State, viewed map[string]bool) [
 	}
 	var handled bool
 	switch {
-	case r.Ask:
-		handled = reacted || hidden
-	case r.Wait:
+	case r.Ask, r.Wait:
 		handled = reacted || hidden || len(sent) > 0
 	case r.Look:
 		handled = reacted || hidden || (r.View != "" && viewed[r.View])

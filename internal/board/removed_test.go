@@ -277,3 +277,22 @@ func TestRemovedShownAndStaleAnswer(t *testing.T) {
 		t.Errorf("answered an older version, then removed: %q", w)
 	}
 }
+
+// An Ask the person answered with a sent comment instead of an option is
+// answered: removing it is not warned of (once the comment is settled).
+func TestRemovedAskCommented(t *testing.T) {
+	st := testStore(t)
+	writeReport(t, st, `<Ask id="q">選ぶ
+<Option key="a">A</Option>
+<Option key="b">B</Option>
+</Ask>
+`)
+	st.Removed()
+	rec, _ := st.Append(Event{Op: "thought", ID: "q", Text: "どちらでもない", Title: "選ぶ"})
+	st.Append(Event{Op: "send"})
+	st.Append(Event{Op: "settle", Thought: rec.N, Text: "answered", By: "ai"})
+	writeReport(t, st, "<Item id=\"other\">別の行</Item>\n")
+	if w := st.Removed(); len(w) != 0 {
+		t.Errorf("warned of an Ask answered by a comment: %q", w)
+	}
+}

@@ -260,3 +260,32 @@ func TestEmptySectionNone(t *testing.T) {
 		t.Errorf("Section with an Item: None %q", got)
 	}
 }
+
+// A comment on an Ask answers it, as an option does: the yellow ● goes.
+// Taken back, or the Ask rewritten, it is waiting again.
+func TestCommentAnswersAsk(t *testing.T) {
+	b := open(t, src)
+	unit := find(b.Page(false).Things, "unit")
+	if unit.Mark != MarkWaiting {
+		t.Fatalf("before: %v", unit.Mark)
+	}
+	if _, err := b.Comment(unit.Target, "ページの単位", "リポジトリごとがいい"); err != nil {
+		t.Fatal(err)
+	}
+	p := b.Page(false)
+	if u := find(p.Things, "unit"); u.Mark != MarkNone || p.Waiting != 0 {
+		t.Errorf("after a comment: mark %v waiting %d", u.Mark, p.Waiting)
+	}
+	b.Undo()
+	if u := find(b.Page(false).Things, "unit"); u.Mark != MarkWaiting {
+		t.Errorf("comment taken back: %v", u.Mark)
+	}
+	if _, err := b.Comment(unit.Target, "ページの単位", "リポジトリごとがいい"); err != nil {
+		t.Fatal(err)
+	}
+	write(t, b.Store, strings.Replace(src, "<Option key=\"b\">プロジェクトごと</Option>", "<Option key=\"b\">プロジェクトごと</Option>\n    <Option key=\"c\">リポジトリごと</Option>", 1))
+	b.Report.Load()
+	if u := find(b.Page(false).Things, "unit"); u.Mark != MarkWaiting {
+		t.Errorf("Ask rewritten: %v", u.Mark)
+	}
+}

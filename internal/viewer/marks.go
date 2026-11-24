@@ -12,7 +12,8 @@ import (
 // report, in a column of their own between the cursor's > and the line's
 // mark (so moving the cursor never moves or hides them):
 //
-//	● yellow  waiting: an Ask not answered yet (on what it says now)
+//	● yellow  waiting: an Ask not answered yet (on what it says now): no
+//	          option chosen and no comment written on it
 //	● green   unread: the AI marked the line look="y", and the person has
 //	          not looked at what it says now
 //

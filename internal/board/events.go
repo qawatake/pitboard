@@ -44,8 +44,9 @@ type Event struct {
 	Text    string `json:"text,omitempty"`
 	Thought int    `json:"thought,omitempty"`
 	By      string `json:"by,omitempty"`
-	// Line is the reacted line as the person saw it (see report.Node.Sig). When the
-	// AI rewrites the line, the reaction is no longer shown on it.
+	// Line is the reacted (or commented) line as the person saw it (see
+	// report.Node.Sig). When the AI rewrites the line, the reaction is no
+	// longer shown on it, and an Ask commented on is waiting again.
 	Line string `json:"line,omitempty"`
 	// Title is the line's title when the person reacted or began writing,
 	// and Option the text of the chosen option: what the person saw, told to

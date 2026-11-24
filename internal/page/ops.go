@@ -173,19 +173,27 @@ func (b *Board) Comment(target, title, text string) (string, error) {
 		return "", errCannotWrite
 	}
 	e := board.Event{Op: "thought", ID: target, Text: text, Title: title}
+	var n *report.Node
+	if target != "" {
+		if n = report.ByID(b.Report.Nodes, target); n != nil && n.Title() != title {
+			n = nil
+		}
+	}
+	if n != nil {
+		// What the line says: a comment on an Ask answers what it says now.
+		e.Line = n.Sig()
+	}
 	rec, err := b.Store.Append(e)
 	if err != nil {
 		return "", fmt.Errorf("記録できませんでした: %w", err)
 	}
 	b.did(rec, "コメントを取り消しました: "+TextHead(text))
-	if target != "" {
-		if n := report.ByID(b.Report.Nodes, target); n != nil && n.Title() == title {
-			if n.Kind == report.KindDetails {
-				// A Fold's mark is what it holds too: it goes, as with Read.
-				b.MarkViewed(b.UnreadIn(n)...)
-			} else {
-				b.MarkViewed(n)
-			}
+	if n != nil {
+		if n.Kind == report.KindDetails {
+			// A Fold's mark is what it holds too: it goes, as with Read.
+			b.MarkViewed(b.UnreadIn(n)...)
+		} else {
+			b.MarkViewed(n)
 		}
 	}
 	b.Load()
