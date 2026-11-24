@@ -107,6 +107,19 @@ function straddles(app, y) {
   });
 }
 
+// floatsLow: a floating layer sits on the text column's edges, its bottom a
+// little above the bar (a sheet, edge to edge, on a narrow screen).
+function floatsLow(app, el) {
+  if (!visible(el)) return false;
+  if (app.clientWidth <= 480) return true;
+  const b = app.querySelector('.board'), f = app.querySelector('.foot');
+  if (!b || !f) return false;
+  const br = b.getBoundingClientRect(), cs = getComputedStyle(b), r = el.getBoundingClientRect();
+  const left = br.left + parseFloat(cs.paddingLeft), right = br.right - parseFloat(cs.paddingRight);
+  const gap = f.getBoundingClientRect().top - r.bottom;
+  return Math.abs(r.left - left) < 1.5 && Math.abs(r.right - right) < 1.5 && gap > 0 && gap < 24;
+}
+
 // DIFFS says, for each visual difference a module may declare, whether a
 // drawn frame shows it.
 export const DIFFS = {
@@ -116,10 +129,10 @@ export const DIFFS = {
   'under-bar': (a) => straddles(a, a.querySelector('.foot').getBoundingClientRect().top),
   'at-bottom': (a) => { const s = a.querySelector('.scroller'); return s.scrollTop > 0 && s.scrollTop + s.clientHeight >= s.scrollHeight - 1; },
   'focus-bar': (a) => { const f = document.activeElement; return !!f && a.contains(f) && !!f.closest('.bar') && f.matches(':focus-visible') && getComputedStyle(f).outlineStyle !== 'none'; },
-  'loose-editor': (a) => all(a, '.editor.loose textarea').length > 0,
+  'loose-editor': (a) => all(a, '.editor.loose textarea').length > 0 && floatsLow(a, a.querySelector('.editor.loose')),
   'editor-empty': (a) => all(a, '.editor textarea').some((t) => t.value === ''),
   'edit-comment': (a) => all(a, '.cpanel .crow > .editor textarea').length > 0,
-  'panel-scrolled': (a) => { const p = a.querySelector('.cpanel'); const c = p.querySelector('.row.cur'); if (!visible(p) || !c || p.scrollTop <= 0) return false; const pr = p.getBoundingClientRect(), cr = c.getBoundingClientRect(); return cr.top >= pr.top - 1 && cr.bottom <= pr.bottom + 1; },
+  'panel-scrolled': (a) => { const p = a.querySelector('.cpanel'); const c = p.querySelector('.row.cur'); if (!visible(p) || !c || p.scrollTop <= 0 || !floatsLow(a, p)) return false; const pr = p.getBoundingClientRect(), cr = c.getBoundingClientRect(); return cr.top >= pr.top - 1 && cr.bottom <= pr.bottom + 1; },
   'help-scrolled': (a) => { const s = a.querySelector('.help .sheet'); return visible(s) && s.scrollTop > 0 && s.scrollTop + s.clientHeight >= s.scrollHeight - 1; },
   'image-large': (a) => { const i = a.querySelector('.viewer img'); return visible(i) && i.naturalWidth > i.clientWidth + 1; },
   'message': (a) => all(a, '.status:not(.need)').some((s) => s.textContent !== ''),

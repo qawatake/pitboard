@@ -11,8 +11,6 @@
 import { el } from '../dom.js';
 import { thumbs } from '../parts/comment.js';
 
-const NOTE = 's で送るまで AI には届かない · esc でやめても書いたものはこのタブに残る · 画像は貼り付け・ドロップ';
-
 // box is the editor's element for the drawing (made once per memo).
 export function box(cx) {
   const m = cx.memo;
@@ -22,11 +20,9 @@ export function box(cx) {
     lab.htmlFor = 'editor-text';
     const area = el('textarea');
     area.id = 'editor-text';
-    area.setAttribute('aria-describedby', 'editor-note');
-    const shots = el('div', 'thumbs');
-    const note = el('div', 'hint', NOTE);
-    note.id = 'editor-note';
-    b.append(lab, area, shots, note);
+    // No note under it: the bar shows the keys, and ? says the rest.
+    // Under it, the images the text refers to, at a size to read.
+    b.append(lab, area, el('div', 'thumbs'));
     m.editor = b;
   }
   const ed = cx.ui.editor || {};
@@ -64,7 +60,7 @@ const long = Array.from({ length: 8 }, (_, i) => `${i + 1} 行目`).join('\n');
 
 export const covers = {"mode": {"editor": ["on a line"]}, "hint": {"place": ["on a line"], "stop": ["on a line"], "newline": ["on a line"]}};
 
-export const differences = {"loose-editor": ["m: a comment on no line, floating"], "editor-empty": ["empty, on a line"], "edit-comment": ["editing a comment in the panel"]};
+export const differences = {"loose-editor": ["m: a comment on no line, floating", "m: long text grows upward"], "editor-empty": ["empty, on a line"], "edit-comment": ["editing a comment in the panel"]};
 
 export const variants = [
   { name: 'on a line', ui: { cur: 'hook', mode: 'editor', editor: { kind: 'comment', key: 'hook', at: 'hook', label: '「hook を入れるか決める」にコメント', text: '入れてよい' } }, responsive: true },
@@ -72,5 +68,8 @@ export const variants = [
   { name: '8 lines: grows, then scrolls', ui: { cur: 'hook', mode: 'editor', editor: { kind: 'comment', key: 'hook', at: 'hook', label: '「hook を入れるか決める」にコメント', text: long } } },
   { name: 'with an image', fixture: 'comments', ui: { cur: 'c1', mode: 'editor', editor: { kind: 'comment', key: 'c1', at: 'c1', label: '「未送信のコメントのある行」にコメント', text: 'これを見て [Image #1]' } } },
   { name: 'm: a comment on no line, floating', ui: { cur: 'hook', mode: 'editor', editor: { kind: 'comment', key: '', at: 'hook', label: '宛先なしのコメント', text: '' } }, responsive: true },
+  { name: 'm: long text grows upward', ui: { cur: 'hook', mode: 'editor', editor: { kind: 'comment', key: '', at: 'hook', label: '宛先なしのコメント', text: long } }, responsive: true },
+  { name: 'one large image', fixture: 'comments', ui: { cur: 'c1', mode: 'editor', editor: { kind: 'comment', key: 'c1', at: 'c1', label: '「未送信のコメントのある行」にコメント', text: 'この画面 [Image #2]' } }, responsive: true },
+  { name: 'three images', fixture: 'comments', ui: { cur: 'c1', mode: 'editor', editor: { kind: 'comment', key: 'c1', at: 'c1', label: '「未送信のコメントのある行」にコメント', text: '前 [Image #1] 後 [Image #3] 全体 [Image #2]' } }, responsive: true },
   { name: 'editing a comment in the panel', fixture: 'comments', ui: { panel: true, cur: '#l:first', mode: 'editor', editor: { kind: 'edit', at: '#l:first', label: 'コメントを直す', text: '同じ行への 2 つ目' } } },
 ];

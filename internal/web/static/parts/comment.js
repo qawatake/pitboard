@@ -21,7 +21,8 @@ export function text(s) {
   return span;
 }
 
-// thumbs is a comment's images, small; each opens large (cx.onImage).
+// thumbs is a comment's images, at a size to read (the CSS caps them;
+// never larger than they are); each opens whole (cx.onImage).
 export function thumbs(cx, ns) {
   const box = el('div', 'thumbs');
   for (const n of ns || []) {
@@ -117,7 +118,7 @@ export const covers = {"status": {"未送信": ["未送信, 3 lines, an image, a
 export const differences = {"rights-below": ["narrow: the state word below, as its list"]};
 
 export const variants = [
-  { name: '未送信, 3 lines, an image, a second one', ...onLine('c1') },
+  { name: '未送信, 3 lines, an image, a second one', ...onLine('c1'), responsive: true },
   { name: '送信済', ...onLine('c2') },
   { name: '既読', ...onLine('c3') },
   { name: '対応中 (reply)', ...onLine('c4') },

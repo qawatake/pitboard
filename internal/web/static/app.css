@@ -22,7 +22,12 @@
   --bg: #ffffff; --fg: #1d1d1f; --line: #c9c9cf;
   --need: #8a5300; --move: #18733a; --quiet: #5f6368;
   --structure: #1a5fb4; --yours: #0b6e85; --bad: #b3261e;
-  --shadow: rgb(0 0 0 / .18); --scrim: rgb(0 0 0 / .55); --on-scrim: #ffffff; --veil: rgb(0 0 0 / .12);
+  --scrim: rgb(0 0 0 / .55); --on-scrim: #ffffff; --veil: rgb(0 0 0 / .12);
+  /* What floats (the comment panel, the m editor) has one edge: on light,
+     a soft shadow alone (a tight contact shadow and a wide ambient one);
+     on dark, where a shadow vanishes, a hairline and a faint shadow. */
+  --edge: transparent;
+  --shadow: 0 1px 3px rgb(0 0 0 / .07), 0 10px 30px -6px rgb(0 0 0 / .12);
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -30,7 +35,8 @@
     --bg: #1b1b1d; --fg: #e6e6e8; --line: #4a4a52;
     --need: #f0c05a; --move: #63d68a; --quiet: #a3a3aa;
     --structure: #8fb8f2; --yours: #6fd3eb; --bad: #ff8a80;
-    --shadow: rgb(0 0 0 / .5); --scrim: rgb(0 0 0 / .7); --veil: rgb(0 0 0 / .4);
+    --scrim: rgb(0 0 0 / .7); --veil: rgb(0 0 0 / .4);
+    --edge: var(--line); --shadow: 0 1px 2px rgb(0 0 0 / .25), 0 10px 30px -6px rgb(0 0 0 / .35);
     color-scheme: dark;
   }
 }
@@ -38,7 +44,8 @@
   --bg: #1b1b1d; --fg: #e6e6e8; --line: #4a4a52;
   --need: #f0c05a; --move: #63d68a; --quiet: #a3a3aa;
   --structure: #8fb8f2; --yours: #6fd3eb; --bad: #ff8a80;
-  --shadow: rgb(0 0 0 / .5); --scrim: rgb(0 0 0 / .7); --veil: rgb(0 0 0 / .4);
+  --scrim: rgb(0 0 0 / .7); --veil: rgb(0 0 0 / .4);
+  --edge: var(--line); --shadow: 0 1px 2px rgb(0 0 0 / .25), 0 10px 30px -6px rgb(0 0 0 / .35);
   color-scheme: dark;
 }
 
@@ -60,6 +67,15 @@
   --gap-under-head: .4rem;  /* under a heading */
   --gap-para: .3rem;        /* between paragraphs */
   --gap-blank: .9rem;       /* where the report had a blank line */
+
+  /* Where a floating layer (the comment panel, the m editor) sits: low and
+     centered, on the text column's edges (the page's own --gw, resolved
+     here), its bottom a little above the bar, growing upward. One token,
+     so the layers cannot drift apart. */
+  --float-inset: auto
+    calc((100% - min(100%, var(--measure))) / 2 + 1rem)
+    calc(var(--foot-h, 4rem) + .75rem)
+    calc((100% - min(100%, var(--measure))) / 2 + 1rem + var(--gw));
 
   /* One stacking order. */
   --z-band: 10;      /* the pinned band */
@@ -288,8 +304,12 @@ pre.code .cl { display: block; white-space: pre-wrap; overflow-wrap: anywhere; w
 .imgref { color: var(--quiet); }
 .thumbs { display: flex; flex-wrap: wrap; gap: .5rem; margin: .3rem 0; }
 .thumbs:empty { display: none; }
-.thumbs button { all: unset; cursor: zoom-in; }
-.thumbs img { display: block; max-width: 8rem; max-height: 6rem; }
+/* Images at a size to read, never larger than they are: a comment's up to
+   320px tall, the editor's (under the text area) up to 240px; both up to
+   the column's width, in a wrapping row. A click opens the whole. */
+.thumbs button { all: unset; cursor: zoom-in; min-width: 0; max-width: 100%; }
+.thumbs img { display: block; width: auto; height: auto; max-width: 100%; max-height: 320px; }
+.editor .thumbs img { max-height: 240px; }
 
 /* ---- the editor ---- */
 
@@ -300,17 +320,16 @@ pre.code .cl { display: block; white-space: pre-wrap; overflow-wrap: anywhere; w
 .row > .editor { margin-left: var(--step); }
 .crow > .editor { margin-left: 2.2rem; }
 /* A comment on no line (m) is about no line: it floats where the comment
-   panel does (bottom right; a sheet on a phone), headed 宛先なしのコメント,
-   never under the cursor's line. */
+   panel does (low, centered on the text column; a sheet on a phone),
+   headed 宛先なしのコメント, never under the cursor's line. */
 .editor.loose {
-  position: absolute; z-index: var(--z-panel); right: 1rem; bottom: calc(var(--foot-h, 4rem) + .4rem);
-  width: min(36rem, calc(100% - 2rem)); margin: 0;
-  background: var(--bg); border: 1px solid var(--line); box-shadow: 0 6px 28px var(--shadow);
+  position: absolute; z-index: var(--z-panel); inset: var(--float-inset); margin: 0;
+  background: var(--bg); border: 1px solid var(--edge); box-shadow: var(--shadow);
   padding: .6rem 1rem .8rem;
 }
 .editor.loose label { font-size: 1.05em; font-weight: 700; color: var(--structure); margin-bottom: .3rem; }
 @container app (max-width: 30em) {
-  .editor.loose { inset: auto 0 var(--foot-h, 4rem) 0; width: auto; border-width: 1px 0 0; box-shadow: none; }
+  .editor.loose { inset: auto 0 var(--foot-h, 4rem) 0; width: auto; border-width: 1px 0 0; border-color: var(--line); box-shadow: none; }
 }
 .editor label { display: block; font-size: .9em; color: var(--quiet); }
 /* An input needs an edge to be seen as one. It grows with what is
@@ -321,7 +340,6 @@ pre.code .cl { display: block; white-space: pre-wrap; overflow-wrap: anywhere; w
   font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); padding: .4rem;
 }
 .editor textarea:focus { outline: none; border-color: var(--structure); }
-.editor .hint { font-size: .85em; color: var(--quiet); }
 
 /* ---- the bottom: message and keys ---- */
 
@@ -359,15 +377,16 @@ pre.code .cl { display: block; white-space: pre-wrap; overflow-wrap: anywhere; w
 .backdrop { display: none; position: absolute; inset: 0; z-index: var(--z-veil); background: var(--veil); }
 .app.locked .backdrop { display: block; }
 
-/* The comments float: a dialog at the bottom right, over the page and the
-   bar, as tall as what it holds, up to 70% of the screen; only then does
-   it scroll. A sheet the size of the screen on a phone. Its edge is a
-   hairline and a soft shadow: nothing else. */
+/* The comments float: a dialog low and centered on the text column
+   (--float-inset, as the m editor), over the page, as tall as what it
+   holds, up to 70% of the screen; only then does it scroll. A sheet the
+   size of the screen on a phone. Its edge is --edge and --shadow:
+   nothing else. */
 .cpanel {
-  position: absolute; z-index: var(--z-panel); right: 1rem; bottom: calc(var(--foot-h, 4rem) + .4rem);
-  width: min(36rem, calc(100% - 2rem)); max-height: 70cqh; overflow-y: auto; overscroll-behavior: contain;
+  position: absolute; z-index: var(--z-panel); inset: var(--float-inset);
+  max-height: 70cqh; overflow-y: auto; overscroll-behavior: contain;
   background: var(--bg); color: var(--fg);
-  border: 1px solid var(--line); box-shadow: 0 6px 28px var(--shadow);
+  border: 1px solid var(--edge); box-shadow: var(--shadow);
   padding: .5rem 1rem .8rem calc(1rem + var(--gw));
   /* Comments have no mark or sign: the gutter is the cursor's column (its
      own --gw, so a row hangs exactly its columns). Two edges: the number

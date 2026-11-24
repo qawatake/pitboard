@@ -94,8 +94,6 @@ Writing report.md:
     </Notice>
     <Title>Build the minimal pitboard</Title>
 
-    One paragraph saying where things stand.
-
     <Section title="For you">
       <Ask id="unit">One board per what?
         <Option key="a">per session</Option>
@@ -190,8 +188,10 @@ Writing report.md:
 
 A layout to start from:
   The layout is yours; this is a starting point, not a rule. From the top:
-    1. The title, and where things stand in a sentence or two.
-       (What the person reads first when they come back.)
+    1. The title only: what this board is about (it rarely changes). No
+       summary paragraph under it: it repeats "For you" and "In progress"
+       and goes stale, while those stay current because work flows
+       through them.
     2. Notices, only when there is one (see Manners).
     3. "For you": first what the person is to answer or do (Ask, Item with
        ask="y" or wait="you"); under them, your answers to what they asked,

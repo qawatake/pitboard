@@ -45,7 +45,8 @@ func TestNoOldWords(t *testing.T) {
 	if !strings.Contains(s, "セッション nosuch") {
 		t.Errorf("the missing session's screen was not drawn:\n%s", s)
 	}
-	for _, old := range []string{"板", "思いつき", "送信済み", "新着", "受け取った", "行き先", "ページ", "j k ↑↓  送る", "半画面ずつ送る", "ターミナル"} {
+	s = strings.ReplaceAll(s, "クリップボード", "") // another word
+	for _, old := range []string{"板", "ボード", "思いつき", "送信済み", "新着", "受け取った", "行き先", "ページ", "j k ↑↓  送る", "半画面ずつ送る", "ターミナル"} {
 		if strings.Contains(s, old) {
 			t.Errorf("old word %q on screen:\n%s", old, s)
 		}

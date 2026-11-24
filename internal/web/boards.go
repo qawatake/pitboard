@@ -400,7 +400,7 @@ func (s *Server) index() Index {
 }
 
 // MsgNoBoards is what the index says with no board registered.
-const MsgNoBoards = "ボードはまだありません。報告のあるディレクトリで pitboard serve を実行すると、ここに並びます"
+const MsgNoBoards = "まだ何もありません。報告のあるディレクトリで pitboard serve を実行すると、ここに並びます"
 
 // tilde is p with the home directory as ~.
 func tilde(p string) string {

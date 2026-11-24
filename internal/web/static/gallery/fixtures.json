@@ -7712,14 +7712,14 @@
     }
    ],
    "Words": {
-    "none": "ボードはまだありません。報告のあるディレクトリで pitboard serve を実行すると、ここに並びます",
+    "none": "まだ何もありません。報告のあるディレクトリで pitboard serve を実行すると、ここに並びます",
     "offline": "つながっていません。pitboard serve が出した URL を開き直してください"
    }
   },
   "none": {
    "Boards": [],
    "Words": {
-    "none": "ボードはまだありません。報告のあるディレクトリで pitboard serve を実行すると、ここに並びます",
+    "none": "まだ何もありません。報告のあるディレクトリで pitboard serve を実行すると、ここに並びます",
     "offline": "つながっていません。pitboard serve が出した URL を開き直してください"
    }
   },
@@ -7770,7 +7770,7 @@
     }
    ],
    "Words": {
-    "none": "ボードはまだありません。報告のあるディレクトリで pitboard serve を実行すると、ここに並びます",
+    "none": "まだ何もありません。報告のあるディレクトリで pitboard serve を実行すると、ここに並びます",
     "offline": "つながっていません。pitboard serve が出した URL を開き直してください"
    }
   }

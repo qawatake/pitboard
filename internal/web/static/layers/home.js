@@ -16,7 +16,7 @@ export function createHome() {
   const main = el('main', 'board');
   main.tabIndex = -1;
   main.setAttribute('aria-labelledby', 'home-title');
-  const h = el('h1', '', 'ボード');
+  const h = el('h1', '', 'pitboard');
   h.id = 'home-title';
   main.append(h, el('div', 'boards'));
   scroller.append(banner, main);
