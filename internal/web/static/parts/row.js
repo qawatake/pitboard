@@ -89,6 +89,8 @@ export function row(cx, t, opts, add) {
     cx.memo.cache.set(t.Key, c);
   }
   if (c.kids) patch(c.kids, cx.things(t.Kids));
+  // While g waits, the cursor line's links show their digits.
+  c.box.classList.toggle('nums', cx.ui.mode === 'goto' && cx.ui.cur === t.Key && !!(t.Links || []).length);
   cx.rows.set(t.Key, c.box);
   return c.box;
 }

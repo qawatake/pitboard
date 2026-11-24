@@ -90,6 +90,11 @@ type Span struct {
 	Text  string
 	Style Style
 	URL   string
+	// Target is, on a row link ([text](#id) to a row in the report), the
+	// row's id (URL is then ""); Num the digit g follows it with, on the
+	// line's own links (0: none). A link to a row no longer there is plain.
+	Target string `json:",omitempty"`
+	Num    int    `json:",omitempty"`
 }
 
 // Thing is one line of the page (and what it holds).
@@ -153,6 +158,8 @@ type Thing struct {
 	// JumpKey the letter g goes there with (JumpLetter).
 	Jump    int    `json:",omitempty"`
 	JumpKey string `json:",omitempty"`
+	// Links are a stop's row links, in order (see LinksOf).
+	Links []Link `json:",omitempty"`
 }
 
 // firstStop is the key of the line going to t goes to: t's, or the first
@@ -319,6 +326,7 @@ func (b *Board) thing(n *report.Node, comments map[int]*Comment) *Thing {
 			t.HeadWord, t.Title = head, Spans(body)
 		}
 	}
+	b.rowLinks(t.Title, nil)
 	switch n.Kind {
 	case report.KindTodo:
 		t.State = "todo"
@@ -337,6 +345,19 @@ func (b *Board) thing(n *report.Node, comments map[int]*Comment) *Thing {
 		return t
 	}
 	t.Stop = true
+	t.Links = b.LinksOf(n)
+	if len(t.Links) > 0 {
+		nums := b.LinkNums(n)
+		b.rowLinks(t.Title, nums)
+		var walk func(ts []*Thing)
+		walk = func(ts []*Thing) {
+			for _, c := range ts {
+				b.rowLinks(c.Title, nums)
+				walk(c.Subs)
+			}
+		}
+		walk(t.Body)
+	}
 	t.Seen = SeenOf(n)
 	t.Token = t.Seen.Token()
 	t.Open = StartsOpen(n)
@@ -381,6 +402,31 @@ func (b *Board) comment(t *board.Thought) *Comment {
 }
 
 var reInline = regexp.MustCompile("`([^`]+)`|\\[([^\\]]+)\\]\\(([^)]*)\\)|\\*\\*([^*]+)\\*\\*")
+
+// rowLinks makes the row links among spans what they are: a link to a
+// row in the report gets its Target (and its digit from nums); one to a
+// row no longer there is plain text.
+func (b *Board) rowLinks(spans []Span, nums map[string]int) {
+	for i := range spans {
+		s := &spans[i]
+		if s.Style != StyleLink {
+			continue
+		}
+		if s.Target != "" {
+			s.Num = nums[s.Target]
+			continue
+		}
+		id, ok := strings.CutPrefix(s.URL, "#")
+		if !ok {
+			continue
+		}
+		if !b.Known(id) {
+			s.Style, s.URL = StylePlain, ""
+			continue
+		}
+		s.URL, s.Target, s.Num = "", id, nums[id]
+	}
+}
 
 // Spans is inline Markdown as runs of styled text: code spans (without
 // backticks), links (their title, and the URL) and **bold**.

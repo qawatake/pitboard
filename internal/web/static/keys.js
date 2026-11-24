@@ -3,7 +3,7 @@
 // doing is main.js's. null: the key is not the page's (the browser's own,
 // or text being written).
 
-import { cursorComment, index } from './state.js';
+import { canGoto, cursorComment, index } from './state.js';
 
 // imeFree makes keys work with a Japanese input method left on: full-width
 // letters and symbols become their ASCII keys.
@@ -54,7 +54,7 @@ export function intentOf(e, ui, page) {
     case 'm': return { do: 'write' };
     case 'H': return ui.panel ? null : { do: 'showHidden' };
     case 'A': return ui.panel ? null : { do: 'readAll' };
-    case 'g': return ui.panel || !(page.JumpTo || []).length ? null : { do: 'startGoto' };
+    case 'g': return canGoto(ui, page) ? { do: 'startGoto' } : null;
     case 'Escape': return null;
   }
   const c = cursorComment(page, ui);

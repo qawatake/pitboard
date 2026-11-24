@@ -266,3 +266,21 @@ func setDepth(ns []*Node, depth int) {
 		}
 	}
 }
+
+// RowLink is an inline link to a row of the report: [Text](#Target).
+type RowLink struct{ Text, Target string }
+
+// reRowLink finds inline links whose target is "#…"; a code span is
+// matched first so that a link inside one is not taken.
+var reRowLink = regexp.MustCompile("`[^`]+`|\\[([^\\]]+)\\]\\(#([^)]*)\\)")
+
+// RowLinks is the row links in text (inline Markdown), in order.
+func RowLinks(text string) []RowLink {
+	var out []RowLink
+	for _, m := range reRowLink.FindAllStringSubmatch(text, -1) {
+		if m[1] != "" || m[2] != "" {
+			out = append(out, RowLink{Text: m[1], Target: m[2]})
+		}
+	}
+	return out
+}

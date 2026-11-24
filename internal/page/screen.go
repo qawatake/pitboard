@@ -77,7 +77,7 @@ func Enums() map[string][]string {
 		actions = append(actions, at.Field(i).Name)
 	}
 	var hints []string
-	for _, h := range []string{"open", "close", "read", "answer", "wait", "comment", "hide",
+	for _, h := range []string{"open", "close", "read", "answer", "wait", "comment", "hide", "link", "back",
 		"undo", "next", "jump", "send", "write", "keys", "edit", "retract", "place", "stop", "newline"} {
 		hints = append(hints, h)
 	}
@@ -110,12 +110,14 @@ var Refusals = map[string]string{
 }
 
 // The order a screen leaves keys out in when its line of keys has no room,
-// lowest first; a key without a rank is kept: u, then x and space, then m
+// lowest first; a key without a rank is kept: g 1 (a line's one link,
+// there to be learned), u, then x and space, then m
 // and ?, g, enter, r and an answer, c. enter and g outlast m and ?
 // (on a phone the line's own keys matter more than the page's). The
 // terminal keeps x longer before the person moves (see its hints).
 const (
-	RankUndo = iota + 1
+	RankLink = iota + 1
+	RankUndo
 	RankHide
 	RankPage
 	RankJump
@@ -127,7 +129,9 @@ const (
 // DropRank is the rank of the key that does do (0: kept).
 func DropRank(do string) int {
 	switch do {
-	case "undo":
+	case "link":
+		return RankLink
+	case "undo", "back":
 		return RankUndo
 	case "hide", "next":
 		return RankHide

@@ -193,7 +193,7 @@ func (a *app) editorLines(pad bool) []string {
 	var changed text
 	if a.in.id != "" {
 		if n := report.ByID(a.rep.Nodes, a.in.id); n == nil || n.Title() != a.in.title {
-			changed = plainText("この行は書き換わりました", magenta)
+			changed = plainText("この行は書き換わりました", cNeed)
 		}
 	}
 	ind := a.in.ind
@@ -201,7 +201,7 @@ func (a *app) editorLines(pad bool) []string {
 	// one, and ❯ before the text.
 	var label text
 	if a.in.showLabel && a.in.label != "" {
-		label = plainText(a.in.label, cyan+bold)
+		label = plainText(a.in.label, cStructure+bold)
 	}
 	var out []string
 	if pad {

@@ -37,7 +37,15 @@ func (a *app) bottomLines(n int) []string {
 // in two parts (what happened, and why with how to fix it) is split at
 // "\n" when it does not fit on one line.
 func (a *app) msgRows(msg string, right text) []string {
-	one := func(s string) text { return plainText(strings.Join(strings.Fields(s), " "), magenta) }
+	// A refusal (why a key did nothing) needs the person; any other
+	// message is the normal color.
+	st := ""
+	for _, r := range page.Refusals {
+		if strings.TrimSpace(msg) == r {
+			st = cNeed
+		}
+	}
+	one := func(s string) text { return plainText(strings.Join(strings.Fields(s), " "), st) }
 	t := one(msg)
 	if t.width() <= a.room(0, right) {
 		return []string{a.compose(false, 0, nil, t, right)}
@@ -63,6 +71,8 @@ func (a *app) helpRows() []row {
 		{"", "報告のいちばん上からさらに k で、上に固定されたお知らせへ"},
 		{"", "日本語入力のままでも、ctrl+n ctrl+p と全角の英字 (ｊ ｙ など) が効く"},
 		{"g", "節へ飛ぶ: お知らせ・節・いちばん外の折りたたみに a b c … が付く。その字で、そこの最初の行へ (見出しを画面の上に)。esc でやめる"},
+		{"g 1 … 9", "カーソルの行の中のリンク (別の行を指すもの) を、出てくる順に 1 から。その数字で、指す行へ (折りたたみは開く)"},
+		{"g -", "戻る: g で飛ぶ前の行へ (飛ぶたびに覚え、新しい順に戻る)"},
 		{"", "開いた中身が画面より高ければ、j k は次 (前) の行へ移る前に、間を半画面ずつスクロールする (カーソルは動かず、画面の外に出ることもある。そのとき x r c と答えのキーは、まずカーソルの行を画面に戻す)。k は j で読み下った中身を同じように読み上る"},
 		{"space", "カーソルより下で、いちばん近い印のある行 (黄の ●・人待ちの項目・緑の ●) へ。下に無ければ上から。折りたたみは開く"},
 		{"r", "読んだ: カーソルの行の緑の ● (右上の「未読」) を消す (カーソルを当てる・開くだけでは消えない。答え・コメント・x でも消える)"},

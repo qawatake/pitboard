@@ -37,6 +37,7 @@ export function initial() {
     mode: 'normal', panel: false, editor: null, image: 0,
     status: '', statusTone: '', statusSeq: 0, conn: 'live', connMsg: '', showHidden: false,
     offer: null, busy: false, unpinned: {}, reportCur: null, going: '',
+    back: [],
   };
 }
 
@@ -180,10 +181,37 @@ export function closePanel(ui) {
   return out;
 }
 
+// canGoto says whether g has anywhere to go: a place, a link of the
+// cursor's line, or back.
+export function canGoto(ui, page) {
+  if (ui.panel || !page) return false;
+  const t = index(page).things.get(ui.cur);
+  return !!((page.JumpTo || []).length || (t && (t.Links || []).some((l) => l.Num)) || (ui.back || []).length);
+}
+
 export function startGoto(ui, page) {
-  if (ui.panel || !((page && page.JumpTo) || []).length) return ui;
+  if (!canGoto(ui, page)) return ui;
   return { ...ui, mode: 'goto' };
 }
+
+// linkOf is the cursor line's link digit k follows (null none).
+export function linkOf(page, ui, k) {
+  const t = index(page).things.get(ui.cur);
+  return ((t && t.Links) || []).find((l) => l.Num && String(l.Num) === k) || null;
+}
+
+// follow is where a link to row id target goes: the line's key and the
+// Folds around it to open (outermost first); null when the line is not
+// on the page (hidden, while hidden lines are not shown).
+export function follow(page, target) {
+  const i = index(page);
+  const key = i.byTarget.get(target);
+  return key ? { key, up: i.parents.get(key) || [] } : null;
+}
+
+// remember is ui with where it is now (the cursor, the scroll) pushed for
+// g - to come back to (20 at most).
+export const remember = (ui, y) => ({ ...ui, back: [...(ui.back || []), { cur: ui.cur, y }].slice(-20) });
 export const endGoto = (ui) => ({ ...ui, mode: base(ui) });
 
 // jumpOf is the place g goes to with letter k (null none).

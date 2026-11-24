@@ -116,6 +116,14 @@ type reportParser struct {
 	ids     map[string]int
 	notices int // how many Notice parts so far
 	nodes   []*Node
+	// links is every row link ([text](#id)) read, with its line: checked
+	// against the ids once the whole report is read.
+	links []lineLink
+}
+
+type lineLink struct {
+	line   int
+	target string
 }
 
 func (p *reportParser) errf(line int, format string, args ...any) {
@@ -183,6 +191,11 @@ func parseReportUnsafe(src string) ([]*Node, []Problem) {
 		p.errLost(f.line, "<%s> is not closed", f.name)
 		p.pop()
 	}
+	for _, l := range p.links {
+		if p.ids[l.target] == 0 {
+			p.errf(l.line, "link to #%s: no row has id %q (a row link [text](#id) goes to an Item, Ask, Link, Notice or Fold of this report)", l.target, l.target)
+		}
+	}
 	assignKeys(p.nodes)
 	setDepth(p.nodes, 0)
 	sort.SliceStable(p.probs, func(i, j int) bool { return p.probs[i].Line < p.probs[j].Line })
@@ -212,6 +225,9 @@ func (p *reportParser) line(no int, raw string) {
 		}
 	}
 
+	for _, l := range RowLinks(trim) {
+		p.links = append(p.links, lineLink{no, l.Target})
+	}
 	p.indent = len(raw) - len(strings.TrimLeft(raw, " \t"))
 	p.brk = strings.HasSuffix(raw, "  ") || strings.HasSuffix(trim, "\\")
 	switch {

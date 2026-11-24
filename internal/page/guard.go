@@ -167,7 +167,7 @@ func (b *Board) Allow(n *report.Node, key string, t Touch) Verdict {
 // Hint is a key offered on the cursor's line, and what it does there.
 type Hint struct {
 	// Do says which it is: open, close, read, answer, wait (placed: j k,
-	// and why), comment, hide.
+	// and why), comment, hide, link (g 1: where the line's one link goes), back.
 	Do   string
 	Key  string
 	Word string
@@ -233,10 +233,16 @@ func (b *Board) Offer(n *report.Node, t Touch) Offer {
 			hide = []Hint{{"hide", "x", "隠す"}}
 		}
 	}
+	// A line with one row link says where g 1 goes (the person learns
+	// links can be followed); with more, g lists them.
+	var link []Hint
+	if ls := b.LinksOf(n); !t.Locked && len(ls) == 1 {
+		link = []Hint{{"link", "g 1", b.LinkHintWord(ls[0], LinkHintMax)}}
+	}
 	if askOpen {
-		o.Hints = slices.Concat(answer, enter, read, write, hide)
+		o.Hints = slices.Concat(answer, enter, read, write, hide, link)
 	} else {
-		o.Hints = slices.Concat(enter, read, answer, write, hide)
+		o.Hints = slices.Concat(enter, read, answer, write, hide, link)
 	}
 	if t.Settling() && !t.Locked {
 		o.Recheck = SettleDelay - t.Shown

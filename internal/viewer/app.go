@@ -35,7 +35,7 @@ type view struct {
 	lock bool
 	// placed is set when the viewer put the cursor on a line by itself (at
 	// start, or when stops appear on a page that had none). The person has
-	// not pointed at that line, so y, n and options wait for j/k.
+	// not pointed at that line, so options wait for j/k.
 	placed bool
 	// showHidden draws the lines the person hid faintly instead of leaving
 	// them out (H).
@@ -44,7 +44,7 @@ type view struct {
 	b *page.Board
 	// auto is the line the viewer moved the cursor to by itself (after x or
 	// H took the cursor's line away), and autoAt when a frame first showed
-	// the cursor there. Until settleDelay has passed since, x y n and options
+	// the cursor there. Until settleDelay has passed since, x and options
 	// are dropped: a key pressed twice, or pressed before the screen showed
 	// the new line, must not act on a line the person has not seen.
 	auto   string
@@ -57,10 +57,22 @@ type view struct {
 	atEnd bool
 	// viewH is how many rows of the page the last frame showed, of rowCount.
 	viewH, rowCount int
+	// back is where each jump g made came from, the latest last (- in
+	// goto mode goes back to it).
+	back []backPos
 }
 
+// backPos is a place a jump left: the cursor's line and the page's top.
+type backPos struct {
+	cur string
+	top int
+}
+
+// maxBack is how many places back remembers.
+const maxBack = 20
+
 // settleDelay is how long a line the viewer moved the cursor to must have
-// been on screen before x y n and options work on it.
+// been on screen before x and options work on it.
 const settleDelay = page.SettleDelay
 
 // clock is the time (tests replace it).
@@ -115,6 +127,10 @@ type app struct {
 	// is the places, lettered when g was pressed.
 	jumping bool
 	jumpTo  []*report.Node
+	// jumpLinks is, while g waits, the cursor line's row links (their
+	// digits); linkNums the same by target while the rows are drawn.
+	jumpLinks []page.Link
+	linkNums  map[string]int
 	// kbd is set when the terminal answered that it tells keys apart
 	// (kitty keyboard protocol): shift+enter is then a key of its own.
 	kbd  bool

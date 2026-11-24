@@ -10,7 +10,7 @@
 - 各モジュールは描く関数の隣に、静的なデータとして書く:
   - `export const variants = [{name: '…', fixture, pick, open, ui, w, h, …}]`。`name` は文字列そのまま (`go test` が読む)
   - `export const covers = {軸: {値: [変種の name]}}`: データの型のどの値を、どの変種が見せるか
-  - `export const differences = {名前: [変種の name]}`: enum でない見た目の違い (`rights-below` `unpinned` `under-band` `under-bar` `at-bottom` `focus-bar` `loose-editor` `editor-empty` `edit-comment` `panel-scrolled` `help-scrolled` `image-large` `message` `sent` `index-none` `index-several` `index-gone`)
+  - `export const differences = {名前: [変種の name]}`: enum でない見た目の違い (`rights-below` `unpinned` `under-band` `under-bar` `at-bottom` `focus-bar` `loose-editor` `editor-empty` `edit-comment` `content-above-float` `link-digits` `panel-scrolled` `help-scrolled` `image-large` `message` `sent` `index-none` `index-several` `index-gone`)
 - 部品に固有でない軸 (カーソルが乗っている・幅 1280 / 390・明暗) は一覧に書かない。ギャラリーがすべての変種にかける。変種が自分の幅や高さを決めるときは `w` `h`
 - データは手で書かない: `internal/web/gallery_test.go` が小さな報告と操作の列から `page` の JSON を作り、`static/gallery/fixtures.json` に置く (dense・comments・hidden・long・problems・empty・noreport・nosession、一覧のページの none・several・gone、断りの文、送ったあとの文)。ページは新しいタブが見るとおり (`u` は無い)。操作したタブのバーは `UndoMore`。コードが変われば `TestGalleryFixtures` が落ちる。作り直しは `go test ./internal/web -run TestGalleryFixtures -update`
 - 漏れは 2 段で見つける:

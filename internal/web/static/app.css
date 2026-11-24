@@ -229,6 +229,15 @@ pre.code .cl { display: block; white-space: pre-wrap; overflow-wrap: anywhere; w
 .gut { color: var(--structure); font-weight: 800; }
 .row.cur > .rowbtn > .gut:empty::before { content: ">"; }
 .rowbtn:focus, .rowbtn:focus-visible, .board:focus, .board:focus-visible { outline: none; }
+/* A link to a row of the report: structure, underlined on hover and
+   focus; its digit only while g waits on its line. */
+.rowlink { color: var(--structure); }
+button.rowlink { all: unset; color: var(--structure); cursor: pointer; }
+button.rowlink:hover, button.rowlink:focus-visible, .rowbtn:hover .rowlink { text-decoration: underline; }
+button.rowlink:focus-visible { outline: 2px solid var(--structure); outline-offset: 1px; }
+.linknum { display: none; margin-right: .15em; }
+.row.nums .linknum { display: inline; }
+.row.nums .row:not(.nums) .linknum { display: none; }
 .jumpkey { color: var(--structure); font-weight: 700; font-family: ui-monospace, Menlo, monospace; }
 .jumpkey.hang { position: absolute; left: calc(-1 * var(--gw)); width: var(--cw); font-size: 1rem; }
 .dot { font-size: .8em; }

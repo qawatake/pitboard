@@ -318,7 +318,7 @@ inbox を広げた pitboard を作る。いまは **報告の書き方** を決�
     <Option key="n">直してから</Option>
   </Ask>
   <Item id="reply" look="y">> 左の印の列をどこに置くか
-    ページの左の余白に置く。題の文の左端は見出しとそろえる。
+    ページの左の余白に置く。題の文の左端は見出しとそろえる。作業は [ブラウザ版を部品に分ける](#web) で。
   </Item>
   <Item id="parts" status="あなた待ち" wait="you" note="上の問いの答え">部品の一覧を決める</Item>
 </Section>
@@ -353,7 +353,7 @@ inbox を広げた pitboard を作る。いまは **報告の書き方** を決�
   go test ./...
   </Code>
   - ただの行
-  - もう 1 つのただの行
+  - もう 1 つのただの行。仕様は [最小版の仕様](#spec)
 </Section>
 
 <Section title="あとで">

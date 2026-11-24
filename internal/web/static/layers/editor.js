@@ -60,7 +60,7 @@ const long = Array.from({ length: 8 }, (_, i) => `${i + 1} 行目`).join('\n');
 
 export const covers = {"mode": {"editor": ["on a line"]}, "hint": {"place": ["on a line"], "stop": ["on a line"], "newline": ["on a line"]}};
 
-export const differences = {"loose-editor": ["m: a comment on no line, floating", "m: long text grows upward"], "editor-empty": ["empty, on a line"], "edit-comment": ["editing a comment in the panel"]};
+export const differences = {"loose-editor": ["m: a comment on no line, floating", "m: long text grows upward"], "editor-empty": ["empty, on a line"], "edit-comment": ["editing a comment in the panel"], "content-above-float": ["m: long text and an image over a tall page, scrolled to its end"]};
 
 export const variants = [
   { name: 'on a line', ui: { cur: 'hook', mode: 'editor', editor: { kind: 'comment', key: 'hook', at: 'hook', label: '「hook を入れるか決める」にコメント', text: '入れてよい' } }, responsive: true },
@@ -73,4 +73,5 @@ export const variants = [
   { name: 'one tall image', fixture: 'comments', ui: { cur: 'c1', mode: 'editor', editor: { kind: 'comment', key: 'c1', at: 'c1', label: '「未送信のコメントのある行」にコメント', text: '縦長 [Image #3]' } }, responsive: true },
   { name: 'three images', fixture: 'comments', ui: { cur: 'c1', mode: 'editor', editor: { kind: 'comment', key: 'c1', at: 'c1', label: '「未送信のコメントのある行」にコメント', text: '前 [Image #1] 後 [Image #3] 全体 [Image #2]' } }, responsive: true },
   { name: 'editing a comment in the panel', fixture: 'comments', ui: { panel: true, cur: '#l:first', mode: 'editor', editor: { kind: 'edit', at: '#l:first', label: 'コメントを直す', text: '同じ行への 2 つ目' } } },
+  { name: 'm: long text and an image over a tall page, scrolled to its end', ui: { cur: 'hook', mode: 'editor', editor: { kind: 'comment', key: '', at: 'hook', label: '宛先なしのコメント', text: long + '\n[Image #2]' } }, scroll: 'bottom', responsive: true },
 ];

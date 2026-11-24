@@ -19,6 +19,8 @@
    "wait",
    "comment",
    "hide",
+   "link",
+   "back",
    "undo",
    "next",
    "jump",
@@ -943,11 +945,13 @@
     "Dir": "~/dev/sample",
     "ImageMax": 20971520,
     "Words": {
+     "back": "戻る",
      "close": "閉じる",
      "go": "行へ",
      "gone": "この pitboard は見つからなくなりました。そのディレクトリで pitboard serve をもう一度動かすと戻ります",
      "imageTooLarge": "画像が大きすぎるので貼りませんでした (20 MiB まで)",
      "jumping": "飛ぶ先の字を押してください (esc やめる)",
+     "linkHidden": "隠した行です。H で表示すると行けます",
      "noComments": "コメントはまだありません。m で書けます",
      "noMarked": "印のある行はありません",
      "notSent": "まだ送っていません (s で送る)",
@@ -1046,17 +1050,19 @@
      }
     ],
     "Drop": {
-     "answer": 6,
-     "close": 5,
-     "comment": 7,
-     "hide": 2,
-     "jump": 4,
-     "keys": 3,
-     "next": 2,
-     "open": 5,
-     "read": 6,
-     "undo": 1,
-     "write": 3
+     "answer": 7,
+     "back": 2,
+     "close": 6,
+     "comment": 8,
+     "hide": 3,
+     "jump": 5,
+     "keys": 4,
+     "link": 1,
+     "next": 3,
+     "open": 6,
+     "read": 7,
+     "undo": 2,
+     "write": 4
     }
    },
    "Offers": {
@@ -2002,11 +2008,30 @@
           "Kind": "para",
           "Title": [
            {
-            "Text": "ページの左の余白に置く。題の文の左端は見出しとそろえる。",
+            "Text": "ページの左の余白に置く。題の文の左端は見出しとそろえる。作業は ",
+            "Style": "plain",
+            "URL": ""
+           },
+           {
+            "Text": "ブラウザ版を部品に分ける",
+            "Style": "link",
+            "URL": "",
+            "Target": "web",
+            "Num": 1
+           },
+           {
+            "Text": " で。",
             "Style": "plain",
             "URL": ""
            }
           ]
+         }
+        ],
+        "Links": [
+         {
+          "Text": "ブラウザ版を部品に分ける",
+          "Target": "web",
+          "Num": 1
          }
         ]
        },
@@ -2426,12 +2451,19 @@
        },
        {
         "Kind": "list",
-        "Key": "-1:もう 1 つのただの行",
+        "Key": "-1:もう 1 つのただの行。仕様は [最小版の仕様](#spec)",
         "Title": [
          {
-          "Text": "もう 1 つのただの行",
+          "Text": "もう 1 つのただの行。仕様は ",
           "Style": "plain",
           "URL": ""
+         },
+         {
+          "Text": "最小版の仕様",
+          "Style": "link",
+          "URL": "",
+          "Target": "spec",
+          "Num": 1
          }
         ],
         "Stop": true,
@@ -2443,7 +2475,14 @@
         },
         "Sign": "·",
         "OpenSign": "·",
-        "Token": "tok-20"
+        "Token": "tok-20",
+        "Links": [
+         {
+          "Text": "最小版の仕様",
+          "Target": "spec",
+          "Num": 1
+         }
+        ]
        }
       ],
       "Jump": 5,
@@ -2667,11 +2706,13 @@
     "Dir": "~/dev/sample",
     "ImageMax": 20971520,
     "Words": {
+     "back": "戻る",
      "close": "閉じる",
      "go": "行へ",
      "gone": "この pitboard は見つからなくなりました。そのディレクトリで pitboard serve をもう一度動かすと戻ります",
      "imageTooLarge": "画像が大きすぎるので貼りませんでした (20 MiB まで)",
      "jumping": "飛ぶ先の字を押してください (esc やめる)",
+     "linkHidden": "隠した行です。H で表示すると行けます",
      "noComments": "コメントはまだありません。m で書けます",
      "noMarked": "印のある行はありません",
      "notSent": "まだ送っていません (s で送る)",
@@ -2770,17 +2811,19 @@
      }
     ],
     "Drop": {
-     "answer": 6,
-     "close": 5,
-     "comment": 7,
-     "hide": 2,
-     "jump": 4,
-     "keys": 3,
-     "next": 2,
-     "open": 5,
-     "read": 6,
-     "undo": 1,
-     "write": 3
+     "answer": 7,
+     "back": 2,
+     "close": 6,
+     "comment": 8,
+     "hide": 3,
+     "jump": 5,
+     "keys": 4,
+     "link": 1,
+     "next": 3,
+     "open": 6,
+     "read": 7,
+     "undo": 2,
+     "write": 4
     }
    },
    "Offers": {
@@ -2836,13 +2879,18 @@
       "Locked": false
      }
     },
-    "-1:もう 1 つのただの行": {
+    "-1:もう 1 つのただの行。仕様は [最小版の仕様](#spec)": {
      "Closed": {
       "Hints": [
        {
         "Do": "hide",
         "Key": "x",
         "Word": "隠す"
+       },
+       {
+        "Do": "link",
+        "Key": "g 1",
+        "Word": "→ 最小版の仕様"
        }
       ],
       "Options": null,
@@ -2855,6 +2903,11 @@
         "Do": "hide",
         "Key": "x",
         "Word": "隠す"
+       },
+       {
+        "Do": "link",
+        "Key": "g 1",
+        "Word": "→ 最小版の仕様"
        }
       ],
       "Options": null,
@@ -3404,6 +3457,11 @@
         "Do": "hide",
         "Key": "x",
         "Word": "隠す"
+       },
+       {
+        "Do": "link",
+        "Key": "g 1",
+        "Word": "→ ブラウザ版を部品に分ける"
        }
       ],
       "Options": null,
@@ -3431,6 +3489,11 @@
         "Do": "hide",
         "Key": "x",
         "Word": "隠す"
+       },
+       {
+        "Do": "link",
+        "Key": "g 1",
+        "Word": "→ ブラウザ版を部品に分ける"
        }
       ],
       "Options": null,
@@ -3736,12 +3799,17 @@
      "Recheck": 0,
      "Locked": false
     },
-    "-1:もう 1 つのただの行": {
+    "-1:もう 1 つのただの行。仕様は [最小版の仕様](#spec)": {
      "Hints": [
       {
        "Do": "hide",
        "Key": "x",
        "Word": "隠す"
+      },
+      {
+       "Do": "link",
+       "Key": "g 1",
+       "Word": "→ 最小版の仕様"
       }
      ],
      "Options": null,
@@ -4013,6 +4081,11 @@
        "Do": "hide",
        "Key": "x",
        "Word": "隠す"
+      },
+      {
+       "Do": "link",
+       "Key": "g 1",
+       "Word": "→ ブラウザ版を部品に分ける"
       }
      ],
      "Options": null,
@@ -4167,12 +4240,17 @@
      "Recheck": 0,
      "Locked": false
     },
-    "-1:もう 1 つのただの行": {
+    "-1:もう 1 つのただの行。仕様は [最小版の仕様](#spec)": {
      "Hints": [
       {
        "Do": "hide",
        "Key": "x",
        "Word": "隠す"
+      },
+      {
+       "Do": "link",
+       "Key": "g 1",
+       "Word": "→ 最小版の仕様"
       }
      ],
      "Options": null,
@@ -4449,6 +4527,11 @@
        "Do": "hide",
        "Key": "x",
        "Word": "隠す"
+      },
+      {
+       "Do": "link",
+       "Key": "g 1",
+       "Word": "→ ブラウザ版を部品に分ける"
       }
      ],
      "Options": null,
@@ -4631,11 +4714,13 @@
     "Dir": "~/dev/sample",
     "ImageMax": 20971520,
     "Words": {
+     "back": "戻る",
      "close": "閉じる",
      "go": "行へ",
      "gone": "この pitboard は見つからなくなりました。そのディレクトリで pitboard serve をもう一度動かすと戻ります",
      "imageTooLarge": "画像が大きすぎるので貼りませんでした (20 MiB まで)",
      "jumping": "飛ぶ先の字を押してください (esc やめる)",
+     "linkHidden": "隠した行です。H で表示すると行けます",
      "noComments": "コメントはまだありません。m で書けます",
      "noMarked": "印のある行はありません",
      "notSent": "まだ送っていません (s で送る)",
@@ -4718,17 +4803,19 @@
      }
     ],
     "Drop": {
-     "answer": 6,
-     "close": 5,
-     "comment": 7,
-     "hide": 2,
-     "jump": 4,
-     "keys": 3,
-     "next": 2,
-     "open": 5,
-     "read": 6,
-     "undo": 1,
-     "write": 3
+     "answer": 7,
+     "back": 2,
+     "close": 6,
+     "comment": 8,
+     "hide": 3,
+     "jump": 5,
+     "keys": 4,
+     "link": 1,
+     "next": 3,
+     "open": 6,
+     "read": 7,
+     "undo": 2,
+     "write": 4
     }
    }
   },
@@ -5056,11 +5143,13 @@
     "Dir": "~/dev/sample",
     "ImageMax": 20971520,
     "Words": {
+     "back": "戻る",
      "close": "閉じる",
      "go": "行へ",
      "gone": "この pitboard は見つからなくなりました。そのディレクトリで pitboard serve をもう一度動かすと戻ります",
      "imageTooLarge": "画像が大きすぎるので貼りませんでした (20 MiB まで)",
      "jumping": "飛ぶ先の字を押してください (esc やめる)",
+     "linkHidden": "隠した行です。H で表示すると行けます",
      "noComments": "コメントはまだありません。m で書けます",
      "noMarked": "印のある行はありません",
      "notSent": "まだ送っていません (s で送る)",
@@ -5154,17 +5243,19 @@
      }
     ],
     "Drop": {
-     "answer": 6,
-     "close": 5,
-     "comment": 7,
-     "hide": 2,
-     "jump": 4,
-     "keys": 3,
-     "next": 2,
-     "open": 5,
-     "read": 6,
-     "undo": 1,
-     "write": 3
+     "answer": 7,
+     "back": 2,
+     "close": 6,
+     "comment": 8,
+     "hide": 3,
+     "jump": 5,
+     "keys": 4,
+     "link": 1,
+     "next": 3,
+     "open": 6,
+     "read": 7,
+     "undo": 2,
+     "write": 4
     }
    },
    "Offers": {
@@ -5869,11 +5960,13 @@
     "Dir": "~/dev/sample",
     "ImageMax": 20971520,
     "Words": {
+     "back": "戻る",
      "close": "閉じる",
      "go": "行へ",
      "gone": "この pitboard は見つからなくなりました。そのディレクトリで pitboard serve をもう一度動かすと戻ります",
      "imageTooLarge": "画像が大きすぎるので貼りませんでした (20 MiB まで)",
      "jumping": "飛ぶ先の字を押してください (esc やめる)",
+     "linkHidden": "隠した行です。H で表示すると行けます",
      "noComments": "コメントはまだありません。m で書けます",
      "noMarked": "印のある行はありません",
      "notSent": "まだ送っていません (s で送る)",
@@ -5962,17 +6055,19 @@
      }
     ],
     "Drop": {
-     "answer": 6,
-     "close": 5,
-     "comment": 7,
-     "hide": 2,
-     "jump": 4,
-     "keys": 3,
-     "next": 2,
-     "open": 5,
-     "read": 6,
-     "undo": 1,
-     "write": 3
+     "answer": 7,
+     "back": 2,
+     "close": 6,
+     "comment": 8,
+     "hide": 3,
+     "jump": 5,
+     "keys": 4,
+     "link": 1,
+     "next": 3,
+     "open": 6,
+     "read": 7,
+     "undo": 2,
+     "write": 4
     }
    },
    "Offers": {
@@ -6477,11 +6572,13 @@
     "Dir": "~/dev/sample",
     "ImageMax": 20971520,
     "Words": {
+     "back": "戻る",
      "close": "閉じる",
      "go": "行へ",
      "gone": "この pitboard は見つからなくなりました。そのディレクトリで pitboard serve をもう一度動かすと戻ります",
      "imageTooLarge": "画像が大きすぎるので貼りませんでした (20 MiB まで)",
      "jumping": "飛ぶ先の字を押してください (esc やめる)",
+     "linkHidden": "隠した行です。H で表示すると行けます",
      "noComments": "コメントはまだありません。m で書けます",
      "noMarked": "印のある行はありません",
      "notSent": "まだ送っていません (s で送る)",
@@ -6580,17 +6677,19 @@
      }
     ],
     "Drop": {
-     "answer": 6,
-     "close": 5,
-     "comment": 7,
-     "hide": 2,
-     "jump": 4,
-     "keys": 3,
-     "next": 2,
-     "open": 5,
-     "read": 6,
-     "undo": 1,
-     "write": 3
+     "answer": 7,
+     "back": 2,
+     "close": 6,
+     "comment": 8,
+     "hide": 3,
+     "jump": 5,
+     "keys": 4,
+     "link": 1,
+     "next": 3,
+     "open": 6,
+     "read": 7,
+     "undo": 2,
+     "write": 4
     }
    },
    "Offers": {
@@ -6846,11 +6945,13 @@
     "Dir": "~/dev/sample",
     "ImageMax": 20971520,
     "Words": {
+     "back": "戻る",
      "close": "閉じる",
      "go": "行へ",
      "gone": "この pitboard は見つからなくなりました。そのディレクトリで pitboard serve をもう一度動かすと戻ります",
      "imageTooLarge": "画像が大きすぎるので貼りませんでした (20 MiB まで)",
      "jumping": "飛ぶ先の字を押してください (esc やめる)",
+     "linkHidden": "隠した行です。H で表示すると行けます",
      "noComments": "コメントはまだありません。m で書けます",
      "noMarked": "印のある行はありません",
      "notSent": "まだ送っていません (s で送る)",
@@ -6933,17 +7034,19 @@
      }
     ],
     "Drop": {
-     "answer": 6,
-     "close": 5,
-     "comment": 7,
-     "hide": 2,
-     "jump": 4,
-     "keys": 3,
-     "next": 2,
-     "open": 5,
-     "read": 6,
-     "undo": 1,
-     "write": 3
+     "answer": 7,
+     "back": 2,
+     "close": 6,
+     "comment": 8,
+     "hide": 3,
+     "jump": 5,
+     "keys": 4,
+     "link": 1,
+     "next": 3,
+     "open": 6,
+     "read": 7,
+     "undo": 2,
+     "write": 4
     }
    }
   },
@@ -6972,11 +7075,13 @@
     "Dir": "~/dev/sample",
     "ImageMax": 20971520,
     "Words": {
+     "back": "戻る",
      "close": "閉じる",
      "go": "行へ",
      "gone": "この pitboard は見つからなくなりました。そのディレクトリで pitboard serve をもう一度動かすと戻ります",
      "imageTooLarge": "画像が大きすぎるので貼りませんでした (20 MiB まで)",
      "jumping": "飛ぶ先の字を押してください (esc やめる)",
+     "linkHidden": "隠した行です。H で表示すると行けます",
      "noComments": "コメントはまだありません。m で書けます",
      "noMarked": "印のある行はありません",
      "notSent": "まだ送っていません (s で送る)",
@@ -7043,17 +7148,19 @@
      }
     ],
     "Drop": {
-     "answer": 6,
-     "close": 5,
-     "comment": 7,
-     "hide": 2,
-     "jump": 4,
-     "keys": 3,
-     "next": 2,
-     "open": 5,
-     "read": 6,
-     "undo": 1,
-     "write": 3
+     "answer": 7,
+     "back": 2,
+     "close": 6,
+     "comment": 8,
+     "hide": 3,
+     "jump": 5,
+     "keys": 4,
+     "link": 1,
+     "next": 3,
+     "open": 6,
+     "read": 7,
+     "undo": 2,
+     "write": 4
     }
    }
   },
@@ -7160,11 +7267,13 @@
     "Dir": "~/dev/sample",
     "ImageMax": 20971520,
     "Words": {
+     "back": "戻る",
      "close": "閉じる",
      "go": "行へ",
      "gone": "この pitboard は見つからなくなりました。そのディレクトリで pitboard serve をもう一度動かすと戻ります",
      "imageTooLarge": "画像が大きすぎるので貼りませんでした (20 MiB まで)",
      "jumping": "飛ぶ先の字を押してください (esc やめる)",
+     "linkHidden": "隠した行です。H で表示すると行けます",
      "noComments": "コメントはまだありません。m で書けます",
      "noMarked": "印のある行はありません",
      "notSent": "まだ送っていません (s で送る)",
@@ -7253,17 +7362,19 @@
      }
     ],
     "Drop": {
-     "answer": 6,
-     "close": 5,
-     "comment": 7,
-     "hide": 2,
-     "jump": 4,
-     "keys": 3,
-     "next": 2,
-     "open": 5,
-     "read": 6,
-     "undo": 1,
-     "write": 3
+     "answer": 7,
+     "back": 2,
+     "close": 6,
+     "comment": 8,
+     "hide": 3,
+     "jump": 5,
+     "keys": 4,
+     "link": 1,
+     "next": 3,
+     "open": 6,
+     "read": 7,
+     "undo": 2,
+     "write": 4
     }
    },
    "Offers": {

@@ -24,7 +24,7 @@
 // scripts/web-gallery.sh fails on any, and compares a few stories with the
 // live page put in the same state.
 
-import { createApp, newMemo, render, renderPart, fit, PARTS, LAYERS } from '../render.js';
+import { createApp, newMemo, render, renderPart, fit, pad, PARTS, LAYERS } from '../render.js';
 import { createHome, draw as drawHome } from '../layers/home.js';
 import * as home from '../layers/home.js';
 import * as pages from './pages.js';
@@ -130,6 +130,16 @@ export const DIFFS = {
   'under-bar': (a) => straddles(a, a.querySelector('.foot').getBoundingClientRect().top),
   'at-bottom': (a) => { const s = a.querySelector('.scroller'); return s.scrollTop > 0 && s.scrollTop + s.clientHeight >= s.scrollHeight - 1; },
   'focus-bar': (a) => { const f = document.activeElement; return !!f && a.contains(f) && !!f.closest('.bar') && f.matches(':focus-visible') && getComputedStyle(f).outlineStyle !== 'none'; },
+  // A floating layer open over a page scrolled to its end: the last line
+  // of the page is above the layer, not under it.
+  // g on a line with links: the digits show on that line only.
+  'link-digits': (a) => all(a, '.row.nums .linknum').some(visible) && !all(a, '.linknum').some((n) => visible(n) && !n.closest('.row.nums')),
+  'content-above-float': (a) => {
+    const f = a.querySelector('.editor.loose'); const s = a.querySelector('.scroller');
+    const rows = all(a, '.board .row');
+    if (!f || !visible(f) || !rows.length || s.scrollTop <= 0 || s.scrollTop + s.clientHeight < s.scrollHeight - 1) return false;
+    return rows[rows.length - 1].getBoundingClientRect().bottom <= f.getBoundingClientRect().top + 1;
+  },
   'loose-editor': (a) => all(a, '.editor.loose textarea').length > 0 && floatsLow(a, a.querySelector('.editor.loose')),
   'editor-empty': (a) => all(a, '.editor textarea').some((t) => t.value === ''),
   'edit-comment': (a) => all(a, '.cpanel .crow > .editor textarea').length > 0,
@@ -249,10 +259,10 @@ function draw(kind, v, app, st) {
     return;
   }
   render(app, st.page, st.ui, memo, env);
-  app.style.setProperty('--foot-h', app.querySelector('.foot').offsetHeight + 'px');
+  pad(app);
   const un = fit(app, st.page, st.ui);
   if (un) { st.ui = { ...st.ui, unpinned: un }; render(app, st.page, st.ui, memo, env); fit(app, st.page, st.ui); }
-  app.style.setProperty('--foot-h', app.querySelector('.foot').offsetHeight + 'px');
+  pad(app);
   scrolls(app, v, st.ui);
 }
 
@@ -351,6 +361,7 @@ await Promise.all([...document.images].map((i) => i.decode().catch(() => {})));
 // takes it, is read, and lets it go).
 const shown = new Map();
 for (const s of stories) {
+  if (s.kind !== 'part' && s.kind !== 'home') pad(s.app); // images in: a layer may be taller now
   scrolls(s.app, s.v, s.ui);
   if (s.v.focus) { const f = s.app.querySelector(s.v.focus); if (f) f.focus({ preventScroll: true }); }
   shown.set(s.rec.name + '\u0000' + s.rec.module, facts(s.app));

@@ -29,22 +29,21 @@ const (
 	green   = "\x1b[32m"
 	yellow  = "\x1b[33m"
 	cyan    = "\x1b[36m"
-	magenta = "\x1b[35m"
 	blue    = "\x1b[94m"
 )
 
 // The palette (page.Palette) on a terminal: each name's color. A color is
-// used for its name's meaning only. The colors kept outside it (SPEC 色:
-// inline code and the code block in cyan, the editor's label in cyan,
-// messages and format errors in magenta, g's letters in yellow, a diff's
-// @@ in cyan) are listed there, to be decided.
+// used for its name's meaning only, and nothing is colored outside it:
+// code (inline and blocks) is the normal color, the editor's label and
+// g's letters and digits are structure, a message is the normal color (a
+// refusal need), format errors bad, a diff's @@ quiet, + move, - bad.
 const (
 	cNeed      = yellow // needs the person
 	cMove      = green  // moving; unread by you
 	cQuiet     = dim    // done, waiting, secondary
 	cStructure = blue   // headings, links, the cursor
 	cYours     = cyan   // what the person entered
-	cBad       = red    // errors, n, removed
+	cBad       = red    // errors, removed
 )
 
 // palette is each page.Palette name's color here.

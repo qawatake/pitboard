@@ -83,6 +83,12 @@ Writing report.md:
                                   starts a paragraph of its own
     **...** alone on a line       a small heading (a blank line above it)
     two spaces or \ at the end    a line break (the next line is not joined)
+    [text](#id)                   a link to the row with that id (an Item,
+                                  Ask, Link, Notice or Fold of this report;
+                                  check refuses one no row has). In a title
+                                  or contents. The person follows it with g
+                                  and its digit (1-9, the line's links in
+                                  order), and comes back with g -
   Indentation counts from the first text line of the part (of an Item: its
   first line of contents). In a Section or Fold, only a first-level "- "
   line is a stop the person can hide (with its nested lines); nested and
@@ -108,6 +114,7 @@ Writing report.md:
         Yes: each project gets its own board.
         The data lives in the working directory, so boards never mix.
       </Item>
+      <Item id="a-cli" look="y">> When does the CLI come? Next: [Add the CLI](#cli)</Item>
     </Section>
 
     <Section title="In progress">
@@ -307,6 +314,9 @@ Manners:
   - Put look="y" only on lines you want the person to read: an answer you
     wrote, a result they should check. Not on lines that only tell how
     things move (progress, queued work): they need not read those.
+  - When an answer says some work is queued or in progress, link to that
+    row ([Add the CLI](#cli)) instead of restating it: the person follows
+    the link and sees it there.
   - Nothing that matters lives only in the chat: decisions, answers and
     requests to the person go in the report too.
   - The person answers on the board at their own pace (answers, thoughts,

@@ -69,6 +69,8 @@ export function items(cx) {
       }
     }
   }
+  // After a jump (g, a link): the way back.
+  if ((ui.back || []).length && !ui.panel) out.push(key(cx, { Do: 'back', Key: 'g -', Word: '← ' + cx.words('back') }));
   for (const h of page.More || []) {
     if (ui.panel && h.Do !== 'undo') continue;
     out.push(key(cx, h));
@@ -145,7 +147,7 @@ export function fit(foot) {
 
 const at = (cur, extra) => ({ cur, ...extra });
 
-export const covers = {"mode": {"normal": ["an Item: enter c x, space g, s m ?"]}, "action": {"Options": ["an open Ask: its options"], "Comment": ["an Item: enter c x, space g, s m ?"], "Hide": ["a list line: x, and room for u 元に戻す, space 次へ"], "Read": ["unread: r 読んだ"]}, "hint": {"undo": ["after an act in this tab: u 元に戻す"], "open": ["an Item: enter c x, space g, s m ?"], "close": ["an open Item: enter 閉じる"], "read": ["unread: r 読んだ"], "answer": ["an open Ask: its options"], "wait": ["placed by the page: j k 動かすと…"], "comment": ["an Item: enter c x, space g, s m ?"], "hide": ["a list line: x, and room for u 元に戻す, space 次へ"], "next": ["a list line: x, and room for u 元に戻す, space 次へ"], "jump": ["an Item: enter c x, space g, s m ?"], "send": ["an Item: enter c x, space g, s m ?"], "write": ["an Item: enter c x, space g, s m ?"], "keys": ["an Item: enter c x, space g, s m ?"]}, "refusal": {"back": ["refusal: back"], "changed": ["refusal: changed"], "emptyComment": ["refusal: emptyComment"], "moved": ["refusal: moved"], "noMarked": ["refusal: noMarked"], "placedAnswer": ["refusal: placedAnswer"], "settlingHide": ["refusal: settlingHide"], "settlingReact": ["refusal: settlingReact"], "settlingShow": ["refusal: settlingShow"], "tooLong": ["refusal: tooLong"]}};
+export const covers = {"mode": {"normal": ["an Item: enter c x, space g, s m ?"]}, "action": {"Options": ["an open Ask: its options"], "Comment": ["an Item: enter c x, space g, s m ?"], "Hide": ["a list line: x, and room for u 元に戻す, space 次へ"], "Read": ["unread: r 読んだ"]}, "hint": {"undo": ["after an act in this tab: u 元に戻す"], "open": ["an Item: enter c x, space g, s m ?"], "close": ["an open Item: enter 閉じる"], "read": ["unread: r 読んだ"], "answer": ["an open Ask: its options"], "wait": ["placed by the page: j k 動かすと…"], "comment": ["an Item: enter c x, space g, s m ?"], "hide": ["a list line: x, and room for u 元に戻す, space 次へ"], "next": ["a list line: x, and room for u 元に戻す, space 次へ"], "jump": ["an Item: enter c x, space g, s m ?"], "send": ["an Item: enter c x, space g, s m ?"], "write": ["an Item: enter c x, space g, s m ?"], "keys": ["an Item: enter c x, space g, s m ?"], "link": ["a line with one link: g 1 → where it goes"], "back": ["after a jump: g - ← 戻る"]}, "refusal": {"back": ["refusal: back"], "changed": ["refusal: changed"], "emptyComment": ["refusal: emptyComment"], "moved": ["refusal: moved"], "noMarked": ["refusal: noMarked"], "placedAnswer": ["refusal: placedAnswer"], "settlingHide": ["refusal: settlingHide"], "settlingReact": ["refusal: settlingReact"], "settlingShow": ["refusal: settlingShow"], "tooLong": ["refusal: tooLong"]}};
 
 export const differences = {"message": ["a message"], "sent": ["sent"]};
 
@@ -155,6 +157,8 @@ export const variants = [
   { name: 'an open Item: enter 閉じる', ui: at('hook'), open: ['hook'] },
   { name: 'an open Ask: its options', ui: at('where'), open: ['where'] },
   { name: 'unread: r 読んだ', ui: at('reply') },
+  { name: 'a line with one link: g 1 → where it goes', ui: at('もう 1 つのただの行。仕様は 最小版の仕様') },
+  { name: 'after a jump: g - ← 戻る', ui: at('ただの行', { back: [{ cur: 'reply', y: 0 }] }) },
   { name: 'a list line: x, and room for u 元に戻す, space 次へ', ui: at('ただの行') },
   { name: 'placed by the page: j k 動かすと…', ui: at('merge'), open: ['merge'], placed: true },
   { name: 'rewritten under the cursor', ui: at('hook'), locked: true },

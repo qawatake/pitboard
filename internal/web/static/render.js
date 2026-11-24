@@ -263,6 +263,19 @@ function lists(app) {
   }
 }
 
+// pad gives the page room at its end for what covers it at the bottom:
+// the keys (--foot-h) and, while one is open, a floating layer (the m
+// editor, the comment panel: --float-h, its height), so every line can be
+// scrolled to above them. It returns the floating layers (the live page
+// watches them grow).
+export function pad(app) {
+  app.style.setProperty('--foot-h', app.querySelector('.foot').offsetHeight + 'px');
+  const fs = [...app.querySelectorAll('.editor.loose, .cpanel:not([hidden])')];
+  const fh = Math.max(0, ...fs.map((f) => f.offsetHeight));
+  app.style.setProperty('--float-h', fh + 'px');
+  return fs;
+}
+
 // fit adjusts what needs the page laid out, and says which open notices
 // are too tall to pin (taller than 30% of the screen): a new unpinned set
 // when it changed, else null.

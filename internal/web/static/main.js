@@ -6,7 +6,7 @@
 // only a live page does: focus, scrolling, timers, storage.
 
 import { connect, Offline, Gone } from './net.js';
-import { createApp, newMemo, render, fit } from './render.js';
+import { createApp, newMemo, render, fit, pad } from './render.js';
 import * as S from './state.js';
 import { intentOf } from './keys.js';
 import { plain } from './dom.js';
@@ -254,11 +254,38 @@ function jumpNext() {
 }
 
 function goTo(t) {
+  ui = S.remember(ui, scroller.scrollTop);
   const i = t.Jump - 1;
   const key = page.JumpTo[i];
   if (key) setCursor(key, 'app');
   const h = app.querySelector(`[data-jump="${i + 1}"]`);
   if (h) h.scrollIntoView({ block: 'start' });
+}
+
+// followLink goes to the row a link points at: the Folds around it open,
+// the cursor on it (the page moved it: it settles), in view. Where it was
+// is remembered for g -.
+function followLink(target) {
+  const f = S.follow(page, target);
+  if (!f) { say(S.words(page, 'linkHidden'), 'need'); return; }
+  ui = S.remember(ui, scroller.scrollTop);
+  const up = f.up.filter((k) => !S.isOpen(ui, S.index(page).things.get(k)));
+  if (up.length) set(S.setOpen(ui, up));
+  setCursor(f.key, 'app');
+  const r = memo.rows.get(f.key);
+  if (r) r.scrollIntoView({ block: 'center' });
+}
+
+// goBack returns to where the last jump came from: the cursor and the
+// scroll only (nothing opens or closes).
+function goBack() {
+  const back = ui.back || [];
+  if (!back.length) return;
+  const p = back[back.length - 1];
+  ui = { ...ui, back: back.slice(0, -1) };
+  if (!S.index(page).things.has(p.cur)) { draw('cursor'); return; }
+  setCursor(p.cur, 'app', true);
+  scroller.scrollTop = p.y;
 }
 
 // ---- the panel ----
@@ -495,6 +522,9 @@ function doAct(what, key) {
     case 'stop': closeEditor(); break;
     case 'endGoto': set(S.endGoto(ui)); focusCur(); break;
     case 'jumpTo': { const t = S.jumpOf(page, key); set(S.endGoto(ui)); if (t) goTo(t); break; }
+    case 'follow': { const l = S.linkOf(page, ui, key); set(S.endGoto(ui)); if (l) followLink(l.Target); break; }
+    case 'link': { const t = S.index(page).things.get(ui.cur); const l = t && (t.Links || [])[0]; if (l) followLink(l.Target); break; }
+    case 'back': set(S.endGoto(ui)); goBack(); break;
     case 'closeHelp': closeHelp(); break;
     case 'closeImage': closeImage(); break;
     default: press(key); // r c x and an option's key
@@ -513,9 +543,13 @@ function run(it, e) {
   clear('key');
   switch (it.do) {
     case 'goto': {
+      const l = S.linkOf(page, ui, it.key);
       const t = S.jumpOf(page, it.key);
       set(S.endGoto(ui));
-      if (t) goTo(t); else focusCur();
+      if (it.key === '-') goBack();
+      else if (l) followLink(l.Target);
+      else if (t) goTo(t);
+      else focusCur();
       return;
     }
     case 'move': setCursor(S.move(ui, page, it.d, now()).cur, 'person'); return;
@@ -570,14 +604,9 @@ function editorKey(e) {
 const floatWatch = window.ResizeObserver ? new ResizeObserver(() => syncPadding()) : null;
 const watched = new WeakSet();
 function syncPadding() {
-  const h = $('.foot').offsetHeight;
-  app.style.setProperty('--foot-h', h + 'px');
-  let fh = 0;
-  for (const f of app.querySelectorAll('.editor.loose, .cpanel:not([hidden])')) {
+  for (const f of pad(app)) {
     if (floatWatch && !watched.has(f)) { floatWatch.observe(f); watched.add(f); }
-    fh = Math.max(fh, f.offsetHeight);
   }
-  app.style.setProperty('--float-h', fh ? fh + 'px' : '0px');
 }
 
 function start() {
@@ -596,6 +625,8 @@ function start() {
     if (img) { e.stopPropagation(); openImage(Number(img.dataset.image), img); return; }
     const go = tg.closest('[data-go]');
     if (go) { e.stopPropagation(); goToComment(Number(go.dataset.go)); return; }
+    const link = tg.closest('[data-link]');
+    if (link && ui.mode !== 'editor') { e.stopPropagation(); e.preventDefault(); followLink(link.dataset.link); return; }
     const a = tg.closest('[data-act]');
     if (a && a.tagName === 'BUTTON') { e.stopPropagation(); doAct(a.dataset.act, a.dataset.key); return; }
     if (tg.closest('.b-comments')) { e.stopPropagation(); if (ui.panel) closePanel(); else openPanel(); return; }

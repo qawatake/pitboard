@@ -68,6 +68,7 @@ var words = map[string]string{
 	"imageTooLarge": board.ErrTooLarge.Error(),
 	"signClosed":    page.SignClosed, "signOpen": page.SignOpen,
 	"gone": MsgGone, "notSent": page.MsgNotSent, "go": page.WordGo, "close": page.WordClose, "noComments": MsgNoComments,
+	"linkHidden": page.MsgLinkHidden, "back": page.WordBack,
 }
 
 // PaletteWord is a color of the palette, as the keys list says it.

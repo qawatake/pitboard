@@ -478,3 +478,16 @@ func TestReAttributeGone(t *testing.T) {
 		t.Errorf("%q %v", n[0].Text, probs)
 	}
 }
+
+// A row link [text](#id) must go to a row of the report (FEAT26); one in a
+// code span is not a link, and a target inside a Fold is fine.
+func TestRowLinkTargets(t *testing.T) {
+	src := "<Section title=\"s\">\n<Item id=\"a\">see [b](#b) and `[c](#nope)`</Item>\n<Fold title=\"f\">\n<Item id=\"b\">b</Item>\n</Fold>\n- [gone](#zz)\n</Section>\n"
+	_, probs, _ := Parse(src)
+	if len(probs) != 1 || probs[0].Line != 6 || !strings.Contains(probs[0].Msg, `link to #zz: no row has id "zz"`) {
+		t.Errorf("problems %v", probs)
+	}
+	if got := RowLinks("x [a](#a) [u](https://e) `[c](#c)` [b](#b)"); len(got) != 2 || got[0] != (RowLink{"a", "a"}) || got[1] != (RowLink{"b", "b"}) {
+		t.Errorf("RowLinks %v", got)
+	}
+}

@@ -2,6 +2,7 @@ package viewer
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/qawatake/pitboard/internal/page"
@@ -31,15 +32,70 @@ func jumpLetter(i int) string { return page.JumpLetter(i) }
 // jumpIndex is which place letter r goes to (-1: none).
 func jumpIndex(r rune, n int) int { return page.JumpIndex(r, n) }
 
-// startJump enters goto mode with the letters given now.
+// startJump enters goto mode with the letters given now, the digits of
+// the cursor line's row links, and - when a jump can be gone back.
 func (a *app) startJump(pv *view) {
-	if ts := a.jumpTargets(pv); len(ts) > 0 {
-		a.jumping, a.jumpTo = true, ts
+	ts := a.jumpTargets(pv)
+	var links []page.Link
+	if pv != nil && a.st != nil && !a.b.NoSession {
+		for _, l := range a.b.LinksOf(pv.nodeAt(pv.cur)) {
+			if l.Num > 0 {
+				links = append(links, l)
+			}
+		}
+	}
+	if len(ts) > 0 || len(links) > 0 || (pv != nil && len(pv.back) > 0) {
+		a.jumping, a.jumpTo, a.jumpLinks = true, ts, links
 	}
 }
 
 // stopJump leaves goto mode.
-func (a *app) stopJump() { a.jumping, a.jumpTo = false, nil }
+func (a *app) stopJump() { a.jumping, a.jumpTo, a.jumpLinks = false, nil, nil }
+
+// remember pushes where pv is now, for - to come back to.
+func (pv *view) remember() {
+	pv.back = append(pv.back, backPos{cur: pv.cur, top: pv.top})
+	if len(pv.back) > maxBack {
+		pv.back = pv.back[len(pv.back)-maxBack:]
+	}
+}
+
+// followLink goes to the row l points at: the Folds around it open, the
+// cursor on it, scrolled into view. The viewer moved the cursor, so the
+// line waits settleDelay before options and x.
+func (a *app) followLink(pv *view, l page.Link) {
+	f, ok := a.b.Follow(l.Target)
+	switch {
+	case !ok:
+		a.msg = msgMoved
+		return
+	case f.Hidden && !pv.showHidden:
+		a.msg = page.MsgLinkHidden
+		return
+	}
+	pv.remember()
+	for _, k := range f.Open {
+		pv.open[k] = true
+	}
+	pv.cur, pv.lock, pv.placed = f.Key, false, false
+	pv.auto, pv.autoAt = f.Key, time.Time{}
+	pv.follow = true
+}
+
+// goBack returns to where the last jump came from (only the cursor and
+// the scroll: nothing is opened or closed).
+func (a *app) goBack(pv *view) {
+	if len(pv.back) == 0 {
+		return
+	}
+	p := pv.back[len(pv.back)-1]
+	pv.back = pv.back[:len(pv.back)-1]
+	if pv.nodeAt(p.cur) == nil {
+		return
+	}
+	pv.cur, pv.top, pv.lock, pv.placed = p.cur, p.top, false, false
+	pv.auto, pv.autoAt = p.cur, time.Time{}
+}
 
 // markJumps puts the letters at the head of the rows they go to.
 func (a *app) markJumps(rows []row, ts []*report.Node) {
@@ -49,7 +105,7 @@ func (a *app) markJumps(rows []row, ts []*report.Node) {
 		}
 		for j, n := range ts {
 			if n == rows[i].jump {
-				rows[i].line = plainText(jumpLetter(j), yellow+bold).String() + rows[i].line[1:]
+				rows[i].line = plainText(jumpLetter(j), cStructure+bold).String() + rows[i].line[1:]
 			}
 		}
 	}
@@ -77,6 +133,15 @@ func (a *app) jumpLines(ts []*report.Node) []string {
 		long = max(long, titles[i].width())
 	}
 	// lay wraps the first k places, titles cut to cut cells (0: whole).
+	// The cursor line's links (digits) and - back come after the places,
+	// and are never left out.
+	var tail []hint
+	for _, l := range a.jumpLinks {
+		tail = append(tail, hint{k: strconv.Itoa(l.Num), d: a.b.LinkHintWord(l, minJumpTitle*2)[len("→ "):]})
+	}
+	if pv := a.top(); pv != nil && len(pv.back) > 0 {
+		tail = append(tail, hint{k: "-", d: page.WordBack})
+	}
 	lay := func(k, cut int) [][]hint {
 		hs := []hint{{k: "esc", d: "やめる"}}
 		for i := range k {
@@ -89,6 +154,7 @@ func (a *app) jumpLines(ts []*report.Node) []string {
 		if k < len(ts) {
 			hs = append(hs, hint{k: "…", d: fmt.Sprintf("+%d", len(ts)-k)})
 		}
+		hs = append(hs, tail...)
 		var out [][]hint
 		var line []hint
 		for _, h := range hs {
@@ -124,16 +190,28 @@ func (a *app) jumpLines(ts []*report.Node) []string {
 	return draw(ls[:min(most, len(ls))])
 }
 
-// handleJump takes the key after g: a letter goes there; anything else (g,
-// esc, a letter no place has) leaves without doing anything.
+// handleJump takes the key after g: a letter goes to its place, a digit
+// follows that link of the cursor's line, - goes back where the last jump
+// came from; anything else (g, esc, a key nothing has) leaves without
+// doing anything.
 func (a *app) handleJump(k key) {
-	ts := a.jumpTo
+	ts, links := a.jumpTo, a.jumpLinks
 	a.stopJump()
 	if k.name != "" {
 		return
 	}
+	pv := a.top()
+	if k.r == '-' {
+		a.goBack(pv)
+		return
+	}
+	if i := page.LinkIndex(k.r, links); i >= 0 {
+		a.followLink(pv, links[i])
+		return
+	}
 	if i := jumpIndex(k.r, len(ts)); i >= 0 {
-		a.goTo(a.top(), ts[i])
+		pv.remember()
+		a.goTo(pv, ts[i])
 	}
 }
 

@@ -144,14 +144,14 @@ async (page) => {
       if (n.nodeType !== 1) return '';
       if (n.classList.contains('sr')) return '';
       const cls = [...n.classList].filter((c) => !['cur', 'light', 'dark', 'part', 'live'].includes(c)).sort().join('.');
-      const at = keep.filter((a) => n.hasAttribute(a)).map((a) => a + '=' + n.getAttribute(a).replace(/--(foot-h|jw)[^;]*;?/g, '').trim()).filter((x) => !x.endsWith('=')).join(',');
+      const at = keep.filter((a) => n.hasAttribute(a)).map((a) => a + '=' + n.getAttribute(a).replace(/--(foot-h|float-h|jw)[^;]*;?/g, '').trim()).filter((x) => !x.endsWith('=')).join(',');
       return '<' + n.tagName.toLowerCase() + (cls ? '.' + cls : '') + (at ? '[' + at + ']' : '') + '>' + [...n.childNodes].map(ser).join('') + '</>';
     };
     const root = sel();
     if (part) return { lists: [...root.querySelectorAll('.board, .notices, .kids')].map((l) => [...l.children].map(ser)) };
     return ['.scroller', '.foot', '.cpanel', '.help', '.viewer', '.editor.loose'].map((s) => { const e = root.querySelector(s); return s + ':' + (e ? ser(e) : '-'); });
   };
-  const FID = new Set(['section-02', 'fold-01', 'fold-02', 'item-02', 'item-04', 'ask-02', 'notice-02', 'comment-04', 'link-02', 'editor-01', 'editor-05', 'editor-06', 'comments-01', 'bar-03', 'banners-01', 'goto-01', 'help-01']);
+  const FID = new Set(['section-02', 'fold-01', 'fold-02', 'item-02', 'item-04', 'ask-02', 'notice-02', 'comment-04', 'link-02', 'editor-01', 'editor-05', 'editor-06', 'editor-11', 'comments-01', 'bar-03', 'banners-01', 'goto-01', 'help-01']);
   const fid = g.stories.filter((s) => s.ui && (s.module === 'pages' || FID.has(s.id)));
   for (const s of fid) {
     await page.goto(base + '/_gallery?w=1280&theme=light&only=' + s.module + '/' + s.nn);

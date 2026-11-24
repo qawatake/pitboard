@@ -12,7 +12,11 @@ export const el = (tag, cls, text) => {
 export const isWeb = (u) => /^https?:\/\//i.test(u || '');
 
 // spans draws inline text (page.Span): bold, code, links (a link only
-// outside a row's button, and only to http(s)); "\n" breaks the line.
+// outside a row's button, and only to http(s)); "\n" breaks the line. A
+// row link (Target: [text](#id)) goes to that row: a button of its own
+// outside a row's button, inside one a span the click still finds
+// (data-link); its digit (Num) is drawn before it, shown only while g
+// waits on its line (CSS: .row.nums).
 export function spans(parent, ss, inButton) {
   for (const s of ss || []) {
     let e;
@@ -20,7 +24,12 @@ export function spans(parent, ss, inButton) {
       case 'bold': e = el('strong'); break;
       case 'code': e = el('code'); break;
       case 'link':
-        if (!inButton && isWeb(s.URL)) {
+        if (s.Target) {
+          e = el(inButton ? 'span' : 'button', 'link rowlink');
+          if (!inButton) e.type = 'button';
+          e.dataset.link = s.Target;
+          if (s.Num) parent.appendChild(el('span', 'linknum jumpkey', String(s.Num)));
+        } else if (!inButton && isWeb(s.URL)) {
           e = el('a', 'link');
           e.href = s.URL;
           e.rel = 'noopener noreferrer';

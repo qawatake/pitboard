@@ -1,6 +1,7 @@
 package viewer
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/qawatake/pitboard/internal/page"
@@ -25,17 +26,49 @@ func plainText(s, st string) text {
 	return t
 }
 
-// inline renders inline Markdown (page.Spans): code spans colored (no
-// backticks), links (title only) and **bold** (no asterisks).
+// inline renders inline Markdown (page.Spans): code spans (no backticks,
+// the normal color), links (title only) and **bold** (no asterisks).
 func inline(s, base string) text {
 	var t text
 	for _, sp := range page.Spans(s) {
 		st := base
 		switch sp.Style {
 		case page.StyleCode:
-			st += cyan
+			// the normal color: the palette has no meaning for code
 		case page.StyleLink:
 			st += cStructure
+		case page.StyleBold:
+			st += bold
+		}
+		t = append(t, plainText(sp.Text, st)...)
+	}
+	return t
+}
+
+// inline is inline (the free function) on the board: a row link
+// ([text](#id)) to a row in the report is drawn as a link (structure,
+// underlined), and while g waits on its line, its digit goes right before
+// it; one to a row no longer there is plain text.
+func (a *app) inline(s, base string) text {
+	var t text
+	for _, sp := range page.Spans(s) {
+		st := base
+		switch sp.Style {
+		case page.StyleCode:
+			// the normal color: the palette has no meaning for code
+		case page.StyleLink:
+			id, row := strings.CutPrefix(sp.URL, "#")
+			switch {
+			case !row:
+				st += cStructure
+			case a.b == nil || !a.b.Known(id):
+				// plain
+			default:
+				st += cStructure + ul
+				if n := a.linkNums[id]; n > 0 {
+					t = append(t, plainText(strconv.Itoa(n), base+bold+cStructure)...)
+				}
+			}
 		case page.StyleBold:
 			st += bold
 		}

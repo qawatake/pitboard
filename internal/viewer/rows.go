@@ -55,7 +55,7 @@ func (a *app) right(pv *view, n *report.Node) text {
 		head := append(append(text{}, re...), plainText(" ", "")...)
 		head = append(head, plainText(r.Option, dim).trunc(answerHead)...)
 		ind := indentOf(n)
-		if long := join(mine(head), st); inline(n.Text, "").width() <= a.room(ind, long) {
+		if long := join(mine(head), st); a.inline(n.Text, "").width() <= a.room(ind, long) {
 			return long
 		}
 	}
@@ -116,14 +116,14 @@ func (a *app) rows(pv *view) []row {
 	case pv.Missing:
 		return append(rows, a.para(0, plainText(msgNoReport, dim))...)
 	case pv.Err != "":
-		rows = append(rows, a.para(0, plainText("読めませんでした: "+pv.Err, magenta))...)
+		rows = append(rows, a.para(0, plainText("読めませんでした: "+pv.Err, cBad))...)
 		blank()
 	}
 	if pv.Err == "" && pv.ReadErr == "" && len(pv.Nodes) == 0 && len(pv.Probs) == 0 {
 		return append(rows, a.para(0, plainText(msgEmpty, dim))...)
 	}
 	if pv.ReadErr != "" {
-		rows = append(rows, a.para(0, plainText(pv.ReadErr, magenta+bold))...)
+		rows = append(rows, a.para(0, plainText(pv.ReadErr, cBad+bold))...)
 		blank()
 	}
 	if len(pv.Probs) > 0 {
@@ -131,9 +131,9 @@ func (a *app) rows(pv *view) []row {
 		if report.Partial(pv.Probs) {
 			head += page.MsgPartial
 		}
-		rows = append(rows, a.para(0, plainText(head, magenta+bold))...)
+		rows = append(rows, a.para(0, plainText(head, cBad+bold))...)
 		for _, pr := range pv.Probs {
-			rows = append(rows, a.para(0, plainText(page.ProblemLine(pr), magenta))...)
+			rows = append(rows, a.para(0, plainText(page.ProblemLine(pr), cBad))...)
 		}
 		blank()
 	}
@@ -164,11 +164,11 @@ func (a *app) rows(pv *view) []row {
 				blank()
 			}
 		case report.KindTitle:
-			rows = append(rows, a.para(0, inline(n.Text, bold))...)
+			rows = append(rows, a.para(0, a.inline(n.Text, bold))...)
 			rows = append(rows, row{})
 		case report.KindSection:
 			blank()
-			h := a.para(0, inline(n.Text, bold+cStructure))
+			h := a.para(0, a.inline(n.Text, bold+cStructure))
 			h[0].jump = n
 			rows = append(rows, h...)
 			if page.EmptySection(n) {
@@ -176,7 +176,7 @@ func (a *app) rows(pv *view) []row {
 			}
 		case report.KindPara:
 			blank()
-			rows = append(rows, a.para(ind, paraText(n, ""))...)
+			rows = append(rows, a.para(ind, a.paraText(n, ""))...)
 			rows = append(rows, row{})
 		case report.KindCode:
 			blank()
@@ -194,7 +194,7 @@ func (a *app) rows(pv *view) []row {
 			if chosen != "" && n.Label == chosen {
 				mark = plainText("●", bold+cYours)
 			}
-			lns := inline(n.Text, "").wrap(a.room(ind, nil) - label.width())
+			lns := a.inline(n.Text, "").wrap(a.room(ind, nil) - label.width())
 			rows = append(rows, row{line: a.compose(false, ind, mark, append(label, lns[0]...), nil)})
 			for _, ln := range lns[1:] {
 				rows = append(rows, row{line: a.compose(false, ind+label.width(), nil, ln, nil)})
@@ -216,6 +216,11 @@ func (a *app) rows(pv *view) []row {
 			case report.KindLink:
 				base = cStructure
 			}
+			// While g waits, the cursor line's links carry their digits.
+			if a.jumping && n.Key == pv.cur && len(a.jumpLinks) > 0 {
+				a.linkNums = a.b.LinkNums(n)
+				defer func() { a.linkNums = nil }()
+			}
 			hidden := pv.isHidden(n) // drawn only while H shows hidden lines
 			heading := outer[n] && !hidden
 			switch {
@@ -224,7 +229,7 @@ func (a *app) rows(pv *view) []row {
 			case heading:
 				base = bold + cStructure
 			}
-			body, right := inline(n.Text, base).capped(titleCap), a.right(pv, n)
+			body, right := a.inline(n.Text, base).capped(titleCap), a.right(pv, n)
 			nav := pv.navigable(n)
 			// Titles wrap; nothing is cut, so a line opens only for what it
 			// holds.
@@ -232,7 +237,7 @@ func (a *app) rows(pv *view) []row {
 			if can && open {
 				// Open: the title in bold, so it stands apart from what it
 				// holds (in the normal weight).
-				body = inline(n.Text, base+bold).capped(titleCap)
+				body = a.inline(n.Text, base+bold).capped(titleCap)
 			}
 			// A line the cursor cannot stop at cannot be opened either, so
 			// what it holds is always shown.
@@ -292,11 +297,11 @@ func (a *app) rows(pv *view) []row {
 
 // paraText is a paragraph as drawn: a small heading is bold in the color of
 // section headings.
-func paraText(n *report.Node, base string) text {
+func (a *app) paraText(n *report.Node, base string) text {
 	if n.Head {
-		return inline(n.Text, base+bold+cStructure)
+		return a.inline(n.Text, base+bold+cStructure)
 	}
-	return inline(n.Text, base)
+	return a.inline(n.Text, base)
 }
 
 // listMark is the mark of a list line: its number, or · - · by level.
@@ -327,7 +332,7 @@ func (a *app) listItemOwn(sel bool, ind int, n *report.Node, base string, mark, 
 	extra := max(mark.width()-markW, 0)
 	var out []row
 	if len(right) > 0 || sel {
-		out = a.titled(sel, ind, extra, mark, inline(n.Text, base), right, 0)
+		out = a.titled(sel, ind, extra, mark, a.inline(n.Text, base), right, 0)
 	} else {
 		out = a.measured(ind, extra, mark, n.Text, base)
 	}
@@ -363,11 +368,11 @@ func (a *app) listLines(ind int, ls []*report.Node, base string) []row {
 // body under it, one step in (page.HeadWord).
 func (a *app) measured(indent, extra int, mark text, s, base string) []row {
 	w := max(min(a.room(indent, nil)-extra, page.TextMeasure), 4)
-	all := inline(s, base)
+	all := a.inline(s, base)
 	lns := all.wrap(w)
 	if head, body, ok := page.HeadWord(s); ok && len(lns) > 1 {
-		out := []row{{line: a.compose(false, indent, mark, inline("**"+head+"**", base), nil)}}
-		for _, ln := range inline(body, base).wrap(max(w-markW, 4)) {
+		out := []row{{line: a.compose(false, indent, mark, a.inline("**"+head+"**", base), nil)}}
+		for _, ln := range a.inline(body, base).wrap(max(w-markW, 4)) {
 			out = append(out, row{line: a.compose(false, indent+extra+markW, nil, ln, nil), cont: true})
 		}
 		return out
@@ -386,11 +391,11 @@ func (a *app) code(n *report.Node, ind int) []row {
 		// Tabs as they are drawn (clean: 4 spaces each), so the hang below
 		// is counted in the columns the line takes on screen.
 		ln = strings.ReplaceAll(ln, "\t", "    ")
-		st := cyan
+		st := ""
 		if n.Lang == "diff" {
 			switch {
 			case strings.HasPrefix(ln, "@@"):
-				st = cyan
+				st = cQuiet
 			case strings.HasPrefix(ln, "+"):
 				st = cMove
 			case strings.HasPrefix(ln, "-"):
@@ -451,7 +456,7 @@ func (a *app) contents(pv *view, n *report.Node, ind int) []row {
 		base = dim
 	}
 	if n.Reason != "" {
-		rows = append(rows, a.para(ind, append(plainText("理由: ", dim), inline(n.Reason, base)...))...)
+		rows = append(rows, a.para(ind, append(plainText("理由: ", dim), a.inline(n.Reason, base)...))...)
 	}
 	for i := 0; i < len(n.Body); i++ {
 		b := n.Body[i]
@@ -463,7 +468,7 @@ func (a *app) contents(pv *view, n *report.Node, ind int) []row {
 		switch b.Kind {
 		case report.KindPara:
 			if b.Head {
-				rows = append(rows, a.para(ind, paraText(b, base))...)
+				rows = append(rows, a.para(ind, a.paraText(b, base))...)
 			} else {
 				rows = append(rows, a.measured(ind, 0, nil, b.Text, base)...)
 			}
