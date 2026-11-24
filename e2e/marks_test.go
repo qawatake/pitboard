@@ -17,21 +17,30 @@ func markOf(t *testing.T, v *viewer, title string) (string, string) {
 // counts at the top right.
 func TestMarksAndCounts(t *testing.T) {
 	t.Parallel()
-	report := `<Notice id="n" ask="y">お知らせ</Notice>
+	report := `<Notice id="n">お知らせ</Notice>
 <Section title="s">
   <Ask id="q">問い
     <Option key="a">A</Option>
     <Option key="b">B</Option>
   </Ask>
-  <Item id="ask" ask="y">よしだめを聞く</Item>
-  <Link id="lk" path="x" ask="y">聞くリンク</Link>
+  <Ask id="ask">よしだめを聞く
+    <Option key="y">よし</Option>
+    <Option key="n">だめ</Option>
+  </Ask>
+  <Link id="lk" path="x">ただのリンク</Link>
   <Item id="look" look="y">読んでほしい</Item>
-  <Item id="both" look="y" ask="y">両方</Item>
+  <Ask id="both" look="y">両方
+    <Option key="a">A</Option>
+    <Option key="b">B</Option>
+  </Ask>
   <Item id="wait" wait="you" status="あなた待ち">あなた待ち項目</Item>
   <Item id="plain">普通</Item>
 </Section>
 <Fold title="黄を含む畳み">
-  <Item id="in1" ask="y">中の聞く</Item>
+  <Ask id="in1">中の聞く
+    <Option key="a">A</Option>
+    <Option key="b">B</Option>
+  </Ask>
   <Item id="in2" look="y">中の読む</Item>
 </Fold>
 <Fold title="緑だけの畳み">
@@ -41,13 +50,11 @@ func TestMarksAndCounts(t *testing.T) {
   <Item id="in4">ただの中身</Item>
 </Fold>
 `
-	// Notice takes no ask (check error), so drop that attribute.
-	report = strings.Replace(report, ` ask="y">お知らせ`, `>お知らせ`, 1)
 	v, _ := open(t, report, 80, 30, "普通")
 	for _, x := range []struct{ title, mark, color string }{
 		{"問い", "●", "yellow"},
 		{"よしだめを聞く", "●", "yellow"},
-		{"聞くリンク", "●", "yellow"},
+		{"ただのリンク", " ", ""}, // ask="y" is gone: a Link asks nothing
 		{"読んでほしい", "●", "green"},
 		{"両方", "●", "yellow"}, // yellow wins
 		{"あなた待ち項目", " ", ""},  // wait="you" is not counted as waiting
@@ -62,13 +69,13 @@ func TestMarksAndCounts(t *testing.T) {
 			t.Errorf("%s: mark %q %q, want %q %q", x.title, m, c, x.mark, x.color)
 		}
 	}
-	// 反応待ち: Ask, 2 ask Items/Links, both, in1 = 5. 未読 (not also
+	// 反応待ち: the Asks q, ask, both, in1 = 4. 未読 (not also
 	// waiting): look, in2, in3, the look Fold = 4.
-	v.WaitFor("反応待ち 5  未読 4")
-	wantColor(t, v, "反応待ち 5", "yellow")
+	v.WaitFor("反応待ち 4  未読 4")
+	wantColor(t, v, "反応待ち 4", "yellow")
 	wantColor(t, v, "未読 4", "green")
 	// The counts row is not a report row: it sits under pinned Notices.
-	if r := rowOf(t, v, "反応待ち 5"); strings.Contains(v.Line(r), "お知らせ") {
+	if r := rowOf(t, v, "反応待ち 4"); strings.Contains(v.Line(r), "お知らせ") {
 		t.Errorf("counts on the Notice row")
 	}
 	// wait="you": its status in yellow.

@@ -67,7 +67,8 @@ func TestUnsentMark(t *testing.T) {
 		t.Error("nothing unsent, no mark")
 	}
 	st.Append(board.Event{Op: "thought", Text: "a"})
-	st.Append(board.Event{Op: "react", ID: "i1", Value: "y"})
+	st.Append(board.Event{Op: "react", ID: "i1", Value: "a", Option: "A"})
+	st.Append(board.Event{Op: "react", ID: "i2", Value: "y"}) // an older viewer's y: not counted
 	st.Append(board.Event{Op: "hide", Key: "k", Title: "x"})
 	a.loadEvents()
 	// The top line is the blank padding: the mark goes on its right.
@@ -125,19 +126,19 @@ func TestHintsShowM(t *testing.T) {
 	a.handle(key{r: 'j'}) // the Item
 	a.render()
 	s := reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), "")
-	if s != "      y よし  n だめ  c 行に書く  x 隠す  space 次へ  g 飛ぶ  m 書く  ? キー" {
+	if s != "      c 行に書く  x 隠す  space 次へ  g 飛ぶ  m 書く  ? キー" {
 		t.Errorf("hints: %q", s)
 	}
 	// Dropped in order x and space, m (page.DropRank: before g and enter),
-	// g, enter, n, y, c; ? stays (it shows them all).
+	// g, enter, c; ? stays (it shows them all). Without y / n the line
+	// keeps more of the rest.
 	for _, c := range []struct {
 		w    int
 		want string
 	}{
-		{70, "      y よし  n だめ  c 行に書く  g 飛ぶ  m 書く  ? キー"},
-		{54, "      y よし  n だめ  c 行に書く  g 飛ぶ  ? キー"},
-		{48, "      y よし  n だめ  c 行に書く  ? キー"},
-		{40, "      y よし  c 行に書く  ? キー"},
+		{70, "      c 行に書く  x 隠す  space 次へ  g 飛ぶ  m 書く  ? キー"},
+		{54, "      c 行に書く  g 飛ぶ  m 書く  ? キー"},
+		{40, "      c 行に書く  g 飛ぶ  ? キー"},
 		{26, "      c 行に書く  ? キー"},
 	} {
 		a.t.w = c.w
@@ -253,20 +254,21 @@ func TestNarrowHintsKeepLineKeys(t *testing.T) {
 	a := testApp(t, st)
 	a.t.w, a.t.h = 38, 10
 	a.render()
-	if s := strings.Join(a.bottom(), "\n"); !strings.Contains(reEsc.ReplaceAllString(s, ""), "j k") {
+	// Placed by the viewer, x (what works before the person moves) is kept.
+	if s := strings.Join(a.bottom(), "\n"); !strings.Contains(reEsc.ReplaceAllString(s, ""), "x 隠す") {
 		t.Errorf("placed cursor, narrow: %q", reEsc.ReplaceAllString(s, ""))
 	}
 	a.handle(key{r: 'j'})
 	a.render()
 	s := reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), "")
-	// One line: x, m, enter, n go first; y, c and "? キー" stay.
-	if s != "      y よし  c 行に書く  ? キー" {
+	// One line: x and m go first; enter, c and "? キー" stay.
+	if s != "      enter 開く  c 行に書く  ? キー" {
 		t.Errorf("narrow hints: %q", s)
 	}
 	a.t.w = 100
 	a.render()
 	s = reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), "")
-	if !strings.HasPrefix(s, "      enter 開く  y よし  n だめ  c 行に書く  x 隠す  m 書く  ? キー") || strings.Contains(s, "tab") || strings.Contains(s, "\n") {
+	if !strings.HasPrefix(s, "      enter 開く  c 行に書く  x 隠す  m 書く  ? キー") || strings.Contains(s, "tab") || strings.Contains(s, "\n") {
 		t.Errorf("wide hints: %q", s)
 	}
 	a.t.w = 20
@@ -275,7 +277,7 @@ func TestNarrowHintsKeepLineKeys(t *testing.T) {
 	a.loadEvents()
 	a.top().placed = true
 	a.render()
-	if s := reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), ""); !strings.Contains(s, "j k") {
+	if s := reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), ""); !strings.Contains(s, "? キー") || strings.Contains(s, "\n") {
 		t.Errorf("width 20, placed: %q", s)
 	}
 }
@@ -322,8 +324,8 @@ func TestViewerKeysMatchTheViewer(t *testing.T) {
 	}
 }
 
-// The keys list says how to reach the notices, and that y / n work on
-// them.
+// The keys list says how to reach the notices; y / n are gone from it
+// (answers go through an Ask).
 func TestHelpTellsNotices(t *testing.T) {
 	a := testApp(t, testStore(t))
 	var all []string
@@ -331,7 +333,7 @@ func TestHelpTellsNotices(t *testing.T) {
 		all = append(all, reEsc.ReplaceAllString(r.line, ""))
 	}
 	s := strings.Join(all, "\n")
-	if !strings.Contains(s, "固定されたお知らせへ") || !strings.Contains(s, "よし (項目・リンク・お知らせ)") {
+	if !strings.Contains(s, "固定されたお知らせへ") || !strings.Contains(s, "問いに答える") || strings.Contains(s, "よし") || strings.Contains(s, "だめ") {
 		t.Errorf("help:\n%s", s)
 	}
 }

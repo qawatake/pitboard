@@ -95,7 +95,10 @@ func (v *viewer) pressUntil(ss *session, key, op string, n int) {
 const reactReport = `<Title>題</Title>
 <Section title="あなたへ">
   <Item id="first">最初の項目</Item>
-  <Item id="hook" ask="y">hook を入れるか決める</Item>
+  <Ask id="hook">hook を入れるか決める
+    <Option key="y">入れる</Option>
+    <Option key="n">見てから</Option>
+  </Ask>
   <Ask id="base">土台を選ぶ
     <Option key="a">A案</Option>
     <Option key="b">B案</Option>
@@ -107,14 +110,17 @@ const reactReport = `<Title>題</Title>
 `
 
 // SPEC.md "報告の画面のカーソル": a cursor the person never moved takes no
-// y / n / option (answers to the AI) and says why; x r c m enter work.
+// option (an answer to the AI) and says why; x r c m enter work. y and n
+// are no keys on an Item (FEAT25).
 func TestPlacedCursorTakesNoReaction(t *testing.T) {
 	t.Parallel()
 	v, ss := open(t, reactReport, 120, 24, "最初の項目")
 	v.WaitCursorOn("最初の項目")
-	v.WaitBottom("j k 動かすと y n が効く")
+	v.WaitBottom("c 行に書く  x 隠す")
+	if strings.Contains(v.Bottom(), "y n") {
+		t.Errorf("y n offered: %q", v.Bottom())
+	}
 	v.Keys("y")
-	v.WaitFor("j k で動かすと y n が効きます")
 	v.Keys("n")
 	v.Sync()
 	ss.noRecords(t, "react")
@@ -131,7 +137,9 @@ func TestPlacedCursorTakesNoReaction(t *testing.T) {
 	}
 
 	t.Run("narrow: shrinks to j k but is not dropped", func(t *testing.T) {
-		v, _ := open(t, reactReport, 24, 24, "最初の項目")
+		v, _ := open(t, "<Ask id=\"q\">問い\n  <Option key=\"a\">A</Option>\n  <Option key=\"b\">B</Option>\n</Ask>\n", 24, 24, "問い")
+		v.Keys("enter")
+		v.WaitFor("A")
 		v.Until("a narrow guide", func() bool { return strings.Contains(v.Bottom(), "j k") })
 	})
 
@@ -154,19 +162,21 @@ func TestPlacedCursorTakesNoReaction(t *testing.T) {
 	})
 }
 
-// SPEC.md "反応".
-func TestReactYesNo(t *testing.T) {
+// SPEC.md "反応": a yes / no is an Ask; its options may be keyed y and n.
+func TestAnswerYesNo(t *testing.T) {
 	t.Parallel()
 	v, ss := open(t, reactReport, 120, 24, "最初の項目")
 	v.MoveTo("hook を入れるか決める")
 	row := rowOf(t, v, "hook を入れるか決める")
 	if !strings.HasPrefix(v.Line(row), "> ●") && !strings.Contains(v.Line(row), "●") {
-		t.Fatalf("ask=\"y\" line without a yellow ●:\n%s", v.dump())
+		t.Fatalf("an unanswered Ask without a yellow ●:\n%s", v.dump())
 	}
-	v.WaitBottom("y よし  n だめ")
+	v.Keys("enter")
+	v.WaitFor("入れる", "見てから")
+	v.WaitBottom("y n 答える")
 	v.Keys("y")
 	rs := ss.waitRecords(t, "react", 1)
-	if rs[0].str("id") != "hook" || rs[0].str("value") != "y" || rs[0].str("title") != "hook を入れるか決める" {
+	if rs[0].str("id") != "hook" || rs[0].str("value") != "y" || rs[0].str("option") != "入れる" || rs[0].str("title") != "hook を入れるか決める" {
 		t.Errorf("record: %v", rs[0])
 	}
 	v.Until("y 未送信 at the right end", func() bool { return strings.HasSuffix(v.Line(row), "y 未送信") })
@@ -186,12 +196,12 @@ func TestReactYesNo(t *testing.T) {
 		t.Errorf("the viewer changed report.md")
 	}
 
-	t.Run("on a Link too", func(t *testing.T) {
+	t.Run("not on a Link: y is no key there", func(t *testing.T) {
 		v.In(t).MoveTo("リンクの題")
 		v.Keys("y")
-		rs := ss.waitRecords(t, "react", 3)
-		if rs[2].str("id") != "lnk" {
-			t.Errorf("record: %v", rs[2])
+		v.Sync()
+		if rs := ss.records("react"); len(rs) != 2 {
+			t.Errorf("y on a Link recorded: %v", rs)
 		}
 	})
 
@@ -544,6 +554,8 @@ func TestUndo(t *testing.T) {
 	v.Keys("u")
 	v.WaitFor("取り消せる操作がありません")
 	v.MoveTo("hook を入れるか決める")
+	v.Keys("enter")
+	v.WaitFor("見てから")
 	v.Keys("n")
 	ss.waitRecords(t, "react", 1)
 	v.Keys("y")
@@ -552,19 +564,20 @@ func TestUndo(t *testing.T) {
 
 	// Not sent: as if never; y goes back to n.
 	v.Keys("u")
-	v.WaitFor("y を取り消しました: hook を入れるか決める")
+	v.WaitFor("答え y を取り消しました: hook を入れるか決める")
 	v.Until("back to n", func() bool { return strings.HasSuffix(v.Line(row), "n 未送信") })
 	// Sent: the undo is new input, shown as 取り消し 未送信 until sent.
 	v.Keys("s")
 	v.WaitFor("送りました")
 	v.Until("n 送信済", func() bool { return strings.HasSuffix(v.Line(row), "n 送信済") })
 	v.Keys("u")
-	v.WaitFor("n を取り消しました")
+	v.WaitFor("答え n を取り消しました")
 	v.Until("取り消し 未送信", func() bool { return strings.HasSuffix(v.Line(row), "取り消し 未送信") })
 	v.Keys("s")
 	v.WaitFor("送りました")
 	ss.waitRecords(t, "send", 2)
-	if out := ss.mustRun("changes"); !strings.Contains(out, "retract n hook (hook を入れるか決める)") && strings.Contains(out, "n hook") {
+	// Answered and taken back before the AI read either: neither is told.
+	if out := ss.mustRun("changes"); strings.Contains(out, "answer hook = n") && !strings.Contains(out, "undo") {
 		t.Errorf("changes: %q", out)
 	}
 	// s cannot be undone.
@@ -581,8 +594,10 @@ func TestUndoGuide(t *testing.T) {
 	if strings.Contains(v.Bottom(), "u 元に戻す") {
 		t.Errorf("u in the guide with nothing to take back")
 	}
-	v.Keys("y")
-	ss.waitRecords(t, "react", 1)
+	v.Keys("x")
+	ss.waitRecords(t, "hide", 1)
+	v.WaitFor("隠しました")
+	v.Keys("k") // the message gives the guide back on the next move
 	v.WaitBottom("u 元に戻す")
 }
 
@@ -732,6 +747,8 @@ func TestChangedLineGuard(t *testing.T) {
 	t.Parallel()
 	v, ss := open(t, reactReport, 120, 24, "最初の項目")
 	v.MoveTo("hook を入れるか決める")
+	v.Keys("enter")
+	v.WaitFor("見てから")
 	ss.write(strings.Replace(reactReport, "hook を入れるか決める", "hook の題が変わった", 1))
 	v.WaitFor("報告が書き換わりました")
 	v.Keys("y")
@@ -742,10 +759,10 @@ func TestChangedLineGuard(t *testing.T) {
 	v.Keys("y")
 	ss.waitRecords(t, "react", 1)
 
-	t.Run("a note-only change does not guard", func(t *testing.T) {
+	t.Run("an option-only change does not guard", func(t *testing.T) {
 		v.In(t)
-		ss.write(strings.Replace(reactReport, `<Item id="hook" ask="y">hook を入れるか決める`, `<Item id="hook" ask="y" note="なぜ">hook の題が変わった`, 1))
-		v.WaitFor("▸ hook の題が変わった")
+		ss.write(strings.Replace(strings.Replace(reactReport, "hook を入れるか決める", "hook の題が変わった", 1), "見てから", "見てから決める", 1))
+		v.WaitFor("見てから決める")
 		v.Keys("n")
 		ss.waitRecords(t, "react", 2)
 	})

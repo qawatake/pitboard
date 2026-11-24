@@ -11,7 +11,7 @@ const Report = `<Notice id="restart">開き直してください</Notice>
 <Title>題</Title>
 
 <Section title="s">
-  <Item id="a" ask="y">項目 a</Item>
+  <Item id="a">項目 a</Item>
   <Item id="b" state="doing" look="y">項目 b</Item>
   <Ask id="q">どちら
     <Option key="a">こちら</Option>
@@ -48,26 +48,25 @@ type Case struct {
 // Cases is the table.
 var Cases = []Case{
 	{Name: "placed notice x hides", Line: "restart", How: Placed, Key: "x", Do: page.DoHide, Op: "hide"},
-	{Name: "placed notice y waits", Line: "restart", How: Placed, Key: "y", Msg: page.MsgPlacedYN},
+	{Name: "placed notice y does nothing", Line: "restart", How: Placed, Key: "y"},
 	{Name: "placed item r reads", Line: "b", How: Placed, Key: "r", Do: page.DoRead},
 	{Name: "placed item c writes", Line: "a", How: Placed, Key: "c", Do: page.DoComment},
-	{Name: "placed item n waits", Line: "a", How: Placed, Key: "n", Msg: page.MsgPlacedYN},
+	{Name: "placed item n does nothing", Line: "a", How: Placed, Key: "n"},
 	{Name: "placed open ask waits", Line: "q", How: Placed, Open: true, Key: "a", Msg: page.MsgPlacedAnswer},
 	{Name: "placed closed ask opens", Line: "q", How: Placed, Key: "b", Do: page.DoOpen},
-	{Name: "locked y", Line: "a", How: Locked, Key: "y", Msg: page.MsgMoved},
 	{Name: "locked x", Line: "a", How: Locked, Key: "x", Msg: page.MsgMoved},
 	{Name: "locked r", Line: "a", How: Locked, Key: "r", Msg: page.MsgMoved},
 	{Name: "locked c", Line: "a", How: Locked, Key: "c", Msg: page.MsgMoved},
 	{Name: "locked option", Line: "q", How: Locked, Key: "a", Msg: page.MsgMoved},
 	{Name: "settling x", Line: "a", How: Settling, Key: "x", Msg: page.MsgSettlingHide},
-	{Name: "settling y", Line: "a", How: Settling, Key: "y", Msg: page.MsgSettlingReact},
 	{Name: "settling option", Line: "q", How: Settling, Open: true, Key: "b", Msg: page.MsgSettlingReact},
-	{Name: "settling y twice", Line: "a", How: Settling, Key: "y", Twice: true, Do: page.DoReact, Op: "react"},
+	{Name: "settling option twice", Line: "q", How: Settling, Open: true, Key: "b", Twice: true, Do: page.DoReact, Op: "react"},
 	{Name: "settling x twice", Line: "a", How: Settling, Key: "x", Twice: true, Do: page.DoHide, Op: "hide"},
 	{Name: "settling r reads", Line: "b", How: Settling, Key: "r", Do: page.DoRead},
 	{Name: "settling c writes", Line: "a", How: Settling, Key: "c", Do: page.DoComment},
-	{Name: "settled y", Line: "a", How: Settled, Key: "y", Do: page.DoReact, Op: "react"},
-	{Name: "person y", Line: "a", How: Person, Key: "y", Do: page.DoReact, Op: "react"},
+	{Name: "settled option", Line: "q", How: Settled, Open: true, Key: "a", Do: page.DoReact, Op: "react"},
+	{Name: "person y on an item does nothing", Line: "a", How: Person, Key: "y"},
+	{Name: "person n on an item does nothing", Line: "a", How: Person, Key: "n"},
 	{Name: "person x", Line: "a", How: Person, Key: "x", Do: page.DoHide, Op: "hide"},
 	{Name: "person option", Line: "q", How: Person, Open: true, Key: "b", Do: page.DoReact, Op: "react"},
 	{Name: "person list x", Line: "-1:ただの行", How: Person, Key: "x", Do: page.DoHide, Op: "hide"},

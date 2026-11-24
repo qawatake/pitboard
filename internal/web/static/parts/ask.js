@@ -25,12 +25,13 @@ export function draw(cx, t, opts) {
   });
 }
 
-export const covers = {"kind": {"ask": ["answered, closed (key and head)"], "option": ["answered, open (● hangs)"]}};
+export const covers = {"kind": {"ask": ["answered, closed (key and head)"], "option": ["answered, open (● hangs)"]}, "mark": {"waiting": ["not answered, closed; waiting ●"]}};
 
 export const variants = [
   { name: 'answered, closed (key and head)', pick: 'unit' },
   { name: 'answered, open (● hangs)', pick: 'unit', open: true },
-  { name: 'not answered, closed', pick: 'where' },
+  { name: 'not answered, closed; waiting ●', pick: 'where' },
+  { name: 'answered with key y (y / n are option keys)', pick: 'merge' },
   { name: 'not answered, open; long option', pick: 'where', open: true },
   { name: 'long unbroken option', fixture: 'long', pick: 'lask', open: true },
   { name: 'hidden (H)', fixture: 'hidden', pick: 'h3' },

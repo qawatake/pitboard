@@ -192,15 +192,16 @@ func TestPlacedWhenStopsAppear(t *testing.T) {
 	pv.settleCursor()
 	a.handle(key{r: 'j'})
 	a.handle(key{r: 'k'})
-	os.WriteFile(st.ReportPath(), []byte("<Title>t</Title>\n<Item id=\"new\">AI が足した項目</Item>\n"), 0o644)
+	os.WriteFile(st.ReportPath(), []byte("<Title>t</Title>\n<Ask id=\"new\">AI が足した問い\n<Option key=\"a\">A</Option>\n<Option key=\"b\">B</Option>\n</Ask>\n"), 0o644)
 	a.reload(pv)
 	pv.settleCursor()
 	pv.curShown = true
 	if pv.cur != "new" || !pv.placed {
 		t.Fatalf("cursor %q placed %v", pv.cur, pv.placed)
 	}
-	a.react(pv, 'y')
+	pv.open["new"] = true
+	a.react(pv, 'a')
 	if len(st.Events()) != 0 {
-		t.Error("y was recorded on a line that appeared under a cursor the person did not move")
+		t.Error("an answer was recorded on a line that appeared under a cursor the person did not move")
 	}
 }

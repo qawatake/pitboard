@@ -77,7 +77,7 @@ const noCut = int(^uint(0) >> 1)
 // (carrying the thought's text), where the last of them is.
 func deliverable(all []Event, seen, cut int) []Event {
 	var evs []Event
-	for _, e := range all {
+	for _, e := range dropLegacy(all) {
 		if e.N < cut {
 			evs = append(evs, e)
 		}
@@ -233,11 +233,6 @@ func describe(e Event, nodes []*report.Node) string {
 	}
 	switch e.Op {
 	case "react":
-		answer := e.Option != "" || (now != nil && now.Kind == report.KindQuestion) ||
-			(now == nil && e.Value != "y" && e.Value != "n")
-		if !answer {
-			return fmt.Sprintf("%s %s (%s)", e.Value, e.ID, ctx)
-		}
 		opt := e.Option
 		if opt == "" && now != nil {
 			if ch := now.Choice(e.Value); ch != nil {

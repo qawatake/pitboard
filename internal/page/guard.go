@@ -15,23 +15,22 @@ import (
 //
 //   - Placed: the screen put the cursor on the line by itself (at start, or
 //     when stops appeared on a page that had none). Hiding it, saying it is
-//     read and writing on it work (Actions.Untouched); y / n and an option
-//     answer the AI, so they wait until the person moves.
+//     read and writing on it work (Actions.Untouched); an option answers
+//     the AI, so it waits until the person moves.
 //   - Locked: the line was rewritten (or went) under the cursor. No key acts
 //     on it until the person moves, and every one says so.
 //   - Settling: the screen moved the cursor to the line (after x, H or u took
 //     the person's line away, or space / g went there) and it has not been
-//     on screen for SettleDelay. x y n and options are dropped, once: the
+//     on screen for SettleDelay. x and options are dropped, once: the
 //     same key pressed again on the same line works.
 
 // SettleDelay is how long a line the screen moved the cursor to must have
-// been on screen before x y n and options work on it.
+// been on screen before x and options work on it.
 const SettleDelay = 400 * time.Millisecond
 
 // Why a key did nothing.
 const (
 	MsgBack          = "カーソルの行に戻りました"
-	MsgPlacedYN      = "j k で動かすと y n が効きます"
 	MsgPlacedAnswer  = "j k で動かすと答えられます"
 	MsgSettlingReact = "いま移った行です。もう一度押すと付きます"
 	MsgSettlingHide  = "いま移った行です。もう一度押すと隠れます"
@@ -144,7 +143,7 @@ func (b *Board) Allow(n *report.Node, key string, t Touch) Verdict {
 		return v
 	}
 	switch {
-	case a.YN && (key == "y" || key == "n"), slices.Contains(a.Options, key):
+	case slices.Contains(a.Options, key):
 	case a.Comment && key == "c":
 		v.Do = DoComment
 		return v
@@ -152,11 +151,8 @@ func (b *Board) Allow(n *report.Node, key string, t Touch) Verdict {
 		return v
 	}
 	if t.Placed {
-		if u := a.Untouched(); !(u.YN && (key == "y" || key == "n")) && !slices.Contains(u.Options, key) {
-			v.Msg = MsgPlacedYN
-			if n.Kind == report.KindQuestion {
-				v.Msg = MsgPlacedAnswer
-			}
+		if u := a.Untouched(); !slices.Contains(u.Options, key) {
+			v.Msg = MsgPlacedAnswer
 			return v
 		}
 	}
@@ -171,7 +167,7 @@ func (b *Board) Allow(n *report.Node, key string, t Touch) Verdict {
 // Hint is a key offered on the cursor's line, and what it does there.
 type Hint struct {
 	// Do says which it is: open, close, read, answer, wait (placed: j k,
-	// and why), y, n, comment, hide.
+	// and why), comment, hide.
 	Do   string
 	Key  string
 	Word string
@@ -194,7 +190,7 @@ func (b *Board) Offer(n *report.Node, t Touch) Offer {
 	if n == nil {
 		return o
 	}
-	var enter, read, answer, yn, write, hide []Hint
+	var enter, read, answer, write, hide []Hint
 	switch {
 	case b.CanOpen(n) && t.Open:
 		enter = []Hint{{"close", "enter", "閉じる"}}
@@ -204,26 +200,20 @@ func (b *Board) Offer(n *report.Node, t Touch) Offer {
 	askOpen := n.Kind == report.KindQuestion && t.Open
 	a := b.ActionsOf(n)
 	if !t.Locked && report.Target(n) != "" && b.CanWrite() {
-		y, choices := a.YN, a.Options
+		choices := a.Options
 		if !askOpen {
 			choices = nil // the options of a closed Ask are not on screen
 		}
 		if t.Placed {
 			// Placed by the screen, not by the person: say how to react.
-			switch {
-			case askOpen:
+			if askOpen {
 				answer = []Hint{{"wait", "j k", "動かすと答えられる"}}
-			case y:
-				answer = []Hint{{"wait", "j k", "動かすと y n が効く"}}
 			}
-			y, choices = false, nil
+			choices = nil
 		}
 		if t.Settling() {
 			// These keys are dropped for a moment, so they are not offered.
-			y, choices = false, nil
-		}
-		if y {
-			yn = []Hint{{"y", "y", "よし"}, {"n", "n", "だめ"}}
+			choices = nil
 		}
 		if len(choices) > 0 {
 			answer = []Hint{{"answer", strings.Join(choices, " "), "答える"}}
@@ -246,7 +236,7 @@ func (b *Board) Offer(n *report.Node, t Touch) Offer {
 	if askOpen {
 		o.Hints = slices.Concat(answer, enter, read, write, hide)
 	} else {
-		o.Hints = slices.Concat(enter, read, answer, yn, write, hide)
+		o.Hints = slices.Concat(enter, read, answer, write, hide)
 	}
 	if t.Settling() && !t.Locked {
 		o.Recheck = SettleDelay - t.Shown

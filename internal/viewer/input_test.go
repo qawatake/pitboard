@@ -13,7 +13,10 @@ import (
 
 func TestInputStateOnTheLine(t *testing.T) {
 	st := testStore(t)
-	os.WriteFile(st.ReportPath(), []byte(`<Item id="hook" status="作業中" state="doing">hook を入れるか決める</Item>`), 0o644)
+	os.WriteFile(st.ReportPath(), []byte(`<Ask id="hook">hook を入れるか決める
+<Option key="a">入れる</Option>
+<Option key="b">見てから</Option>
+</Ask>`), 0o644)
 	a := testApp(t, st)
 	a.render()
 	steps := []struct {
@@ -21,17 +24,17 @@ func TestInputStateOnTheLine(t *testing.T) {
 		want string
 	}{
 		{func() {
-			st.Append(board.Event{Op: "react", ID: "hook", Value: "y", Line: report.ByID(a.top().Nodes, "hook").Sig()})
-		}, "y 未送信  作業中"},
-		{func() { sendAll(st) }, "y 送信済  作業中"},
-		{func() { st.Changes() }, "y 既読  作業中"},
-		{func() { st.Append(board.Event{Op: "thought", ID: "hook", Text: "一つ目"}) }, "y 未送信  作業中"},
-		{func() { st.Append(board.Event{Op: "thought", ID: "hook", Text: "二つ目"}) }, "y 2 未送信  作業中"},
-		{func() { sendAll(st) }, "y 2 送信済  作業中"},
-		{func() { st.Changes() }, "y 2 既読  作業中"},
-		{func() { st.SettleAll([]board.Settlement{{N: 4, State: "doing", Text: "やっています"}}) }, "y 2 対応中  作業中"},
-		{func() { st.SettleAll([]board.Settlement{{N: 4, State: "hold", Text: ""}}) }, "y 2 保留  作業中"},
-		{func() { st.SettleAll([]board.Settlement{{N: 4, State: "", Text: "やりました"}}) }, "y 2 対応済  作業中"},
+			st.Append(board.Event{Op: "react", ID: "hook", Value: "a", Option: "入れる", Line: report.ByID(a.top().Nodes, "hook").Sig()})
+		}, "a 入れる 未送信"},
+		{func() { sendAll(st) }, "a 入れる 送信済"},
+		{func() { st.Changes() }, "a 入れる 既読"},
+		{func() { st.Append(board.Event{Op: "thought", ID: "hook", Text: "一つ目"}) }, "a 入れる 未送信"},
+		{func() { st.Append(board.Event{Op: "thought", ID: "hook", Text: "二つ目"}) }, "a 入れる 2 未送信"},
+		{func() { sendAll(st) }, "a 入れる 2 送信済"},
+		{func() { st.Changes() }, "a 入れる 2 既読"},
+		{func() { st.SettleAll([]board.Settlement{{N: 4, State: "doing", Text: "やっています"}}) }, "a 入れる 2 対応中"},
+		{func() { st.SettleAll([]board.Settlement{{N: 4, State: "hold", Text: ""}}) }, "a 入れる 2 保留"},
+		{func() { st.SettleAll([]board.Settlement{{N: 4, State: "", Text: "やりました"}}) }, "a 入れる 2 対応済"},
 	}
 	for i, s := range steps {
 		s.do()

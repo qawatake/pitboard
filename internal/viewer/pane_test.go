@@ -65,9 +65,9 @@ func TestPaneByJK(t *testing.T) {
 	if a.inPane || pv.cur != "hook" || !pv.curShown {
 		t.Fatalf("k from the first thought: inPane %v cur %q", a.inPane, pv.cur)
 	}
-	a.handle(key{r: 'y'}) // the person pressed k to get here: it works
-	if evs := st.Events(); len(evs) != 5 || evs[4].Value != "y" {
-		t.Errorf("y after coming back: %+v", evs[len(evs)-1])
+	a.handle(key{r: 'x'}) // the person pressed k to get here: it works
+	if evs := st.Events(); len(evs) != 5 || evs[4].Op != "hide" {
+		t.Errorf("x after coming back: %+v", evs[len(evs)-1])
 	}
 	// Back to three.
 	if p := plainLines(a.pane(30)); strings.Contains(p, "思いつき1") {

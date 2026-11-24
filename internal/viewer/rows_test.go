@@ -16,7 +16,10 @@ const colorReport = `<Item id="you" wait="you" status="あなた待ち">決め�
 <Item id="run" state="doing" status="作業中">動いている</Item>
 <Item id="queue" status="順番待ち">待っている</Item>
 <Item id="old" status="あなた待ち">語だけ</Item>
-<Item id="plan" ask="y">聞いている</Item>
+<Ask id="plan">聞いている
+<Option key="a">はい</Option>
+<Option key="b">いいえ</Option>
+</Ask>
 `
 
 func TestStatusColors(t *testing.T) {
@@ -33,14 +36,14 @@ func TestStatusColors(t *testing.T) {
 	}
 	// wait="you" is not "waiting", but space goes to it after the waiting.
 	if w, _ := a.counts(pv); w != 1 {
-		t.Errorf("waiting %d (only ask=\"y\")", w)
+		t.Errorf("waiting %d (only the Ask)", w)
 	}
 	a.render()
 	a.handle(key{r: ' '})
 	if pv.cur != "plan" {
 		t.Fatalf("first space: %q", pv.cur)
 	}
-	st.Append(board.Event{Op: "react", ID: "plan", Value: "y", Line: report.ByID(pv.Nodes, "plan").Sig()})
+	st.Append(board.Event{Op: "react", ID: "plan", Value: "a", Option: "はい", Line: report.ByID(pv.Nodes, "plan").Sig()})
 	a.loadEvents()
 	a.viewAll(pv)
 	a.handle(key{r: ' '})
@@ -201,9 +204,9 @@ func TestNoticeFixedAtTop(t *testing.T) {
 	if pv.cur != "restart" || !pv.placed {
 		t.Fatalf("cursor %q placed %v", pv.cur, pv.placed)
 	}
-	// The placed cursor takes no y: it says how to make it work.
+	// y is no key any more: nothing is recorded.
 	a.handle(key{r: 'y'})
-	if len(st.Events()) != 0 || a.msg != msgPlacedYN {
+	if len(st.Events()) != 0 {
 		t.Fatalf("y on a placed cursor: %q", a.msg)
 	}
 	for range 50 {
@@ -222,20 +225,19 @@ func TestNoticeFixedAtTop(t *testing.T) {
 	if pv.cur != "restart" || pv.placed || !pv.curShown {
 		t.Fatalf("k to the notice: %q placed %v shown %v", pv.cur, pv.placed, pv.curShown)
 	}
-	// Not counted, not jumped to.
-	if w, f := a.counts(pv); w != 1 || f != 0 {
+	// Not counted, not jumped to (nothing else is marked: space stays).
+	if w, f := a.counts(pv); w != 0 || f != 0 {
 		t.Errorf("counts %d %d", w, f)
 	}
 	a.handle(key{r: ' '})
-	if pv.cur != "a" {
+	if pv.cur != "restart" {
 		t.Errorf("space went to %q", pv.cur)
 	}
-	a.handle(key{r: 'k'})
 	a.draw()
 	wait(t, settleDelay)
-	// y works on it, and x hides it.
+	// y does nothing on it (no key any more), and x hides it.
 	a.handle(key{r: 'y'})
-	if evs := st.Events(); len(evs) != 1 || evs[0].Value != "y" || evs[0].ID != "restart" {
+	if evs := st.Events(); len(evs) != 0 {
 		t.Fatalf("y: %+v", evs)
 	}
 	a.handle(key{r: 'x'})

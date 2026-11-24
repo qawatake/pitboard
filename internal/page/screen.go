@@ -77,7 +77,7 @@ func Enums() map[string][]string {
 		actions = append(actions, at.Field(i).Name)
 	}
 	var hints []string
-	for _, h := range []string{"open", "close", "read", "answer", "wait", "y", "n", "comment", "hide",
+	for _, h := range []string{"open", "close", "read", "answer", "wait", "comment", "hide",
 		"undo", "next", "jump", "send", "write", "keys", "edit", "retract", "place", "stop", "newline"} {
 		hints = append(hints, h)
 	}
@@ -103,7 +103,7 @@ func Enums() map[string][]string {
 // Refusals is, by name, every message that says why a key did nothing
 // (the screens show them as needing the person).
 var Refusals = map[string]string{
-	"back": MsgBack, "placedYN": MsgPlacedYN, "placedAnswer": MsgPlacedAnswer,
+	"back": MsgBack, "placedAnswer": MsgPlacedAnswer,
 	"settlingReact": MsgSettlingReact, "settlingHide": MsgSettlingHide, "settlingShow": MsgSettlingShow,
 	"noMarked": MsgNoMarked, "changed": MsgChanged, "moved": MsgMoved,
 	"emptyComment": MsgEmptyComment, "tooLong": MsgTooLong,
@@ -111,7 +111,7 @@ var Refusals = map[string]string{
 
 // The order a screen leaves keys out in when its line of keys has no room,
 // lowest first; a key without a rank is kept: u, then x and space, then m
-// and ?, g, enter, n, y (and r, an answer), c. enter and g outlast m and ?
+// and ?, g, enter, r and an answer, c. enter and g outlast m and ?
 // (on a phone the line's own keys matter more than the page's). The
 // terminal keeps x longer before the person moves (see its hints).
 const (
@@ -120,8 +120,7 @@ const (
 	RankPage
 	RankJump
 	RankEnter
-	RankN
-	RankY
+	RankAnswer
 	RankComment
 )
 
@@ -138,10 +137,8 @@ func DropRank(do string) int {
 		return RankJump
 	case "open", "close":
 		return RankEnter
-	case "n":
-		return RankN
-	case "y", "read", "answer":
-		return RankY
+	case "read", "answer":
+		return RankAnswer
 	case "comment":
 		return RankComment
 	}

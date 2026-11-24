@@ -63,14 +63,12 @@ func (a *app) helpRows() []row {
 		{"", "報告のいちばん上からさらに k で、上に固定されたお知らせへ"},
 		{"", "日本語入力のままでも、ctrl+n ctrl+p と全角の英字 (ｊ ｙ など) が効く"},
 		{"g", "節へ飛ぶ: お知らせ・節・いちばん外の折りたたみに a b c … が付く。その字で、そこの最初の行へ (見出しを画面の上に)。esc でやめる"},
-		{"", "開いた中身が画面より高ければ、j k は次 (前) の行へ移る前に、間を半画面ずつスクロールする (カーソルは動かず、画面の外に出ることもある。そのとき y n x r c は、まずカーソルの行を画面に戻す)。k は j で読み下った中身を同じように読み上る"},
+		{"", "開いた中身が画面より高ければ、j k は次 (前) の行へ移る前に、間を半画面ずつスクロールする (カーソルは動かず、画面の外に出ることもある。そのとき x r c と答えのキーは、まずカーソルの行を画面に戻す)。k は j で読み下った中身を同じように読み上る"},
 		{"space", "カーソルより下で、いちばん近い印のある行 (黄の ●・人待ちの項目・緑の ●) へ。下に無ければ上から。折りたたみは開く"},
-		{"r", "読んだ: カーソルの行の緑の ● (右上の「未読」) を消す (カーソルを当てる・開くだけでは消えない。y n・答え・コメント・x でも消える)"},
+		{"r", "読んだ: カーソルの行の緑の ● (右上の「未読」) を消す (カーソルを当てる・開くだけでは消えない。答え・コメント・x でも消える)"},
 		{"A", "いま報告にある行をすべて読んだことにする (緑の ● を消す)"},
 		{"enter", "開く・閉じる (コメントの欄でも)"},
-		{"u", "元に戻す: 直前の操作を取り消す (y n・答え・コメントを置く / 直す / 取り消す・隠す / 表示に戻す・r・A。新しい順に 1 つずつ。送ったあとなら、取り消しを次に送る)"},
-		{"y", "よし (項目・リンク・お知らせ)"},
-		{"n", "だめ (項目・リンク・お知らせ)"},
+		{"u", "元に戻す: 直前の操作を取り消す (答え・コメントを置く / 直す / 取り消す・隠す / 表示に戻す・r・A。新しい順に 1 つずつ。送ったあとなら、取り消しを次に送る)"},
 		{"a b …", "問いに答える (選択肢のキー。問いを開いているときだけ。閉じていれば開く)"},
 		{"c", "この行にコメントを書く"},
 		{"m", "宛先なしでコメントを書く (どこにカーソルがあっても)"},
@@ -234,7 +232,7 @@ func (a *app) bottom() []string {
 			if pv.placed {
 				// Before the person moves, x is what works on the line (a
 				// notice read and done with): kept over g, space and enter.
-				x.rank = rankN
+				x.rank = rankAnswer
 			}
 		}
 		keys = append(keys, x)
@@ -253,7 +251,7 @@ const wordWaitNarrow = "動かす"
 func commentHints(canWrite bool) []hint {
 	var out []hint
 	for _, h := range page.CommentHints(canWrite) {
-		x := hint{k: h.Key, d: h.Word, rank: rankN}
+		x := hint{k: h.Key, d: h.Word, rank: rankAnswer}
 		if h.Do == "retract" {
 			x.rank = rankX
 		}
@@ -271,22 +269,21 @@ func concat(hs ...[]hint) []hint {
 }
 
 // The order in which hints are left out when the line is narrow: lowest
-// first (u, then x and space, g, enter, n, y, c). A hint with rank 0 (one with a short
+// first (u, then x and space, g, enter, r and an answer, c). A hint with rank 0 (one with a short
 // form, m, ?) is kept.
 // They are page's (DropRank), the same on every screen.
 const (
-	rankU     = page.RankUndo
-	rankX     = page.RankHide
-	rankG     = page.RankJump
-	rankEnter = page.RankEnter
-	rankN     = page.RankN
-	rankY     = page.RankY
-	rankC     = page.RankComment
+	rankU      = page.RankUndo
+	rankX      = page.RankHide
+	rankG      = page.RankJump
+	rankEnter  = page.RankEnter
+	rankAnswer = page.RankAnswer
+	rankC      = page.RankComment
 )
 
 // oneLine is the hints: always one line, the keys for this line, then
 // "m 書く" and "? キー". When the line is narrow, right goes first, then
-// keys by rank (x, enter, n, y, c); "m 書く", "? キー" and a hint with a
+// keys by rank (x, enter, r and an answer, c); "m 書く", "? キー" and a hint with a
 // short form stay to the end.
 func (a *app) oneLine(keys []hint, right text) []string {
 	return a.oneLineKeep(keys, nil, right)

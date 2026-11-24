@@ -49,7 +49,7 @@ func (f *fixture) register(dir, session string, mod func(*http.Request)) (*http.
 func TestBoardsByPath(t *testing.T) {
 	f := setup(t)
 	dir2, _ := filepath.EvalSymlinks(t.TempDir())
-	newBoard(t, dir2, "abcdefgh1111", "<Title>二つめ</Title>\n<Item id=\"x\" ask=\"y\">x</Item>\n")
+	newBoard(t, dir2, "abcdefgh1111", "<Title>二つめ</Title>\n<Ask id=\"x\">x\n<Option key=\"a\">A</Option>\n<Option key=\"b\">B</Option>\n</Ask>\n")
 	newBoard(t, dir2, "abcdefgh2222", "<Title>三つめ</Title>\n")
 	resp, reg := f.register(dir2, "abcdefgh1111", nil)
 	if resp.StatusCode != 200 || reg.ID != "abcdefgh" {

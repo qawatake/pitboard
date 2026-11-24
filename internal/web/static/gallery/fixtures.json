@@ -1,7 +1,6 @@
 {
  "Enums": {
   "action": [
-   "YN",
    "Options",
    "Comment",
    "Hide",
@@ -18,8 +17,6 @@
    "read",
    "answer",
    "wait",
-   "y",
-   "n",
    "comment",
    "hide",
    "undo",
@@ -67,7 +64,6 @@
    "moved",
    "noMarked",
    "placedAnswer",
-   "placedYN",
    "settlingHide",
    "settlingReact",
    "settlingShow",
@@ -146,7 +142,6 @@
         "Stop": true,
         "CanOpen": true,
         "Actions": {
-         "YN": true,
          "Options": null,
          "Comment": true,
          "Hide": true,
@@ -193,7 +188,7 @@
          },
          {
           "N": 15,
-          "Text": "同じ行への 2 つ目",
+          "Text": "同じ行への 2 つ目 [Image #2] [Image #3]",
           "Target": "c1",
           "About": "未送信のコメントのある行",
           "TitleThen": "",
@@ -205,7 +200,10 @@
           "SettledHead": "",
           "Note": "まだ送っていません (s で送る)",
           "Finished": false,
-          "Images": null
+          "Images": [
+           2,
+           3
+          ]
          }
         ],
         "Body": [
@@ -235,7 +233,6 @@
         "Stop": true,
         "CanOpen": true,
         "Actions": {
-         "YN": true,
          "Options": null,
          "Comment": true,
          "Hide": true,
@@ -294,7 +291,6 @@
         "Stop": true,
         "CanOpen": true,
         "Actions": {
-         "YN": true,
          "Options": null,
          "Comment": true,
          "Hide": true,
@@ -353,7 +349,6 @@
         "Stop": true,
         "CanOpen": true,
         "Actions": {
-         "YN": true,
          "Options": null,
          "Comment": true,
          "Hide": true,
@@ -412,7 +407,6 @@
         "Stop": true,
         "CanOpen": true,
         "Actions": {
-         "YN": true,
          "Options": null,
          "Comment": true,
          "Hide": true,
@@ -471,7 +465,6 @@
         "Stop": true,
         "CanOpen": true,
         "Actions": {
-         "YN": true,
          "Options": null,
          "Comment": true,
          "Hide": true,
@@ -530,7 +523,6 @@
         "Stop": true,
         "CanOpen": true,
         "Actions": {
-         "YN": true,
          "Options": null,
          "Comment": true,
          "Hide": true,
@@ -576,27 +568,30 @@
         ]
        },
        {
-        "Kind": "item",
+        "Kind": "ask",
         "Key": "u1",
         "Target": "u1",
         "Title": [
          {
-          "Text": "送った y を取り消した行",
+          "Text": "送った答えを取り消した問い",
           "Style": "plain",
           "URL": ""
          }
         ],
         "Stop": true,
+        "CanOpen": true,
         "Actions": {
-         "YN": true,
-         "Options": null,
+         "Options": [
+          "a",
+          "b"
+         ],
          "Comment": true,
          "Hide": true,
          "Read": false
         },
         "Mark": "waiting",
-        "Sign": "·",
-        "OpenSign": "·",
+        "Sign": "?",
+        "OpenSign": "?",
         "Token": "tok-u1",
         "Right": {
          "Reaction": "",
@@ -614,7 +609,32 @@
          "At": "0001-01-01T00:00:00Z",
          "AtText": ""
         },
-        "State": "todo"
+        "Kids": [
+         {
+          "Kind": "option",
+          "Title": [
+           {
+            "Text": "はい",
+            "Style": "plain",
+            "URL": ""
+           }
+          ],
+          "OptionKey": "a",
+          "Depth": 1
+         },
+         {
+          "Kind": "option",
+          "Title": [
+           {
+            "Text": "いいえ",
+            "Style": "plain",
+            "URL": ""
+           }
+          ],
+          "OptionKey": "b",
+          "Depth": 1
+         }
+        ]
        },
        {
         "Kind": "fold",
@@ -630,7 +650,6 @@
         "Stop": true,
         "CanOpen": true,
         "Actions": {
-         "YN": false,
          "Options": null,
          "Comment": true,
          "Hide": true,
@@ -687,7 +706,6 @@
           ],
           "Stop": true,
           "Actions": {
-           "YN": true,
            "Options": null,
            "Comment": true,
            "Hide": true,
@@ -789,7 +807,7 @@
      },
      {
       "N": 15,
-      "Text": "同じ行への 2 つ目",
+      "Text": "同じ行への 2 つ目 [Image #2] [Image #3]",
       "Target": "c1",
       "About": "未送信のコメントのある行",
       "TitleThen": "",
@@ -801,7 +819,10 @@
       "SettledHead": "",
       "Note": "まだ送っていません (s で送る)",
       "Finished": false,
-      "Images": null
+      "Images": [
+       2,
+       3
+      ]
      },
      {
       "N": 14,
@@ -1005,7 +1026,7 @@
      },
      {
       "Name": "move",
-      "Label": "緑: 動いている (作業中・対応中)・未読の ●・y・足した行"
+      "Label": "緑: 動いている (作業中・対応中)・未読の ●・足した行"
      },
      {
       "Name": "quiet",
@@ -1021,23 +1042,21 @@
      },
      {
       "Name": "bad",
-      "Label": "赤: 誤り・n・消した行"
+      "Label": "赤: 誤り・消した行"
      }
     ],
     "Drop": {
-     "answer": 7,
+     "answer": 6,
      "close": 5,
-     "comment": 8,
+     "comment": 7,
      "hide": 2,
      "jump": 4,
      "keys": 3,
-     "n": 6,
      "next": 2,
      "open": 5,
-     "read": 7,
+     "read": 6,
      "undo": 1,
-     "write": 3,
-     "y": 7
+     "write": 3
     }
    },
    "Offers": {
@@ -1048,16 +1067,6 @@
         "Do": "open",
         "Key": "enter",
         "Word": "開く"
-       },
-       {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
        },
        {
         "Do": "comment",
@@ -1080,16 +1089,6 @@
         "Do": "close",
         "Key": "enter",
         "Word": "閉じる"
-       },
-       {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
        },
        {
         "Do": "comment",
@@ -1116,16 +1115,6 @@
         "Word": "開く"
        },
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
-       {
         "Do": "comment",
         "Key": "c",
         "Word": "行に書く"
@@ -1146,16 +1135,6 @@
         "Do": "close",
         "Key": "enter",
         "Word": "閉じる"
-       },
-       {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
        },
        {
         "Do": "comment",
@@ -1182,16 +1161,6 @@
         "Word": "開く"
        },
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
-       {
         "Do": "comment",
         "Key": "c",
         "Word": "行に書く"
@@ -1212,16 +1181,6 @@
         "Do": "close",
         "Key": "enter",
         "Word": "閉じる"
-       },
-       {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
        },
        {
         "Do": "comment",
@@ -1248,16 +1207,6 @@
         "Word": "開く"
        },
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
-       {
         "Do": "comment",
         "Key": "c",
         "Word": "行に書く"
@@ -1278,16 +1227,6 @@
         "Do": "close",
         "Key": "enter",
         "Word": "閉じる"
-       },
-       {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
        },
        {
         "Do": "comment",
@@ -1314,16 +1253,6 @@
         "Word": "開く"
        },
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
-       {
         "Do": "comment",
         "Key": "c",
         "Word": "行に書く"
@@ -1344,16 +1273,6 @@
         "Do": "close",
         "Key": "enter",
         "Word": "閉じる"
-       },
-       {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
        },
        {
         "Do": "comment",
@@ -1380,16 +1299,6 @@
         "Word": "開く"
        },
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
-       {
         "Do": "comment",
         "Key": "c",
         "Word": "行に書く"
@@ -1410,16 +1319,6 @@
         "Do": "close",
         "Key": "enter",
         "Word": "閉じる"
-       },
-       {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
        },
        {
         "Do": "comment",
@@ -1446,16 +1345,6 @@
         "Word": "開く"
        },
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
-       {
         "Do": "comment",
         "Key": "c",
         "Word": "行に書く"
@@ -1478,16 +1367,6 @@
         "Word": "閉じる"
        },
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
-       {
         "Do": "comment",
         "Key": "c",
         "Word": "行に書く"
@@ -1507,16 +1386,6 @@
      "Closed": {
       "Hints": [
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
-       {
         "Do": "comment",
         "Key": "c",
         "Word": "行に書く"
@@ -1533,16 +1402,6 @@
      },
      "Open": {
       "Hints": [
-       {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
        {
         "Do": "comment",
         "Key": "c",
@@ -1609,14 +1468,9 @@
      "Closed": {
       "Hints": [
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
+        "Do": "open",
+        "Key": "enter",
+        "Word": "開く"
        },
        {
         "Do": "comment",
@@ -1636,14 +1490,14 @@
      "Open": {
       "Hints": [
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
+        "Do": "answer",
+        "Key": "a b",
+        "Word": "答える"
        },
        {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
+        "Do": "close",
+        "Key": "enter",
+        "Word": "閉じる"
        },
        {
         "Do": "comment",
@@ -1656,7 +1510,10 @@
         "Word": "隠す"
        }
       ],
-      "Options": null,
+      "Options": [
+       "a",
+       "b"
+      ],
       "Recheck": 0,
       "Locked": false
      }
@@ -1701,7 +1558,6 @@
       "Stop": true,
       "CanOpen": true,
       "Actions": {
-       "YN": true,
        "Options": null,
        "Comment": true,
        "Hide": true,
@@ -1755,7 +1611,6 @@
       ],
       "Stop": true,
       "Actions": {
-       "YN": true,
        "Options": null,
        "Comment": true,
        "Hide": true,
@@ -1861,7 +1716,6 @@
         "Stop": true,
         "CanOpen": true,
         "Actions": {
-         "YN": false,
          "Options": [
           "a",
           "b"
@@ -1931,7 +1785,6 @@
         "Stop": true,
         "CanOpen": true,
         "Actions": {
-         "YN": false,
          "Options": [
           "a",
           "b"
@@ -1985,13 +1838,11 @@
         "Stop": true,
         "CanOpen": true,
         "Actions": {
-         "YN": true,
          "Options": null,
          "Comment": true,
          "Hide": true,
          "Read": false
         },
-        "Mark": "waiting",
         "Sign": "▸",
         "OpenSign": "▾",
         "Token": "tok-hook",
@@ -2014,7 +1865,7 @@
         "State": "todo",
         "Comments": [
          {
-          "N": 4,
+          "N": 3,
           "Text": "入れてよい。settings.json は手で直す",
           "Target": "hook",
           "About": "hook を入れるか決める",
@@ -2054,7 +1905,7 @@
         ]
        },
        {
-        "Kind": "item",
+        "Kind": "ask",
         "Key": "merge",
         "Target": "merge",
         "Title": [
@@ -2065,20 +1916,23 @@
          }
         ],
         "Stop": true,
+        "CanOpen": true,
         "Actions": {
-         "YN": true,
-         "Options": null,
+         "Options": [
+          "y",
+          "n"
+         ],
          "Comment": true,
          "Hide": true,
          "Read": false
         },
-        "Sign": "·",
-        "OpenSign": "·",
+        "Sign": "?",
+        "OpenSign": "?",
         "Token": "tok-merge",
         "Right": {
          "Reaction": "y",
-         "Option": "",
-         "OptionHead": "",
+         "Option": "merge する",
+         "OptionHead": "merge する",
          "Count": 0,
          "Input": {
           "Text": "未送信",
@@ -2091,7 +1945,33 @@
          "At": "0001-01-01T00:00:00Z",
          "AtText": ""
         },
-        "State": "todo"
+        "Kids": [
+         {
+          "Kind": "option",
+          "Title": [
+           {
+            "Text": "merge する",
+            "Style": "plain",
+            "URL": ""
+           }
+          ],
+          "OptionKey": "y",
+          "Chosen": true,
+          "Depth": 1
+         },
+         {
+          "Kind": "option",
+          "Title": [
+           {
+            "Text": "直してから",
+            "Style": "plain",
+            "URL": ""
+           }
+          ],
+          "OptionKey": "n",
+          "Depth": 1
+         }
+        ]
        },
        {
         "Kind": "item",
@@ -2107,7 +1987,6 @@
         "Stop": true,
         "CanOpen": true,
         "Actions": {
-         "YN": true,
          "Options": null,
          "Comment": true,
          "Hide": true,
@@ -2145,7 +2024,6 @@
         "Stop": true,
         "CanOpen": true,
         "Actions": {
-         "YN": true,
          "Options": null,
          "Comment": true,
          "Hide": true,
@@ -2201,7 +2079,6 @@
         ],
         "Stop": true,
         "Actions": {
-         "YN": true,
          "Options": null,
          "Comment": true,
          "Hide": true,
@@ -2242,7 +2119,6 @@
         "Stop": true,
         "CanOpen": true,
         "Actions": {
-         "YN": true,
          "Options": null,
          "Comment": true,
          "Hide": true,
@@ -2280,7 +2156,6 @@
           ],
           "Stop": true,
           "Actions": {
-           "YN": false,
            "Options": null,
            "Comment": false,
            "Hide": true,
@@ -2301,7 +2176,6 @@
             ],
             "Stop": true,
             "Actions": {
-             "YN": false,
              "Options": null,
              "Comment": false,
              "Hide": true,
@@ -2325,7 +2199,6 @@
           ],
           "Stop": true,
           "Actions": {
-           "YN": false,
            "Options": null,
            "Comment": false,
            "Hide": true,
@@ -2395,7 +2268,6 @@
         "Stop": true,
         "CanOpen": true,
         "Actions": {
-         "YN": true,
          "Options": null,
          "Comment": true,
          "Hide": true,
@@ -2420,7 +2292,6 @@
         ],
         "Stop": true,
         "Actions": {
-         "YN": true,
          "Options": null,
          "Comment": true,
          "Hide": true,
@@ -2445,7 +2316,6 @@
         "Stop": true,
         "CanOpen": true,
         "Actions": {
-         "YN": true,
          "Options": null,
          "Comment": true,
          "Hide": true,
@@ -2494,7 +2364,6 @@
         ],
         "Stop": true,
         "Actions": {
-         "YN": true,
          "Options": null,
          "Comment": true,
          "Hide": true,
@@ -2518,7 +2387,6 @@
         ],
         "Stop": true,
         "Actions": {
-         "YN": true,
          "Options": null,
          "Comment": true,
          "Hide": true,
@@ -2527,22 +2395,6 @@
         "Sign": "→",
         "OpenSign": "→",
         "Token": "tok-pr",
-        "Right": {
-         "Reaction": "n",
-         "Option": "",
-         "OptionHead": "",
-         "Count": 0,
-         "Input": {
-          "Text": "未送信",
-          "Tone": "need"
-         },
-         "Status": {
-          "Text": "",
-          "Tone": "quiet"
-         },
-         "At": "0001-01-01T00:00:00Z",
-         "AtText": ""
-        },
         "URL": "https://example.com/pull/1"
        },
        {
@@ -2563,7 +2415,6 @@
         ],
         "Stop": true,
         "Actions": {
-         "YN": false,
          "Options": null,
          "Comment": false,
          "Hide": true,
@@ -2585,7 +2436,6 @@
         ],
         "Stop": true,
         "Actions": {
-         "YN": false,
          "Options": null,
          "Comment": false,
          "Hide": true,
@@ -2626,7 +2476,6 @@
       "Stop": true,
       "CanOpen": true,
       "Actions": {
-       "YN": false,
        "Options": null,
        "Comment": true,
        "Hide": true,
@@ -2649,7 +2498,6 @@
         ],
         "Stop": true,
         "Actions": {
-         "YN": true,
          "Options": null,
          "Comment": true,
          "Hide": true,
@@ -2673,7 +2521,6 @@
         ],
         "Stop": true,
         "Actions": {
-         "YN": false,
          "Options": null,
          "Comment": false,
          "Hide": true,
@@ -2698,7 +2545,6 @@
         "Stop": true,
         "CanOpen": true,
         "Actions": {
-         "YN": false,
          "Options": null,
          "Comment": true,
          "Hide": true,
@@ -2722,7 +2568,6 @@
           "Stop": true,
           "CanOpen": true,
           "Actions": {
-           "YN": true,
            "Options": null,
            "Comment": true,
            "Hide": true,
@@ -2754,9 +2599,9 @@
       "JumpKey": "h"
      }
     ],
-    "Waiting": 2,
+    "Waiting": 1,
     "Unread": 1,
-    "Unsent": 4,
+    "Unsent": 3,
     "SentUnread": 0,
     "AIWaiting": false,
     "Hidden": 0,
@@ -2778,10 +2623,6 @@
       "Folds": null
      },
      {
-      "Key": "hook",
-      "Folds": null
-     },
-     {
       "Key": "reply",
       "Folds": null
      },
@@ -2792,7 +2633,7 @@
     ],
     "Summary": [
      {
-      "Text": "反応待ち 2",
+      "Text": "反応待ち 1",
       "Tone": "need"
      },
      {
@@ -2800,13 +2641,13 @@
       "Tone": "move"
      },
      {
-      "Text": "未送信 4",
+      "Text": "未送信 3",
       "Tone": "need"
      }
     ],
     "Comments": [
      {
-      "N": 4,
+      "N": 3,
       "Text": "入れてよい。settings.json は手で直す",
       "Target": "hook",
       "About": "hook を入れるか決める",
@@ -2909,7 +2750,7 @@
      },
      {
       "Name": "move",
-      "Label": "緑: 動いている (作業中・対応中)・未読の ●・y・足した行"
+      "Label": "緑: 動いている (作業中・対応中)・未読の ●・足した行"
      },
      {
       "Name": "quiet",
@@ -2925,23 +2766,21 @@
      },
      {
       "Name": "bad",
-      "Label": "赤: 誤り・n・消した行"
+      "Label": "赤: 誤り・消した行"
      }
     ],
     "Drop": {
-     "answer": 7,
+     "answer": 6,
      "close": 5,
-     "comment": 8,
+     "comment": 7,
      "hide": 2,
      "jump": 4,
      "keys": 3,
-     "n": 6,
      "next": 2,
      "open": 5,
-     "read": 7,
+     "read": 6,
      "undo": 1,
-     "write": 3,
-     "y": 7
+     "write": 3
     }
    },
    "Offers": {
@@ -3027,16 +2866,6 @@
      "Closed": {
       "Hints": [
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
-       {
         "Do": "comment",
         "Key": "c",
         "Word": "行に書く"
@@ -3053,16 +2882,6 @@
      },
      "Open": {
       "Hints": [
-       {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
        {
         "Do": "comment",
         "Key": "c",
@@ -3088,16 +2907,6 @@
         "Word": "開く"
        },
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
-       {
         "Do": "comment",
         "Key": "c",
         "Word": "行に書く"
@@ -3118,16 +2927,6 @@
         "Do": "close",
         "Key": "enter",
         "Word": "閉じる"
-       },
-       {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
        },
        {
         "Do": "comment",
@@ -3246,16 +3045,6 @@
         "Word": "開く"
        },
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
-       {
         "Do": "comment",
         "Key": "c",
         "Word": "行に書く"
@@ -3276,16 +3065,6 @@
         "Do": "close",
         "Key": "enter",
         "Word": "閉じる"
-       },
-       {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
        },
        {
         "Do": "comment",
@@ -3307,16 +3086,6 @@
      "Closed": {
       "Hints": [
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
-       {
         "Do": "comment",
         "Key": "c",
         "Word": "行に書く"
@@ -3333,16 +3102,6 @@
      },
      "Open": {
       "Hints": [
-       {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
        {
         "Do": "comment",
         "Key": "c",
@@ -3363,14 +3122,9 @@
      "Closed": {
       "Hints": [
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
+        "Do": "open",
+        "Key": "enter",
+        "Word": "開く"
        },
        {
         "Do": "comment",
@@ -3390,14 +3144,14 @@
      "Open": {
       "Hints": [
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
+        "Do": "answer",
+        "Key": "y n",
+        "Word": "答える"
        },
        {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
+        "Do": "close",
+        "Key": "enter",
+        "Word": "閉じる"
        },
        {
         "Do": "comment",
@@ -3410,7 +3164,10 @@
         "Word": "隠す"
        }
       ],
-      "Options": null,
+      "Options": [
+       "y",
+       "n"
+      ],
       "Recheck": 0,
       "Locked": false
      }
@@ -3422,16 +3179,6 @@
         "Do": "open",
         "Key": "enter",
         "Word": "開く"
-       },
-       {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
        },
        {
         "Do": "comment",
@@ -3456,16 +3203,6 @@
         "Word": "閉じる"
        },
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
-       {
         "Do": "comment",
         "Key": "c",
         "Word": "行に書く"
@@ -3485,16 +3222,6 @@
      "Closed": {
       "Hints": [
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
-       {
         "Do": "comment",
         "Key": "c",
         "Word": "行に書く"
@@ -3511,16 +3238,6 @@
      },
      "Open": {
       "Hints": [
-       {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
        {
         "Do": "comment",
         "Key": "c",
@@ -3546,16 +3263,6 @@
         "Word": "開く"
        },
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
-       {
         "Do": "comment",
         "Key": "c",
         "Word": "行に書く"
@@ -3576,16 +3283,6 @@
         "Do": "close",
         "Key": "enter",
         "Word": "閉じる"
-       },
-       {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
        },
        {
         "Do": "comment",
@@ -3612,16 +3309,6 @@
         "Word": "開く"
        },
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
-       {
         "Do": "comment",
         "Key": "c",
         "Word": "行に書く"
@@ -3644,16 +3331,6 @@
         "Word": "閉じる"
        },
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
-       {
         "Do": "comment",
         "Key": "c",
         "Word": "行に書く"
@@ -3673,16 +3350,6 @@
      "Closed": {
       "Hints": [
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
-       {
         "Do": "comment",
         "Key": "c",
         "Word": "行に書く"
@@ -3699,16 +3366,6 @@
      },
      "Open": {
       "Hints": [
-       {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
        {
         "Do": "comment",
         "Key": "c",
@@ -3739,16 +3396,6 @@
         "Word": "読んだ"
        },
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
-       {
         "Do": "comment",
         "Key": "c",
         "Word": "行に書く"
@@ -3776,16 +3423,6 @@
         "Word": "読んだ"
        },
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
-       {
         "Do": "comment",
         "Key": "c",
         "Word": "行に書く"
@@ -3810,16 +3447,6 @@
         "Word": "開く"
        },
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
-       {
         "Do": "comment",
         "Key": "c",
         "Word": "行に書く"
@@ -3842,16 +3469,6 @@
         "Word": "閉じる"
        },
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
-       {
         "Do": "comment",
         "Key": "c",
         "Word": "行に書く"
@@ -3871,16 +3488,6 @@
      "Closed": {
       "Hints": [
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
-       {
         "Do": "comment",
         "Key": "c",
         "Word": "行に書く"
@@ -3897,16 +3504,6 @@
      },
      "Open": {
       "Hints": [
-       {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
        {
         "Do": "comment",
         "Key": "c",
@@ -3927,16 +3524,6 @@
      "Closed": {
       "Hints": [
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
-       {
         "Do": "comment",
         "Key": "c",
         "Word": "行に書く"
@@ -3953,16 +3540,6 @@
      },
      "Open": {
       "Hints": [
-       {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
        {
         "Do": "comment",
         "Key": "c",
@@ -4042,16 +3619,6 @@
         "Word": "開く"
        },
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
-       {
         "Do": "comment",
         "Key": "c",
         "Word": "行に書く"
@@ -4072,16 +3639,6 @@
         "Do": "close",
         "Key": "enter",
         "Word": "閉じる"
-       },
-       {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
        },
        {
         "Do": "comment",
@@ -4194,11 +3751,6 @@
     "ci": {
      "Hints": [
       {
-       "Do": "wait",
-       "Key": "j k",
-       "Word": "動かすと y n が効く"
-      },
-      {
        "Do": "comment",
        "Key": "c",
        "Word": "行に書く"
@@ -4219,11 +3771,6 @@
        "Do": "open",
        "Key": "enter",
        "Word": "開く"
-      },
-      {
-       "Do": "wait",
-       "Key": "j k",
-       "Word": "動かすと y n が効く"
       },
       {
        "Do": "comment",
@@ -4292,11 +3839,6 @@
        "Word": "開く"
       },
       {
-       "Do": "wait",
-       "Key": "j k",
-       "Word": "動かすと y n が効く"
-      },
-      {
        "Do": "comment",
        "Key": "c",
        "Word": "行に書く"
@@ -4313,11 +3855,6 @@
     },
     "impl": {
      "Hints": [
-      {
-       "Do": "wait",
-       "Key": "j k",
-       "Word": "動かすと y n が効く"
-      },
       {
        "Do": "comment",
        "Key": "c",
@@ -4336,9 +3873,9 @@
     "merge": {
      "Hints": [
       {
-       "Do": "wait",
-       "Key": "j k",
-       "Word": "動かすと y n が効く"
+       "Do": "open",
+       "Key": "enter",
+       "Word": "開く"
       },
       {
        "Do": "comment",
@@ -4363,11 +3900,6 @@
        "Word": "開く"
       },
       {
-       "Do": "wait",
-       "Key": "j k",
-       "Word": "動かすと y n が効く"
-      },
-      {
        "Do": "comment",
        "Key": "c",
        "Word": "行に書く"
@@ -4384,11 +3916,6 @@
     },
     "old": {
      "Hints": [
-      {
-       "Do": "wait",
-       "Key": "j k",
-       "Word": "動かすと y n が効く"
-      },
       {
        "Do": "comment",
        "Key": "c",
@@ -4410,11 +3937,6 @@
        "Do": "open",
        "Key": "enter",
        "Word": "開く"
-      },
-      {
-       "Do": "wait",
-       "Key": "j k",
-       "Word": "動かすと y n が効く"
       },
       {
        "Do": "comment",
@@ -4439,11 +3961,6 @@
        "Word": "開く"
       },
       {
-       "Do": "wait",
-       "Key": "j k",
-       "Word": "動かすと y n が効く"
-      },
-      {
        "Do": "comment",
        "Key": "c",
        "Word": "行に書く"
@@ -4460,11 +3977,6 @@
     },
     "pr": {
      "Hints": [
-      {
-       "Do": "wait",
-       "Key": "j k",
-       "Word": "動かすと y n が効く"
-      },
       {
        "Do": "comment",
        "Key": "c",
@@ -4493,11 +4005,6 @@
        "Word": "読んだ"
       },
       {
-       "Do": "wait",
-       "Key": "j k",
-       "Word": "動かすと y n が効く"
-      },
-      {
        "Do": "comment",
        "Key": "c",
        "Word": "行に書く"
@@ -4520,11 +4027,6 @@
        "Word": "開く"
       },
       {
-       "Do": "wait",
-       "Key": "j k",
-       "Word": "動かすと y n が効く"
-      },
-      {
        "Do": "comment",
        "Key": "c",
        "Word": "行に書く"
@@ -4542,11 +4044,6 @@
     "spec": {
      "Hints": [
       {
-       "Do": "wait",
-       "Key": "j k",
-       "Word": "動かすと y n が効く"
-      },
-      {
        "Do": "comment",
        "Key": "c",
        "Word": "行に書く"
@@ -4563,11 +4060,6 @@
     },
     "tui": {
      "Hints": [
-      {
-       "Do": "wait",
-       "Key": "j k",
-       "Word": "動かすと y n が効く"
-      },
       {
        "Do": "comment",
        "Key": "c",
@@ -4613,11 +4105,6 @@
        "Word": "開く"
       },
       {
-       "Do": "wait",
-       "Key": "j k",
-       "Word": "動かすと y n が効く"
-      },
-      {
        "Do": "comment",
        "Key": "c",
        "Word": "行に書く"
@@ -4638,6 +4125,452 @@
        "Do": "open",
        "Key": "enter",
        "Word": "開く"
+      },
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      },
+      {
+       "Do": "hide",
+       "Key": "x",
+       "Word": "隠す"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    }
+   },
+   "PlacedOpen": {
+    "-1:id の要らない、ただの行": {
+     "Hints": [
+      {
+       "Do": "hide",
+       "Key": "x",
+       "Word": "隠す"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "-1:ただの行": {
+     "Hints": [
+      {
+       "Do": "hide",
+       "Key": "x",
+       "Word": "隠す"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "-1:もう 1 つのただの行": {
+     "Hints": [
+      {
+       "Do": "hide",
+       "Key": "x",
+       "Word": "隠す"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "ci": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      },
+      {
+       "Do": "hide",
+       "Key": "x",
+       "Word": "隠す"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "deep": {
+     "Hints": [
+      {
+       "Do": "close",
+       "Key": "enter",
+       "Word": "閉じる"
+      },
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      },
+      {
+       "Do": "hide",
+       "Key": "x",
+       "Word": "隠す"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "fold:1": {
+     "Hints": [
+      {
+       "Do": "close",
+       "Key": "enter",
+       "Word": "閉じる"
+      },
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      },
+      {
+       "Do": "hide",
+       "Key": "x",
+       "Word": "隠す"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "fold:2": {
+     "Hints": [
+      {
+       "Do": "close",
+       "Key": "enter",
+       "Word": "閉じる"
+      },
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      },
+      {
+       "Do": "hide",
+       "Key": "x",
+       "Word": "隠す"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "hook": {
+     "Hints": [
+      {
+       "Do": "close",
+       "Key": "enter",
+       "Word": "閉じる"
+      },
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      },
+      {
+       "Do": "hide",
+       "Key": "x",
+       "Word": "隠す"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "impl": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      },
+      {
+       "Do": "hide",
+       "Key": "x",
+       "Word": "隠す"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "merge": {
+     "Hints": [
+      {
+       "Do": "wait",
+       "Key": "j k",
+       "Word": "動かすと答えられる"
+      },
+      {
+       "Do": "close",
+       "Key": "enter",
+       "Word": "閉じる"
+      },
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      },
+      {
+       "Do": "hide",
+       "Key": "x",
+       "Word": "隠す"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "next1": {
+     "Hints": [
+      {
+       "Do": "close",
+       "Key": "enter",
+       "Word": "閉じる"
+      },
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      },
+      {
+       "Do": "hide",
+       "Key": "x",
+       "Word": "隠す"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "old": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      },
+      {
+       "Do": "hide",
+       "Key": "x",
+       "Word": "隠す"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "olddiff": {
+     "Hints": [
+      {
+       "Do": "close",
+       "Key": "enter",
+       "Word": "閉じる"
+      },
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      },
+      {
+       "Do": "hide",
+       "Key": "x",
+       "Word": "隠す"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "parts": {
+     "Hints": [
+      {
+       "Do": "close",
+       "Key": "enter",
+       "Word": "閉じる"
+      },
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      },
+      {
+       "Do": "hide",
+       "Key": "x",
+       "Word": "隠す"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "pr": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      },
+      {
+       "Do": "hide",
+       "Key": "x",
+       "Word": "隠す"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "reply": {
+     "Hints": [
+      {
+       "Do": "close",
+       "Key": "enter",
+       "Word": "閉じる"
+      },
+      {
+       "Do": "read",
+       "Key": "r",
+       "Word": "読んだ"
+      },
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      },
+      {
+       "Do": "hide",
+       "Key": "x",
+       "Word": "隠す"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "restart": {
+     "Hints": [
+      {
+       "Do": "close",
+       "Key": "enter",
+       "Word": "閉じる"
+      },
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      },
+      {
+       "Do": "hide",
+       "Key": "x",
+       "Word": "隠す"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "spec": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      },
+      {
+       "Do": "hide",
+       "Key": "x",
+       "Word": "隠す"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "tui": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      },
+      {
+       "Do": "hide",
+       "Key": "x",
+       "Word": "隠す"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "unit": {
+     "Hints": [
+      {
+       "Do": "wait",
+       "Key": "j k",
+       "Word": "動かすと答えられる"
+      },
+      {
+       "Do": "close",
+       "Key": "enter",
+       "Word": "閉じる"
+      },
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      },
+      {
+       "Do": "hide",
+       "Key": "x",
+       "Word": "隠す"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "web": {
+     "Hints": [
+      {
+       "Do": "close",
+       "Key": "enter",
+       "Word": "閉じる"
+      },
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      },
+      {
+       "Do": "hide",
+       "Key": "x",
+       "Word": "隠す"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "where": {
+     "Hints": [
+      {
+       "Do": "wait",
+       "Key": "j k",
+       "Word": "動かすと答えられる"
+      },
+      {
+       "Do": "close",
+       "Key": "enter",
+       "Word": "閉じる"
       },
       {
        "Do": "comment",
@@ -4765,7 +4698,7 @@
      },
      {
       "Name": "move",
-      "Label": "緑: 動いている (作業中・対応中)・未読の ●・y・足した行"
+      "Label": "緑: 動いている (作業中・対応中)・未読の ●・足した行"
      },
      {
       "Name": "quiet",
@@ -4781,23 +4714,21 @@
      },
      {
       "Name": "bad",
-      "Label": "赤: 誤り・n・消した行"
+      "Label": "赤: 誤り・消した行"
      }
     ],
     "Drop": {
-     "answer": 7,
+     "answer": 6,
      "close": 5,
-     "comment": 8,
+     "comment": 7,
      "hide": 2,
      "jump": 4,
      "keys": 3,
-     "n": 6,
      "next": 2,
      "open": 5,
-     "read": 7,
+     "read": 6,
      "undo": 1,
-     "write": 3,
-     "y": 7
+     "write": 3
     }
    }
   },
@@ -4821,7 +4752,6 @@
       ],
       "Stop": true,
       "Actions": {
-       "YN": true,
        "Options": null,
        "Comment": true,
        "Hide": true,
@@ -4847,7 +4777,6 @@
       ],
       "Stop": true,
       "Actions": {
-       "YN": true,
        "Options": null,
        "Comment": true,
        "Hide": true,
@@ -4894,7 +4823,6 @@
         ],
         "Stop": true,
         "Actions": {
-         "YN": true,
          "Options": null,
          "Comment": true,
          "Hide": true,
@@ -4919,7 +4847,6 @@
         ],
         "Stop": true,
         "Actions": {
-         "YN": true,
          "Options": null,
          "Comment": true,
          "Hide": true,
@@ -4943,7 +4870,6 @@
         ],
         "Stop": true,
         "Actions": {
-         "YN": true,
          "Options": null,
          "Comment": true,
          "Hide": true,
@@ -4969,7 +4895,6 @@
         "Stop": true,
         "CanOpen": true,
         "Actions": {
-         "YN": false,
          "Options": [
           "a",
           "b"
@@ -5021,7 +4946,6 @@
         ],
         "Stop": true,
         "Actions": {
-         "YN": false,
          "Options": null,
          "Comment": false,
          "Hide": true,
@@ -5044,7 +4968,6 @@
         ],
         "Stop": true,
         "Actions": {
-         "YN": false,
          "Options": null,
          "Comment": false,
          "Hide": true,
@@ -5068,7 +4991,6 @@
         "Stop": true,
         "CanOpen": true,
         "Actions": {
-         "YN": false,
          "Options": null,
          "Comment": true,
          "Hide": true,
@@ -5091,7 +5013,6 @@
           ],
           "Stop": true,
           "Actions": {
-           "YN": false,
            "Options": null,
            "Comment": false,
            "Hide": true,
@@ -5213,7 +5134,7 @@
      },
      {
       "Name": "move",
-      "Label": "緑: 動いている (作業中・対応中)・未読の ●・y・足した行"
+      "Label": "緑: 動いている (作業中・対応中)・未読の ●・足した行"
      },
      {
       "Name": "quiet",
@@ -5229,23 +5150,21 @@
      },
      {
       "Name": "bad",
-      "Label": "赤: 誤り・n・消した行"
+      "Label": "赤: 誤り・消した行"
      }
     ],
     "Drop": {
-     "answer": 7,
+     "answer": 6,
      "close": 5,
-     "comment": 8,
+     "comment": 7,
      "hide": 2,
      "jump": 4,
      "keys": 3,
-     "n": 6,
      "next": 2,
      "open": 5,
-     "read": 7,
+     "read": 6,
      "undo": 1,
-     "write": 3,
-     "y": 7
+     "write": 3
     }
    },
    "Offers": {
@@ -5331,16 +5250,6 @@
      "Closed": {
       "Hints": [
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
-       {
         "Do": "comment",
         "Key": "c",
         "Word": "行に書く"
@@ -5357,16 +5266,6 @@
      },
      "Open": {
       "Hints": [
-       {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
        {
         "Do": "comment",
         "Key": "c",
@@ -5387,16 +5286,6 @@
      "Closed": {
       "Hints": [
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
-       {
         "Do": "comment",
         "Key": "c",
         "Word": "行に書く"
@@ -5413,16 +5302,6 @@
      },
      "Open": {
       "Hints": [
-       {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
        {
         "Do": "comment",
         "Key": "c",
@@ -5543,16 +5422,6 @@
      "Closed": {
       "Hints": [
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
-       {
         "Do": "comment",
         "Key": "c",
         "Word": "行に書く"
@@ -5569,16 +5438,6 @@
      },
      "Open": {
       "Hints": [
-       {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
        {
         "Do": "comment",
         "Key": "c",
@@ -5599,16 +5458,6 @@
      "Closed": {
       "Hints": [
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
-       {
         "Do": "comment",
         "Key": "c",
         "Word": "行に書く"
@@ -5625,16 +5474,6 @@
      },
      "Open": {
       "Hints": [
-       {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
        {
         "Do": "comment",
         "Key": "c",
@@ -5655,16 +5494,6 @@
      "Closed": {
       "Hints": [
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
-       {
         "Do": "comment",
         "Key": "c",
         "Word": "行に書く"
@@ -5681,16 +5510,6 @@
      },
      "Open": {
       "Hints": [
-       {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
        {
         "Do": "comment",
         "Key": "c",
@@ -5763,7 +5582,6 @@
         "Stop": true,
         "CanOpen": true,
         "Actions": {
-         "YN": true,
          "Options": null,
          "Comment": true,
          "Hide": true,
@@ -5785,7 +5603,6 @@
           ],
           "Stop": true,
           "Actions": {
-           "YN": false,
            "Options": null,
            "Comment": false,
            "Hide": true,
@@ -5806,7 +5623,6 @@
           ],
           "Stop": true,
           "Actions": {
-           "YN": false,
            "Options": null,
            "Comment": false,
            "Hide": true,
@@ -5827,7 +5643,6 @@
           ],
           "Stop": true,
           "Actions": {
-           "YN": false,
            "Options": null,
            "Comment": false,
            "Hide": true,
@@ -5853,7 +5668,6 @@
         "Stop": true,
         "CanOpen": true,
         "Actions": {
-         "YN": true,
          "Options": null,
          "Comment": true,
          "Hide": true,
@@ -5875,7 +5689,6 @@
           ],
           "Stop": true,
           "Actions": {
-           "YN": false,
            "Options": null,
            "Comment": false,
            "Hide": true,
@@ -5896,7 +5709,6 @@
           ],
           "Stop": true,
           "Actions": {
-           "YN": false,
            "Options": null,
            "Comment": false,
            "Hide": true,
@@ -5917,7 +5729,6 @@
           ],
           "Stop": true,
           "Actions": {
-           "YN": false,
            "Options": null,
            "Comment": false,
            "Hide": true,
@@ -5943,7 +5754,6 @@
         "Stop": true,
         "CanOpen": true,
         "Actions": {
-         "YN": true,
          "Options": null,
          "Comment": true,
          "Hide": true,
@@ -5981,7 +5791,6 @@
         "Stop": true,
         "CanOpen": true,
         "Actions": {
-         "YN": true,
          "Options": null,
          "Comment": true,
          "Hide": true,
@@ -6003,7 +5812,6 @@
           ],
           "Stop": true,
           "Actions": {
-           "YN": false,
            "Options": null,
            "Comment": false,
            "Hide": true,
@@ -6025,7 +5833,6 @@
           ],
           "Stop": true,
           "Actions": {
-           "YN": false,
            "Options": null,
            "Comment": false,
            "Hide": true,
@@ -6135,7 +5942,7 @@
      },
      {
       "Name": "move",
-      "Label": "緑: 動いている (作業中・対応中)・未読の ●・y・足した行"
+      "Label": "緑: 動いている (作業中・対応中)・未読の ●・足した行"
      },
      {
       "Name": "quiet",
@@ -6151,23 +5958,21 @@
      },
      {
       "Name": "bad",
-      "Label": "赤: 誤り・n・消した行"
+      "Label": "赤: 誤り・消した行"
      }
     ],
     "Drop": {
-     "answer": 7,
+     "answer": 6,
      "close": 5,
-     "comment": 8,
+     "comment": 7,
      "hide": 2,
      "jump": 4,
      "keys": 3,
-     "n": 6,
      "next": 2,
      "open": 5,
-     "read": 7,
+     "read": 6,
      "undo": 1,
-     "write": 3,
-     "y": 7
+     "write": 3
     }
    },
    "Offers": {
@@ -6178,16 +5983,6 @@
         "Do": "open",
         "Key": "enter",
         "Word": "開く"
-       },
-       {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
        },
        {
         "Do": "comment",
@@ -6210,16 +6005,6 @@
         "Do": "close",
         "Key": "enter",
         "Word": "閉じる"
-       },
-       {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
        },
        {
         "Do": "comment",
@@ -6246,16 +6031,6 @@
         "Word": "開く"
        },
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
-       {
         "Do": "comment",
         "Key": "c",
         "Word": "行に書く"
@@ -6276,16 +6051,6 @@
         "Do": "close",
         "Key": "enter",
         "Word": "閉じる"
-       },
-       {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
        },
        {
         "Do": "comment",
@@ -6312,16 +6077,6 @@
         "Word": "開く"
        },
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
-       {
         "Do": "comment",
         "Key": "c",
         "Word": "行に書く"
@@ -6342,16 +6097,6 @@
         "Do": "close",
         "Key": "enter",
         "Word": "閉じる"
-       },
-       {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
        },
        {
         "Do": "comment",
@@ -6378,16 +6123,6 @@
         "Word": "開く"
        },
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
-       {
         "Do": "comment",
         "Key": "c",
         "Word": "行に書く"
@@ -6408,16 +6143,6 @@
         "Do": "close",
         "Key": "enter",
         "Word": "閉じる"
-       },
-       {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
        },
        {
         "Do": "comment",
@@ -6458,7 +6183,6 @@
       "Stop": true,
       "CanOpen": true,
       "Actions": {
-       "YN": true,
        "Options": null,
        "Comment": true,
        "Hide": true,
@@ -6518,7 +6242,6 @@
         "Stop": true,
         "CanOpen": true,
         "Actions": {
-         "YN": true,
          "Options": null,
          "Comment": true,
          "Hide": true,
@@ -6584,7 +6307,6 @@
           ],
           "Stop": true,
           "Actions": {
-           "YN": false,
            "Options": null,
            "Comment": false,
            "Hide": true,
@@ -6616,7 +6338,6 @@
         "Stop": true,
         "CanOpen": true,
         "Actions": {
-         "YN": false,
          "Options": [
           "a",
           "b"
@@ -6669,7 +6390,6 @@
         ],
         "Stop": true,
         "Actions": {
-         "YN": true,
          "Options": null,
          "Comment": true,
          "Hide": true,
@@ -6692,7 +6412,6 @@
         ],
         "Stop": true,
         "Actions": {
-         "YN": false,
          "Options": null,
          "Comment": false,
          "Hide": true,
@@ -6841,7 +6560,7 @@
      },
      {
       "Name": "move",
-      "Label": "緑: 動いている (作業中・対応中)・未読の ●・y・足した行"
+      "Label": "緑: 動いている (作業中・対応中)・未読の ●・足した行"
      },
      {
       "Name": "quiet",
@@ -6857,23 +6576,21 @@
      },
      {
       "Name": "bad",
-      "Label": "赤: 誤り・n・消した行"
+      "Label": "赤: 誤り・消した行"
      }
     ],
     "Drop": {
-     "answer": 7,
+     "answer": 6,
      "close": 5,
-     "comment": 8,
+     "comment": 7,
      "hide": 2,
      "jump": 4,
      "keys": 3,
-     "n": 6,
      "next": 2,
      "open": 5,
-     "read": 7,
+     "read": 6,
      "undo": 1,
-     "write": 3,
-     "y": 7
+     "write": 3
     }
    },
    "Offers": {
@@ -6966,16 +6683,6 @@
         "Word": "開く"
        },
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
-       {
         "Do": "comment",
         "Key": "c",
         "Word": "行に書く"
@@ -6998,16 +6705,6 @@
         "Word": "閉じる"
        },
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
-       {
         "Do": "comment",
         "Key": "c",
         "Word": "行に書く"
@@ -7027,16 +6724,6 @@
      "Closed": {
       "Hints": [
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
-       {
         "Do": "comment",
         "Key": "c",
         "Word": "行に書く"
@@ -7053,16 +6740,6 @@
      },
      "Open": {
       "Hints": [
-       {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
        {
         "Do": "comment",
         "Key": "c",
@@ -7088,16 +6765,6 @@
         "Word": "開く"
        },
        {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
-       {
         "Do": "comment",
         "Key": "c",
         "Word": "行に書く"
@@ -7118,16 +6785,6 @@
         "Do": "close",
         "Key": "enter",
         "Word": "閉じる"
-       },
-       {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
        },
        {
         "Do": "comment",
@@ -7256,7 +6913,7 @@
      },
      {
       "Name": "move",
-      "Label": "緑: 動いている (作業中・対応中)・未読の ●・y・足した行"
+      "Label": "緑: 動いている (作業中・対応中)・未読の ●・足した行"
      },
      {
       "Name": "quiet",
@@ -7272,23 +6929,21 @@
      },
      {
       "Name": "bad",
-      "Label": "赤: 誤り・n・消した行"
+      "Label": "赤: 誤り・消した行"
      }
     ],
     "Drop": {
-     "answer": 7,
+     "answer": 6,
      "close": 5,
-     "comment": 8,
+     "comment": 7,
      "hide": 2,
      "jump": 4,
      "keys": 3,
-     "n": 6,
      "next": 2,
      "open": 5,
-     "read": 7,
+     "read": 6,
      "undo": 1,
-     "write": 3,
-     "y": 7
+     "write": 3
     }
    }
   },
@@ -7368,7 +7023,7 @@
      },
      {
       "Name": "move",
-      "Label": "緑: 動いている (作業中・対応中)・未読の ●・y・足した行"
+      "Label": "緑: 動いている (作業中・対応中)・未読の ●・足した行"
      },
      {
       "Name": "quiet",
@@ -7384,23 +7039,21 @@
      },
      {
       "Name": "bad",
-      "Label": "赤: 誤り・n・消した行"
+      "Label": "赤: 誤り・消した行"
      }
     ],
     "Drop": {
-     "answer": 7,
+     "answer": 6,
      "close": 5,
-     "comment": 8,
+     "comment": 7,
      "hide": 2,
      "jump": 4,
      "keys": 3,
-     "n": 6,
      "next": 2,
      "open": 5,
-     "read": 7,
+     "read": 6,
      "undo": 1,
-     "write": 3,
-     "y": 7
+     "write": 3
     }
    }
   },
@@ -7463,7 +7116,6 @@
         ],
         "Stop": true,
         "Actions": {
-         "YN": true,
          "Options": null,
          "Comment": true,
          "Hide": true,
@@ -7581,7 +7233,7 @@
      },
      {
       "Name": "move",
-      "Label": "緑: 動いている (作業中・対応中)・未読の ●・y・足した行"
+      "Label": "緑: 動いている (作業中・対応中)・未読の ●・足した行"
      },
      {
       "Name": "quiet",
@@ -7597,39 +7249,27 @@
      },
      {
       "Name": "bad",
-      "Label": "赤: 誤り・n・消した行"
+      "Label": "赤: 誤り・消した行"
      }
     ],
     "Drop": {
-     "answer": 7,
+     "answer": 6,
      "close": 5,
-     "comment": 8,
+     "comment": 7,
      "hide": 2,
      "jump": 4,
      "keys": 3,
-     "n": 6,
      "next": 2,
      "open": 5,
-     "read": 7,
+     "read": 6,
      "undo": 1,
-     "write": 3,
-     "y": 7
+     "write": 3
     }
    },
    "Offers": {
     "ok": {
      "Closed": {
       "Hints": [
-       {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
        {
         "Do": "comment",
         "Key": "c",
@@ -7647,16 +7287,6 @@
      },
      "Open": {
       "Hints": [
-       {
-        "Do": "y",
-        "Key": "y",
-        "Word": "よし"
-       },
-       {
-        "Do": "n",
-        "Key": "n",
-        "Word": "だめ"
-       },
        {
         "Do": "comment",
         "Key": "c",
@@ -7687,7 +7317,7 @@
      "Title": "pitboard を作る",
      "Summary": [
       {
-       "Text": "反応待ち 4",
+       "Text": "反応待ち 2",
        "Tone": "need"
       },
       {
@@ -7733,7 +7363,7 @@
      "Title": "pitboard を作る",
      "Summary": [
       {
-       "Text": "反応待ち 4",
+       "Text": "反応待ち 2",
        "Tone": "need"
       },
       {
@@ -7782,7 +7412,6 @@
   "moved": "報告が書き換わりました。カーソルの行を確かめてください",
   "noMarked": "印のある行はありません",
   "placedAnswer": "j k で動かすと答えられます",
-  "placedYN": "j k で動かすと y n が効きます",
   "settlingHide": "いま移った行です。もう一度押すと隠れます",
   "settlingReact": "いま移った行です。もう一度押すと付きます",
   "settlingShow": "いま移った行です。もう一度押すと表示に戻ります",

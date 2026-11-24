@@ -7,12 +7,11 @@ import (
 
 // Two marks keep the person from losing track of what wants them:
 //
-//	MarkWaiting  an Ask not answered yet, or an Item / Link with ask="y"
-//	             without a y / n on what it says now
+//	MarkWaiting  an Ask not answered yet (on what it says now)
 //	MarkNew      unread: the AI marked the line look="y", and the person
 //	             has not looked at what it says now
 //
-// Only the person says a line is read: by reacting to it, writing on it,
+// Only the person says a line is read: by answering it, writing on it,
 // hiding it, Read or ReadAll (never by looking or opening). What a line says is
 // its ViewKey; the keys looked at are kept, hashed, in the board's viewed
 // file (never sent to the AI).
@@ -29,21 +28,14 @@ const (
 // ViewKey is what a line says, for "unread" (board.ViewKey).
 func ViewKey(n *report.Node) string { return board.ViewKey(n) }
 
-// Waiting says whether n wants the person's reaction and has none on what
-// it says now.
+// Waiting says whether n is an Ask with no answer on what it says now.
 func (b *Board) Waiting(n *report.Node) bool {
 	if n.ID == "" {
 		return false
 	}
 	e, ok := b.State.React[n.ID]
 	answered := ok && e.Line == n.Sig()
-	switch {
-	case n.Kind == report.KindQuestion:
-		return !answered
-	case n.Ask == "y" && (n.Kind == report.KindTodo || n.Kind == report.KindDoing || n.Kind == report.KindLink):
-		return !answered || (e.Value != "y" && e.Value != "n")
-	}
-	return false
+	return n.Kind == report.KindQuestion && !answered
 }
 
 // IsNew says whether n is unread: the AI asked for it to be read

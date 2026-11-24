@@ -75,7 +75,7 @@ func TestHint(t *testing.T) {
 	for _, x := range h.Offer.Hints {
 		keys = append(keys, x.Key+" "+x.Word)
 	}
-	if got := strings.Join(keys, "|"); got != "j k 動かすと y n が効く|c 行に書く|x 隠す" {
+	if got := strings.Join(keys, "|"); got != "c 行に書く|x 隠す" {
 		t.Errorf("placed hint %s", got)
 	}
 }
@@ -86,8 +86,8 @@ func TestStatusChangeIsChanged(t *testing.T) {
 	f := setupWith(t, guardtable.Report)
 	f.page("tab1")
 	tok := f.thing("a").Token
-	rewrite(t, f, strings.Replace(guardtable.Report, `<Item id="a" ask="y">`, `<Item id="a" ask="y" status="見て">`, 1))
-	r := f.act("tab1", Act{Action: "key", Key: "y", Target: "a", Seen: tok, Cur: Cur{How: "person", Sel: tok}})
+	rewrite(t, f, strings.Replace(guardtable.Report, `<Item id="a">`, `<Item id="a" status="見て">`, 1))
+	r := f.act("tab1", Act{Action: "key", Key: "x", Target: "a", Seen: tok, Cur: Cur{How: "person", Sel: tok}})
 	if r.OK || !r.Changed || r.Message != page.MsgChanged {
 		t.Errorf("%+v", r)
 	}

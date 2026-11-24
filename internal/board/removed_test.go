@@ -16,20 +16,23 @@ func writeReport(t *testing.T, st *Store, src string) {
 	}
 }
 
-// A row the person has not answered (look, ask, an Ask), removed, is
-// warned of until said once by another command; one they reacted to, hid
+// A row the person has not answered (look, an Ask), removed, is
+// warned of until said once by another command; one they answered, hid
 // or read is not.
 func TestRemovedUnanswered(t *testing.T) {
 	st := testStore(t)
 	writeReport(t, st, `<Item id="a-flat" look="y">> storybook がいいとは言っていない、フラットな一覧はメンテナブルか</Item>
-<Item id="ok" ask="y">y を付けた行</Item>
+<Ask id="ok">答えた問い
+<Option key="a">A</Option>
+<Option key="b">B</Option>
+</Ask>
 <Item id="hid" look="y">隠した行</Item>
 <Item id="plain">ただの項目</Item>
 `)
 	if w := st.Removed(); len(w) != 0 {
 		t.Fatalf("nothing removed yet: %q", w)
 	}
-	st.Append(Event{Op: "react", ID: "ok", Value: "y"})
+	st.Append(Event{Op: "react", ID: "ok", Value: "a", Option: "A"})
 	nodes, _, _ := report.Parse("<Item id=\"hid\" look=\"y\">隠した行</Item>\n")
 	st.Append(Event{Op: "hide", Key: report.HideKey(nodes[0])})
 	writeReport(t, st, "<Item id=\"other\">別の行</Item>\n")
@@ -95,12 +98,18 @@ func TestRemovedOpenComment(t *testing.T) {
 // only a look="y" row, not one that asks.
 func TestRemovedAnsweredInEffect(t *testing.T) {
 	st := testStore(t)
-	src := `<Item id="undone" ask="y">反応を戻した行</Item>
+	src := `<Ask id="undone">答えを戻した問い
+<Option key="a">A</Option>
+<Option key="b">B</Option>
+</Ask>
 <Ask id="q">選ぶ
 <Option key="a">A</Option>
 <Option key="b">B</Option>
 </Ask>
-<Item id="unhid" ask="y">隠して戻した行</Item>
+<Ask id="unhid">隠して戻した問い
+<Option key="a">A</Option>
+<Option key="b">B</Option>
+</Ask>
 <Item id="lk" look="y">読めばいい行</Item>
 <Item id="w" wait="you">手の要る行</Item>
 <Item id="w2" wait="you">コメントした行</Item>
@@ -110,7 +119,7 @@ func TestRemovedAnsweredInEffect(t *testing.T) {
 	nodes, _, _ := report.Parse(src)
 	byID := map[string]*report.Node{}
 	report.WalkAll(nodes, func(n *report.Node) { byID[n.ID] = n })
-	r, _ := st.Append(Event{Op: "react", ID: "undone", Value: "y"})
+	r, _ := st.Append(Event{Op: "react", ID: "undone", Value: "a", Option: "A"})
 	st.Append(Event{Op: "undo", Undo: r.N})
 	h, _ := st.Append(Event{Op: "hide", Key: report.HideKey(byID["unhid"])})
 	st.Append(Event{Op: "undo", Undo: h.N})

@@ -34,7 +34,7 @@ const src = `<Notice id="re" at="2026-11-23 21:46">開き直してください</
     <Option key="a">セッションごと</Option>
     <Option key="b">プロジェクトごと</Option>
   </Ask>
-  <Item id="hook" ask="y">hook を **入れる** か決める
+  <Item id="hook">hook を **入れる** か決める
     中身の ` + "`code`" + `
   </Item>
   <Item id="impl" state="doing" look="y">実装する</Item>
@@ -69,15 +69,15 @@ func TestPage(t *testing.T) {
 	if len(p.Notices) != 1 || p.Notices[0].At.IsZero() || len(p.Things) != 3 {
 		t.Fatalf("notices %d things %d", len(p.Notices), len(p.Things))
 	}
-	if p.Waiting != 2 || p.Unread != 2 || !p.CanWrite || p.CanSend || p.CanUndo {
+	if p.Waiting != 1 || p.Unread != 2 || !p.CanWrite || p.CanSend || p.CanUndo {
 		t.Errorf("counts: %+v", p)
 	}
 	ask := find(p.Things, "unit")
-	if ask.Kind != KindAsk || ask.Mark != MarkWaiting || len(ask.Kids) != 2 || ask.Kids[0].OptionKey != "a" || strings.Join(ask.Actions.Options, "") != "ab" || ask.Actions.YN {
+	if ask.Kind != KindAsk || ask.Mark != MarkWaiting || len(ask.Kids) != 2 || ask.Kids[0].OptionKey != "a" || strings.Join(ask.Actions.Options, "") != "ab" {
 		t.Errorf("ask %+v", ask)
 	}
 	hook := find(p.Things, "hook")
-	if hook.Kind != KindItem || !hook.CanOpen || !hook.Actions.YN || hook.Mark != MarkWaiting || len(hook.Body) != 1 {
+	if hook.Kind != KindItem || !hook.CanOpen || len(hook.Actions.Options) != 0 || hook.Mark != MarkNone || len(hook.Body) != 1 {
 		t.Errorf("hook %+v", hook)
 	}
 	if len(hook.Title) != 3 || hook.Title[1] != (Span{Text: "入れる", Style: StyleBold}) {
@@ -109,24 +109,29 @@ func TestPage(t *testing.T) {
 func TestReactOnlyOnWhatWasSeen(t *testing.T) {
 	b := open(t, src)
 	hook := find(b.Page(false).Things, "hook")
-	if _, err := b.React(hook.Seen, "x"); err == nil {
-		t.Error("x is no reaction to an Item")
+	// An Item takes no answer: y / n were removed (FEAT25).
+	for _, k := range []string{"x", "y", "n"} {
+		if _, err := b.React(hook.Seen, k); err == nil {
+			t.Errorf("%s is no answer to an Item", k)
+		}
 	}
-	write(t, b.Store, strings.Replace(src, "決める", "決めた", 1))
-	if _, err := b.React(hook.Seen, "y"); !errors.Is(err, ErrChanged) {
+	ask := find(b.Page(false).Things, "unit")
+	write(t, b.Store, strings.Replace(src, "ページの単位", "板の単位", 1))
+	if _, err := b.React(ask.Seen, "a"); !errors.Is(err, ErrChanged) {
 		t.Fatalf("changed line: %v", err)
 	}
+	write(t, b.Store, src)
 	b.Report.Load()
-	hook = find(b.Page(false).Things, "hook")
-	if _, err := b.React(hook.Seen, "y"); err != nil {
+	p := b.Page(false)
+	ask = find(p.Things, "unit")
+	if _, err := b.React(ask.Seen, "a"); err != nil {
 		t.Fatal(err)
 	}
-	p := b.Page(false)
-	hook = find(p.Things, "hook")
-	if hook.Right.Reaction != "y" || hook.Right.Input != (Word{"未送信", ToneNeed}) || hook.Mark != MarkNone || !p.CanUndo || !p.CanSend {
-		t.Errorf("after y: %+v", hook.Right)
+	p = b.Page(false)
+	ask = find(p.Things, "unit")
+	if ask.Right.Reaction != "a" || ask.Right.Input != (Word{"未送信", ToneNeed}) || ask.Mark != MarkNone || !p.CanUndo || !p.CanSend {
+		t.Errorf("after a: %+v", ask.Right)
 	}
-	ask := find(p.Things, "unit")
 	if _, err := b.React(ask.Seen, "b"); err != nil {
 		t.Fatal(err)
 	}
@@ -210,7 +215,7 @@ func TestRead(t *testing.T) {
 		t.Errorf("undo read: %q", msg)
 	}
 	b.ReadAll("A")
-	if p := b.Page(false); p.Unread != 0 || p.Waiting != 2 {
+	if p := b.Page(false); p.Unread != 0 || p.Waiting != 1 {
 		t.Errorf("after read all: %+v", p)
 	}
 }

@@ -15,7 +15,7 @@ function setOffline(on) {
   if (on === offline) return;
   offline = on;
   clearInterval(offlineTimer);
-  if (on) offlineTimer = setInterval(refresh, 3000);
+  if (on) offlineTimer = setInterval(refresh, 2000);
   if (data) render();
 }
 
@@ -82,7 +82,7 @@ function connect() {
   es.addEventListener('open', refresh);
   es.addEventListener('error', () => {
     setOffline(true);
-    if (es.readyState === EventSource.CLOSED) { es.close(); setTimeout(connect, 3000); }
+    if (es.readyState === EventSource.CLOSED) { es.close(); setTimeout(connect, 2000); }
   });
 }
 

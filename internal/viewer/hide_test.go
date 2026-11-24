@@ -73,7 +73,7 @@ func TestHideAndUnhide(t *testing.T) {
 	a.handle(key{r: 'j'})
 	a.handle(key{r: 'k'})
 	a.draw()
-	// y n c do nothing on a plain line.
+	// y n (no keys any more) and c do nothing on a plain line.
 	for _, r := range "ync" {
 		a.handle(key{r: r})
 	}
@@ -88,7 +88,7 @@ func TestHideAndUnhide(t *testing.T) {
 	if pv.cur != "a" {
 		t.Errorf("after hiding, the cursor goes to the next line: %q", pv.cur)
 	}
-	// Right after the viewer moved the cursor, x y n are dropped.
+	// Right after the viewer moved the cursor, x is dropped (y is no key).
 	a.handle(key{r: 'x'})
 	a.handle(key{r: 'y'})
 	if evs := st.Events(); len(evs) != 1 {
@@ -194,26 +194,23 @@ func TestHMovesCursorAndWaits(t *testing.T) {
 	}
 	a.handle(key{r: 'H'}) // the line goes away; the cursor moves to a
 	a.draw()
-	a.handle(key{r: 'y'})
-	if pv.cur != "a" || len(st.Events()) != 1 || a.msg != msgSettlingReact {
-		t.Fatalf("y acted on a line the viewer moved to: cur %q %q %+v", pv.cur, a.msg, st.Events())
+	a.handle(key{r: 'x'})
+	if pv.cur != "a" || len(st.Events()) != 1 || a.msg != msgSettlingHide {
+		t.Fatalf("x acted on a line the viewer moved to: cur %q %q %+v", pv.cur, a.msg, st.Events())
 	}
-	// Another key is dropped too; only the same key again works.
-	a.handle(key{r: 'n'})
-	if len(st.Events()) != 1 || a.msg != msgSettlingReact {
-		t.Fatalf("n after y: %q %+v", a.msg, st.Events())
-	}
-	a.handle(key{r: 'n'})
-	if evs := st.Events(); len(evs) != 2 || evs[1].Value != "n" || evs[1].ID != "a" {
-		t.Fatalf("n pressed again works: %+v", evs)
+	// The same key again works (another key is dropped too: page's
+	// TestGuardAgainIsPerKey).
+	a.handle(key{r: 'x'})
+	if evs := st.Events(); len(evs) != 2 || evs[1].Op != "hide" || !strings.Contains(evs[1].Key, "題 A") {
+		t.Fatalf("x pressed again works: %+v", evs)
 	}
 	a.handle(key{r: 'u'})
 	a.handle(key{r: 'H'})
 	a.handle(key{r: 'H'}) // shown and left out again: the cursor stays on a
 	a.draw()
 	wait(t, settleDelay)
-	a.handle(key{r: 'n'})
-	if evs := st.Events(); evs[len(evs)-1].Op != "react" || evs[len(evs)-1].Value != "n" {
-		t.Errorf("after the delay n works without j/k: %+v", evs)
+	a.handle(key{r: 'x'})
+	if evs := st.Events(); evs[len(evs)-1].Op != "hide" {
+		t.Errorf("after the delay x works without j/k: %+v", evs)
 	}
 }

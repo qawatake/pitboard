@@ -64,9 +64,9 @@ func (b *Board) node(key string) *report.Node {
 	return found
 }
 
-// React records the person's y, n or option key (value) on the line seen,
-// if it still says what they saw. The line is then read. What it says
-// ("y を付けました: …") the terminal leaves out: the line shows it.
+// React records the person's answer (value: an option's key) on the Ask
+// seen, if it still says what they saw. The line is then read. What it
+// says ("答え a を付けました: …") the terminal leaves out: the line shows it.
 func (b *Board) React(seen Seen, value string) (string, error) {
 	if !b.CanWrite() {
 		return "", errCannotWrite
@@ -86,19 +86,19 @@ func (b *Board) React(seen Seen, value string) (string, error) {
 	if err != nil || now == nil || now.Sig() != seen.Sig || n.Sig() != seen.Sig {
 		return "", ErrChanged
 	}
-	yn, choices, _ := KeysFor(now)
-	if !(yn && (value == "y" || value == "n")) && !slices.Contains(choices, value) {
+	choices, _ := KeysFor(now)
+	if !slices.Contains(choices, value) {
 		return "", fmt.Errorf("この行には %s で答えられません", value)
 	}
 	e := board.Event{Op: "react", ID: report.Target(now), Value: value, Line: now.Sig(), Title: now.Title()}
-	if ch := now.Choice(value); now.Kind == report.KindQuestion && ch != nil {
+	if ch := now.Choice(value); ch != nil {
 		e.Option = report.PlainOf(ch.Text)
 	}
-	rec, err := b.Store.Append(e)
-	what := value + " "
-	if now.Kind == report.KindQuestion {
-		what = "答え " + value + " "
+	if e.Option == "" {
+		e.Option = value // never empty: an answer is not an older viewer's y / n (board.Event.Legacy)
 	}
+	rec, err := b.Store.Append(e)
+	what := "答え " + value + " "
 	if err == nil {
 		b.did(rec, what+"を取り消しました: "+report.PlainOf(now.Title()))
 	}

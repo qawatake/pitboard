@@ -113,12 +113,12 @@ export function panelRow(cx, c, key, canGo) {
 
 const onLine = (id) => ({ fixture: 'comments', pick: id, open: true });
 
-export const covers = {"status": {"未送信": ["未送信, 3 lines, an image, a second one"], "送信済": ["送信済"], "既読": ["既読"], "対応中": ["対応中 (reply)"], "保留": ["保留 (reply)"], "対応済": ["対応済 (2-line reply)"]}, "settle": {"doing": ["対応中 (reply)"], "hold": ["保留 (reply)"], "done": ["対応済 (2-line reply)"]}};
+export const covers = {"status": {"未送信": ["未送信, 3 lines, an image, a second one with a large and a tall image"], "送信済": ["送信済"], "既読": ["既読"], "対応中": ["対応中 (reply)"], "保留": ["保留 (reply)"], "対応済": ["対応済 (2-line reply)"]}, "settle": {"doing": ["対応中 (reply)"], "hold": ["保留 (reply)"], "done": ["対応済 (2-line reply)"]}};
 
 export const differences = {"rights-below": ["narrow: the state word below, as its list"]};
 
 export const variants = [
-  { name: '未送信, 3 lines, an image, a second one', ...onLine('c1'), responsive: true },
+  { name: '未送信, 3 lines, an image, a second one with a large and a tall image', ...onLine('c1'), responsive: true },
   { name: '送信済', ...onLine('c2') },
   { name: '既読', ...onLine('c3') },
   { name: '対応中 (reply)', ...onLine('c4') },

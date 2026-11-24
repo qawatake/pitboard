@@ -36,7 +36,7 @@ func TestMoveKeys(t *testing.T) {
 		v.Keys(x.key)
 		v.WaitCursorOn(x.want)
 	}
-	v.WaitBottom("y よし  n だめ") // moved by the person: y n work on the Notice
+	v.WaitBottom("c 行に書く  x 隠す") // moved by the person: x works on the Notice
 }
 
 // SPEC.md "画面": reading contents taller than the screen.
@@ -67,11 +67,11 @@ func TestReadTallContents(t *testing.T) {
 	})
 	v.Resize(60, 16)
 	v.WaitBottom("↑ カーソルは上")
-	// A reaction key brings the cursor back and is not taken.
-	v.Keys("y")
+	// A key for the line brings the cursor back and is not taken.
+	v.Keys("x")
 	v.WaitCursorOn("高い項目")
 	v.Sync()
-	ss.noRecords(t, "react")
+	ss.noRecords(t, "hide")
 	// Keep going: the next stop is reached only after the gap is shown.
 	for i := 0; i < 20 && !strings.Contains(v.Screen(), "中身の行 39"); i++ {
 		v.Keys("j")
@@ -90,7 +90,10 @@ func TestReadTallContents(t *testing.T) {
 func TestSpaceToNextMark(t *testing.T) {
 	t.Parallel()
 	report := `<Item id="a">普通A</Item>
-<Item id="m1" ask="y">印一</Item>
+<Ask id="m1">印一
+  <Option key="a">A</Option>
+  <Option key="b">B</Option>
+</Ask>
 <Item id="b">普通B</Item>
 <Item id="w" wait="you" status="あなた待ち">待ちの項目</Item>
 <Fold title="畳んだ">
@@ -105,11 +108,12 @@ func TestSpaceToNextMark(t *testing.T) {
 		v.Keys("space")
 		v.WaitCursorOn(want)
 	}
-	// Right after space, y n x are dropped for 0.4 s; then they work.
-	v.Keys("y")
+	// Right after space, x and the options are dropped for 0.4 s; then
+	// they work.
+	v.Keys("x")
 	v.Sync()
-	ss.noRecords(t, "react")
-	v.pressUntil(ss, "y", "react", 1)
+	ss.noRecords(t, "hide")
+	v.pressUntil(ss, "x", "hide", 1)
 
 	t.Run("nothing marked", func(t *testing.T) {
 		v, _ := open(t, "<Item id=\"a\">普通</Item>\n", 60, 10, "普通")
@@ -161,10 +165,10 @@ func TestJump(t *testing.T) {
 	if r := rowOf(t, v, "進行中"); r > 2 {
 		t.Errorf("heading not at the top (row %d):\n%s", r, v.dump())
 	}
-	// Moved by the viewer: 0.4 s without reactions.
-	v.Keys("y")
+	// Moved by the viewer: 0.4 s without x.
+	v.Keys("x")
 	v.Sync()
-	ss.noRecords(t, "react")
+	ss.noRecords(t, "hide")
 
 	t.Run("g again leaves", func(t *testing.T) {
 		v.In(t).Keys("g")
@@ -220,7 +224,7 @@ func TestIntoCommentsPane(t *testing.T) {
 	v.Keys("k", "k")
 	v.WaitCursorOn("項目B")
 	// The person came back with k: keys work at once.
-	v.WaitBottom("y よし")
+	v.WaitBottom("c 行に書く")
 }
 
 // SPEC.md "画面": the tab list.
@@ -271,7 +275,7 @@ func TestHelpScreen(t *testing.T) {
 	tall.Keys("?")
 	tall.WaitFor(helpMarker)
 	all := joinedAll(tall.Screen())
-	for _, want := range []string{"報告のいちばん上からさらに k で、上に固定されたお知らせへ", "(項目・リンク・お知らせ)"} {
+	for _, want := range []string{"報告のいちばん上からさらに k で、上に固定されたお知らせへ", "問いに答える"} {
 		if !strings.Contains(all, want) {
 			t.Errorf("? list does not say %q:\n%s", want, tall.dump())
 		}

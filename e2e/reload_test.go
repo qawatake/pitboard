@@ -144,12 +144,12 @@ func TestCorruptEventsLine(t *testing.T) {
 		ev(1, "thought", `"text":"前"`), `{"n":2,"op":`, "not json at all", ev(3, "thought", `"text":"後"`))
 	v.WaitFor("前", "後")
 	v.MoveTo("項目B")
-	v.Keys("y")
-	ss.waitRecords(t, "react", 1)
+	v.Keys("x")
+	ss.waitRecords(t, "hide", 1)
 	v.Keys("s")
 	v.WaitFor("送りました")
 	out := ss.mustRun("changes")
-	for _, want := range []string{"thought 1: 前", "thought 3: 後", "y b (項目B)"} {
+	for _, want := range []string{"thought 1: 前", "thought 3: 後", "hide (1): 項目B"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("changes lacks %q:\n%s", want, out)
 		}

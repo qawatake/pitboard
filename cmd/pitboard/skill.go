@@ -9,7 +9,7 @@ package main
 // the one to edit; TestSkillMatchesSKILLmd fails until this follows it.
 const skill = `---
 name: pitboard
-description: Keeps a pitboard for the current session — a report the AI writes and the person reads in a viewer beside the chat, reacting with y/n, answers and thoughts that come back through ` + "`" + `pitboard changes` + "`" + `. Use when the user mentions pitboard, asks to put a report on the pitboard, when the current directory or one above it has a .pitboard/ directory, or when a line starting with "pitboard:" arrives in the chat.
+description: Keeps a pitboard for the current session — a report the AI writes and the person reads in a viewer beside the chat, answering questions and writing thoughts that come back through ` + "`" + `pitboard changes` + "`" + `. Use when the user mentions pitboard, asks to put a report on the pitboard, when the current directory or one above it has a .pitboard/ directory, or when a line starting with "pitboard:" arrives in the chat.
 ---
 
 # pitboard

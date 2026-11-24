@@ -3,8 +3,11 @@
 // same parts with the same words, marks and rules as the terminal viewer,
 // and both may run at once on the same board.
 //
-// The server listens on 127.0.0.1 only. A random token, given once in the
-// URL it prints, becomes an HttpOnly cookie; every other request needs it.
+// The server listens on 127.0.0.1 only. A random token, given in the URL
+// it prints, becomes an HttpOnly cookie (kept CookieAge, renewed on use);
+// every other request needs it. The token is the caller's to keep
+// (Options.Token: pitboard serve keeps it across restarts), so an open tab
+// and its cookie outlive a restart.
 // Requests for another Host are refused (DNS rebinding), and so are state
 // changes from another Origin. Every response forbids anything but this
 // server's own scripts, styles and images.
@@ -51,9 +54,13 @@ const tabIdle = time.Hour
 
 // Options is how 'pitboard serve' runs.
 type Options struct {
-	Port int       // 0: a free port chosen by the system; PortDefault: see Listen
-	Open bool      // open the URL in the default browser
-	Out  io.Writer // where the URL is printed (nil: nowhere; the token is never logged)
+	Port int  // 0: a free port chosen by the system; PortDefault: see Listen
+	Open bool // open the URL in the default browser (unless a page of it connects within OpenWait)
+	// ForceOpen opens it even when a page connects.
+	ForceOpen bool
+	// Token is the key of the URL and the cookie ("": a new random one).
+	Token string
+	Out   io.Writer // where the URL is printed (nil: nowhere; the token is never logged)
 	// Boards are registered at start (the foreground server's own board).
 	Boards []*board.Store
 	// Registry is the file the registered boards are kept in, restored at
@@ -137,12 +144,17 @@ type seenLine struct {
 // New makes a server for o (not yet listening): the boards of its
 // registry that are still there, then o.Boards.
 func New(o Options) (*Server, error) {
-	tok := make([]byte, 32)
-	if _, err := rand.Read(tok); err != nil {
-		return nil, err
+	token := o.Token
+	if token == "" {
+		var err error
+		if token, err = NewToken(); err != nil {
+			return nil, err
+		}
+	} else if !ValidToken(token) {
+		return nil, errors.New("serve: the token is not 64 hex digits")
 	}
 	s := &Server{
-		token: hex.EncodeToString(tok), port: o.Port, registry: o.Registry, gallery: o.Gallery,
+		token: token, port: o.Port, registry: o.Registry, gallery: o.Gallery,
 		boards: map[string]*hosted{}, subs: map[chan struct{}]string{}, done: make(chan struct{}),
 		lastSub: time.Now(),
 	}
@@ -156,6 +168,24 @@ func New(o Options) (*Server, error) {
 		}
 	}
 	return s, nil
+}
+
+// NewToken is a new random token: 256 bits, as hex.
+func NewToken() (string, error) {
+	tok := make([]byte, 32)
+	if _, err := rand.Read(tok); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(tok), nil
+}
+
+// ValidToken says whether t looks like a token NewToken made.
+func ValidToken(t string) bool {
+	if len(t) != 64 {
+		return false
+	}
+	_, err := hex.DecodeString(t)
+	return err == nil
 }
 
 // The default port is "PITB" on a phone keypad (P=7 I=4 T=8 B=2), as mo's
@@ -212,7 +242,18 @@ func Run(ctx context.Context, o Options) error {
 		o.Listening(s.port, s.token)
 	}
 	if o.Open {
-		OpenBrowser(url)
+		id := ""
+		if len(o.Boards) == 1 {
+			id = s.idOf(o.Boards[0])
+		}
+		go func() {
+			// A tab already open (the server started again) comes back by
+			// itself: then no second one.
+			if !o.ForceOpen && s.awaitWatcher(id, time.Now().Add(OpenWait)) {
+				return
+			}
+			OpenBrowser(url)
+		}()
 	}
 	idle := make(chan struct{})
 	if o.Idle > 0 {
@@ -268,6 +309,36 @@ func (s *Server) Token() string { return s.token }
 // CookieName is the cookie holding the token. Cookies are per host, not
 // per port, so two servers at once each have their own.
 func (s *Server) CookieName() string { return "pitboard_" + strconv.Itoa(s.port) }
+
+// OpenWait is how long after the server starts a page already open may
+// take to come back before serve opens another.
+const OpenWait = 3 * time.Second
+
+// Watching says whether a page of board id ("" the index) has its event
+// stream open.
+func (s *Server) Watching(id string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, of := range s.subs {
+		if of == id {
+			return true
+		}
+	}
+	return false
+}
+
+// awaitWatcher waits until a page of board id is open, or until.
+func (s *Server) awaitWatcher(id string, until time.Time) bool {
+	for {
+		if s.Watching(id) {
+			return true
+		}
+		if time.Now().After(until) {
+			return false
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
 
 // idleLoop closes idle once no page has been connected for d.
 func (s *Server) idleLoop(d time.Duration, idle chan struct{}) {
@@ -325,6 +396,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "pitboard: 入れません。pitboard serve が出した URL (?t=… 付き) を開いてください", http.StatusForbidden)
 		return
 	}
+	if cookie && r.Method == http.MethodGet && renews(r.URL.Path) {
+		s.setCookie(w) // renewed on use: a page opened now and then stays in
+	}
 	// A POST from a page must come from this server's; the command line
 	// (the token in a header, which no other page can send) has no Origin.
 	if r.Method == http.MethodPost && !s.originOK(r.Header.Get("Origin")) && !(bearer && r.Header.Get("Origin") == "") {
@@ -357,6 +431,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.post(w, r, s.handleRegister)
 	case p == "/api/forget" && r.Method == http.MethodPost && bearer:
 		s.post(w, r, s.handleForget)
+	case p == "/api/watching" && r.Method == http.MethodGet && bearer:
+		writeJSON(w, Watching{Watching: s.Watching(r.URL.Query().Get("id"))})
 	case (r.Method == http.MethodGet || r.Method == http.MethodHead) && !strings.HasPrefix(p, "/api/"):
 		switch p {
 		case "/":
@@ -408,13 +484,10 @@ func (s *Server) originOK(origin string) bool {
 // page without it: a board's page, or else the index.
 func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	if subtle.ConstantTimeCompare([]byte(r.URL.Query().Get("t")), []byte(s.token)) != 1 {
-		http.Error(w, "pitboard: 入れません。pitboard serve が出した URL をそのまま開いてください (起動し直すと変わります)", http.StatusForbidden)
+		http.Error(w, "pitboard: 入れません。pitboard serve が出した URL をそのまま開いてください (pitboard serve --rotate で変わります)", http.StatusForbidden)
 		return
 	}
-	http.SetCookie(w, &http.Cookie{
-		Name: s.CookieName(), Value: s.token, Path: "/",
-		HttpOnly: true, SameSite: http.SameSiteStrictMode,
-	})
+	s.setCookie(w)
 	to := "/"
 	if rest, ok := strings.CutPrefix(r.URL.Path, "/s/"); ok {
 		if id, _, _ := strings.Cut(rest, "/"); s.board(id) != nil {
@@ -422,6 +495,32 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	http.Redirect(w, r, to, http.StatusSeeOther)
+}
+
+// CookieAge is how long the cookie is kept by the browser after it was
+// last renewed (a page or its event stream opened).
+const CookieAge = 30 * 24 * time.Hour
+
+func (s *Server) setCookie(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name: s.CookieName(), Value: s.token, Path: "/",
+		MaxAge:   int(CookieAge / time.Second),
+		HttpOnly: true, SameSite: http.SameSiteStrictMode,
+	})
+}
+
+// renews says whether a request for path renews the cookie: a page, or
+// its event stream (open as long as the tab is).
+func renews(p string) bool {
+	if p == "/" || p == "/api/events" {
+		return true
+	}
+	rest, ok := strings.CutPrefix(p, "/s/")
+	if !ok {
+		return false
+	}
+	_, sub, _ := strings.Cut(rest, "/")
+	return sub == "" || sub == "api/events"
 }
 
 // authed says how the request carries the token: the browser's cookie, or

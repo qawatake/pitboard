@@ -194,8 +194,8 @@ func TestCheck(t *testing.T) {
 		{"viewer key as Option key", "<Ask id=\"q\">q\n  <Option key=\"j\">a</Option>\n  <Option key=\"b\">b</Option>\n</Ask>", 2, "viewer key"},
 		{"duplicate Option key", "<Ask id=\"q\">q\n  <Option key=\"a\">a</Option>\n  <Option key=\"a\">b</Option>\n</Ask>", 3, "key"},
 		{"bad state", `<Item id="a" state="weird">x</Item>`, 1, "state"},
-		{"bad ask", `<Item id="a" ask="n">x</Item>`, 1, "ask"},
-		{"ask on done", `<Item id="a" state="done" ask="y">x</Item>`, 1, "ask"},
+		{"ask removed", `<Item id="a" ask="y">x</Item>`, 1, `ask="y" was removed: write an <Ask> with <Option>s instead`},
+		{"ask removed, any value", `<Item id="a" ask="n">x</Item>`, 1, "ask"},
 		{"bad wait", `<Item id="a" wait="me">x</Item>`, 1, "wait"},
 		{"wait on done", `<Item id="a" state="done" wait="you">x</Item>`, 1, "wait"},
 		{"bad look", `<Item id="a" look="n">x</Item>`, 1, "look"},
@@ -267,7 +267,7 @@ var fullReport = dedent(`
 	    <Option key="a">セッションごと</Option>
 	    <Option key="b">プロジェクトごと</Option>
 	  </Ask>
-	  <Item id="hook" ask="y">hook を入れるか決める
+	  <Item id="hook">hook を入れるか決める
 	    入れると、書いたことが AI の作業中にも届く。
 	  </Item>
 	</Section>
@@ -294,7 +294,10 @@ var fullReport = dedent(`
 `)
 
 const changesReport = `<Section title="s">
-  <Item id="hook" ask="y">hook を入れるか決める</Item>
+  <Ask id="hook">hook を入れるか決める
+    <Option key="y">入れる</Option>
+    <Option key="n">見てから</Option>
+  </Ask>
   <Ask id="base">土台
     <Option key="a">A案</Option>
     <Option key="d">B案</Option>
@@ -314,8 +317,9 @@ func TestChanges(t *testing.T) {
 	img := filepath.Join(ss.dir, "images", "3.png")
 	writeFile(t, img, "png")
 	ss.appendEvents(
+		// An older viewer's y (no option) is not told; an answer keyed n is.
 		ev(1, "react", `"id":"hook","value":"y","title":"hook を入れるか決める"`),
-		ev(2, "react", `"id":"hook","value":"n","title":"hook を入れるか決める"`),
+		ev(2, "react", `"id":"hook","value":"n","title":"hook を入れるか決める","option":"見てから"`),
 		ev(3, "react", `"id":"base","value":"a","title":"土台","option":"A案"`),
 		ev(4, "react", `"id":"base","value":"d","title":"土台","option":"B案"`),
 		ev(5, "thought", `"id":"impl","text":"もっと速く","title":"古い題"`),
@@ -329,12 +333,11 @@ func TestChanges(t *testing.T) {
 		ev(13, "thought", `"text":"まだ送っていない"`),
 	)
 	wantLines(t, ss.mustRun("changes"),
-		"n hook (hook を入れるか決める)",
+		"answer hook = n (見てから)",
 		"answer base = d (B案)",
 		"thought 5 on impl (古い題 → now: 新しい題): もっと速く",
 		"thought 6: 一行目",
 		"  二行目",
-		"y gone (消えた行 → now gone)",
 		"thought 10: これを見て [Image #3] [Image #3]",
 		"  image 3: "+img,
 		"hide (2): とても長い題のとても長い行をここで隠し… / 短い",
@@ -383,15 +386,23 @@ func TestChangesEditsRetractsUndos(t *testing.T) {
 			want:   []string{"retract thought 1: old words"},
 		},
 		{
-			name:  "undo of an unsent reaction: as if never",
-			after: []string{ev(1, "react", `"id":"hook","value":"n","title":"hook を入れるか決める"`), ev(2, "react", `"id":"hook","value":"y","title":"hook を入れるか決める"`), ev(3, "undo", `"undo":2`)},
-			want:  []string{"n hook (hook を入れるか決める)"},
+			name:  "undo of an unsent answer: as if never",
+			after: []string{ev(1, "react", `"id":"hook","value":"n","title":"hook を入れるか決める","option":"見てから"`), ev(2, "react", `"id":"hook","value":"y","title":"hook を入れるか決める","option":"入れる"`), ev(3, "undo", `"undo":2`)},
+			want:  []string{"answer hook = n (見てから)"},
 		},
 		{
-			name:   "undo of a sent reaction",
-			before: []string{ev(1, "react", `"id":"hook","value":"y","title":"hook を入れるか決める"`)},
+			name:   "undo of a sent answer",
+			before: []string{ev(1, "react", `"id":"hook","value":"y","title":"hook を入れるか決める","option":"入れる"`)},
 			after:  []string{ev(3, "undo", `"undo":1`)},
-			want:   []string{"retract y hook (hook を入れるか決める)"},
+			want:   []string{"retract answer hook = y (入れる)"},
+		},
+		{
+			// FEAT25: y / n of an older viewer in events.jsonl break nothing:
+			// neither they nor their undos are told.
+			name:   "an older viewer's y / n and their undo: not told",
+			before: []string{ev(1, "react", `"id":"hook","value":"y","title":"hook を入れるか決める"`)},
+			after:  []string{ev(3, "undo", `"undo":1`), ev(4, "react", `"id":"impl","value":"n","title":"新しい題"`), ev(5, "thought", `"text":"後"`)},
+			want:   []string{"thought 5: 後"},
 		},
 		{
 			name:   "undo of a sent hide",

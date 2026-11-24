@@ -17,7 +17,6 @@ const (
 
 	// Why a key did nothing (page's guard says which).
 	msgBack          = page.MsgBack
-	msgPlacedYN      = page.MsgPlacedYN
 	msgPlacedAnswer  = page.MsgPlacedAnswer
 	msgSettlingReact = page.MsgSettlingReact
 	msgSettlingHide  = page.MsgSettlingHide

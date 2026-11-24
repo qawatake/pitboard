@@ -21,10 +21,12 @@ func TestKeysWithInputMethod(t *testing.T) {
 	if pv.cur != "hook" || pv.placed {
 		t.Fatalf("ｊ must move like j: cur %q placed %v", pv.cur, pv.placed)
 	}
-	a.handle(key{r: 'ｙ'})
-	if evs := st.Events(); len(evs) != 1 || evs[0].Value != "y" {
-		t.Errorf("ｙ must react like y: %+v", evs)
+	a.handle(key{r: 'ｃ'})
+	if a.in == nil {
+		t.Fatal("ｃ must open the comment editor like c")
 	}
+	a.handle(key{name: "esc"})
+	a.in = nil
 	a.handle(key{name: "ctrl+p"})
 	a.render()
 	if pv.cur != "unit" {

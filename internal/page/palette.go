@@ -13,11 +13,11 @@ import (
 // is spacing and weight.
 const (
 	ColorNeed      = "need"      // yellow: needs the person (waiting ●, 反応待ち, 未送信, a refusal)
-	ColorMove      = "move"      // green: moving (作業中, 対応中), the unread ●, y, an added diff line
+	ColorMove      = "move"      // green: moving (作業中, 対応中), the unread ●, an added diff line
 	ColorQuiet     = "quiet"     // faint: done, waiting on the AI, secondary notes, a diff's @@
 	ColorStructure = "structure" // blue: headings, links, the cursor and the focus, g's letters
 	ColorYours     = "yours"     // teal: what the person entered (an answer's key, the chosen option)
-	ColorBad       = "bad"       // red: errors, n, a removed diff line
+	ColorBad       = "bad"       // red: errors, a removed diff line
 )
 
 // Palette is every color name with what it means, as the keys list says
@@ -25,11 +25,11 @@ const (
 // screens map every name).
 var Palette = []struct{ Name, Label string }{
 	{ColorNeed, "黄: あなたの手が要る (人待ちの ●・未送信・断り)"},
-	{ColorMove, "緑: 動いている (作業中・対応中)・未読の ●・y・足した行"},
+	{ColorMove, "緑: 動いている (作業中・対応中)・未読の ●・足した行"},
 	{ColorQuiet, "薄い: 済んだ・AI 待ち・添え書き"},
 	{ColorStructure, "青: 見出し・リンク・カーソル・g の字"},
 	{ColorYours, "青緑: あなたが入れたもの (答えのキー・選んだ答え)"},
-	{ColorBad, "赤: 誤り・n・消した行"},
+	{ColorBad, "赤: 誤り・消した行"},
 }
 
 // ToneColor is the palette name of a Tone.
@@ -58,8 +58,8 @@ func DiffColor(line string) string {
 }
 
 // PendingCount is how many inputs the person has not sent, as they see
-// them: one per line with a reaction, hide or taking back pending on it
-// (pressing y, y, n on one line is one), and one per comment (written,
+// them: one per line with an answer, hide or taking back pending on it
+// (answering a, then b on one Ask is one), and one per comment (written,
 // edited, taken back: one). Both screens' 未送信 N.
 func PendingCount(unsent []board.Event) int {
 	seen := map[string]bool{}

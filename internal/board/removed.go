@@ -13,8 +13,7 @@ import (
 )
 
 // When the AI rewrites report.md it may drop a row the person still has
-// business with: one that wants them (ask="y" or an Ask they have not
-// answered, wait="you" they have not acted on, look="y" they have not
+// business with: one that wants them (an Ask they have not answered, wait="you" they have not acted on, look="y" they have not
 // read) or one with a sent comment the AI has not settled done. Such a
 // removal is said once: 'check' lists it until then, and the next other
 // command the AI runs ends with it; then it is forgotten. The AI learns it
@@ -34,7 +33,7 @@ func (s *Store) rowsPath() string { return filepath.Join(s.Dir, "rows.json") }
 // seenRow is a row as it was remembered.
 type seenRow struct {
 	Title   string
-	Ask     bool   `json:",omitempty"` // ask="y" or an Ask: answered by a reaction or hiding
+	Ask     bool   `json:",omitempty"` // an Ask: answered by an option or hiding
 	Wait    bool   `json:",omitempty"` // wait="you": a reaction, hiding or a sent comment
 	Look    bool   `json:",omitempty"` // look="y": reading it is enough
 	HideKey string `json:",omitempty"`
@@ -112,7 +111,7 @@ func (s *Store) removed(take bool) (warnings []string) {
 	if valid {
 		for k, n := range now {
 			rows[k] = seenRow{Title: n.Title(), HideKey: report.HideKey(n), View: viewHash(n),
-				Ask:  n.Ask == "y" || n.Kind == report.KindQuestion,
+				Ask:  n.Kind == report.KindQuestion,
 				Wait: n.Wait == "you",
 				Look: n.Look == "y"}
 		}

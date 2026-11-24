@@ -10,7 +10,7 @@ import (
 // so the two never disagree.
 var usage = strings.ReplaceAll(usageText, "{viewerKeys}", report.ViewerKeyList())
 
-const usageText = `pitboard - a board beside an AI session: the AI reports, the person reacts
+const usageText = `pitboard - a board beside an AI session: the AI reports, the person answers
 
 Usage:
   pitboard [-s SESSION] [view]     the viewer (without -s: the most recently updated session)
@@ -37,8 +37,8 @@ Usage:
 
 The board is a place for what must not scroll away in the chat: where things
 stand, what the person must decide, what they should look at. You (the AI)
-write the report; the person reacts on the board (y / n, answers to
-questions) and writes thoughts. The person never edits the report, and you
+write the report; the person answers on the board (an option of an Ask)
+and writes thoughts. The person never edits the report, and you
 never edit their record.
 
 Starting:
@@ -61,7 +61,7 @@ Who writes what:
   report.md     you (the AI) only, with your usual file edits (Edit/Write)
   events.jsonl  the person only, through the viewer. Never edit it; use
                 'pitboard settle' to answer thoughts.
-The person's reactions never change report.md. You read them with 'changes'
+The person's answers and thoughts never change report.md. You read them with 'changes'
 and rewrite the report yourself.
 
 Writing report.md:
@@ -99,9 +99,10 @@ Writing report.md:
         <Option key="a">per session</Option>
         <Option key="b">per project</Option>
       </Ask>
-      <Item id="hook" ask="y">Decide whether to install the hook
-        Installing it touches ~/.claude/settings.json.
-      </Item>
+      <Ask id="hook">Install the hook? (it touches ~/.claude/settings.json)
+        <Option key="a">install it</Option>
+        <Option key="b">look at it first</Option>
+      </Ask>
 
       <Item id="a-cwd" look="y">> Is there one board per project?
         Yes: each project gets its own board.
@@ -140,7 +141,6 @@ Writing report.md:
     Item      id (required), state = todo (default) | doing | done,
               status (a short word shown at the right end; see Manners),
               note (why the status; shown when opened),
-              ask="y" (you want a y / n on it; not on a done Item),
               wait="you" (it cannot move on until the person does
               something; not on a done Item),
               look="y" (you want the person to read it: see Marks).
@@ -160,29 +160,31 @@ Writing report.md:
               written) or url (http:// or https://). One line: its title.
               The board shows the path or URL under the title; it does not
               open files. Put what must be read in the board in Code.
-              ask="y" and look="y" as on Item.
+              look="y" as on Item.
     Fold      title (required), id (optional; keeps it open when folds above
               it are added or removed), look="y" (as on Item; read means
               everything it holds). Holds what a Section holds. Starts
               closed.
     Code      lang (optional; "diff" is colored). Raw until </Code>; the
               indentation of the <Code> tag is removed from its lines.
-  id: 1-16 of a-z 0-9 -, unique in the page. The person reacts to Item, Ask,
-  Link and Notice through their id: y / n on Items, Links and Notices, an
-  Option key on an Ask, and thoughts written on any of them. They may write
-  thoughts on a Fold too: through its id, or by its title if it has none.
+  id: 1-16 of a-z 0-9 -, unique in the page. The person acts on Item, Ask,
+  Link and Notice through their id: an Option key on an Ask (the one way to
+  answer), and thoughts written on any of them; they may also hide a line
+  or say it is read. They may write thoughts on a Fold too: through its id,
+  or by its title if it has none.
+  (ask="y" was removed: to get a yes or no, write an Ask.)
 
-  Marks: the board puts a yellow ● beside each line waiting for the person
-  (an Ask not answered yet, an Item or Link with ask="y" without a y / n on
+  Marks: the board puts a yellow ● beside each Ask not answered yet (on
   what it says now) and a green ● (unread) beside each line with look="y"
   that they have not read since it last changed. Only the person clears
-  it, with r (read) on the line or by reacting to it; the cursor does
+  it, with r (read) on the line, by answering or by writing on it; the
+  cursor does
   not. space takes them to the nearest marked line below the cursor
   (yellow, green, or an Item with wait="you"; all alike), from the top
   when there is none below. Lines without look="y" get no green mark,
   whatever changes.
-  So: mark with ask="y" (or make an Ask) exactly what you need them to
-  answer, and with look="y" exactly what you need them to read. Rewriting a
+  So: make an Ask of exactly what you need them to answer, and mark with
+  look="y" exactly what you need them to read. Rewriting a
   look="y" line (title, state, status, note, contents) marks it unread
   again.
 
@@ -194,7 +196,7 @@ A layout to start from:
        through them.
     2. Notices, only when there is one (see Manners).
     3. "For you": first what the person is to answer or do (Ask, Item with
-       ask="y" or wait="you"); under them, your answers to what they asked,
+       wait="you"); under them, your answers to what they asked,
        each <Item id="a-..." look="y"> titled "> " and their question,
        its contents starting with the conclusion in one sentence, details
        after it (they hide it with x once read; see Manners). (When the
@@ -227,8 +229,12 @@ Manners:
   - A list line is one short clause. When it needs a sentence or two, give
     it a head word ("- **head**: body") or sub-items; keep an Item's
     contents to what the person must read, not everything you know.
-  - A line you want a reaction or a thought on must be an Item, Ask or Link
-    with an id.
+  - A line you want an answer on must be an Ask; one you want a thought on
+    must be an Item, Ask or Link with an id.
+  - To get a yes or no, write an Ask whose Options say what each choice
+    means, not just yes / no when you can say more (<Option key="a">install
+    it</Option> <Option key="b">look at it first</Option>). Keys y and n are
+    fine when they read naturally.
   - A Notice is for what the person must know first: when tools or the
     environment need something from them (reopen the viewer, set
     something up), or when your work is stuck. Not for ordinary questions
@@ -251,11 +257,11 @@ Manners:
   - When contents run past 3 lines, do not pour them into a paragraph: show
     their structure with lists and bold head words. Nest what you compare.
     One list line says one thing.
-  - Keep ids stable while a line means the same thing: reactions are tied to
-    ids. A reaction stops showing when you rewrite that line (text, state,
-    status or note), so rewrite a line once you have acted on its reaction.
+  - Keep ids stable while a line means the same thing: answers are tied to
+    ids. An answer stops showing when you rewrite that Ask (its question or
+    options), so rewrite an Ask once you have acted on its answer.
   - Never reuse an id for a different line. When the thing changes, give it
-    a new id. (Reactions and thoughts record the title the person saw;
+    a new id. (Answers and thoughts record the title the person saw;
     'changes' shows it next to what the line says now.)
   - Tags start at the beginning of a line and part names start with a
     capital letter (<Item>, not <item>).
@@ -271,7 +277,7 @@ Manners:
     answer in the chat (and put the answer in the report too if it should
     be kept).
   - Whatever needs the person's decision or check goes near the top of the
-    report, with ask="y" (or an Ask) or wait="you". Never only in the chat.
+    report, as an Ask or an Item with wait="you". Never only in the chat.
   - Questions and answers: when the person asks you something on the board
     (a thought), answer in the report, so that the board alone tells them
     where things stand when they come back. Put an answer Item at the
@@ -303,8 +309,8 @@ Manners:
     things move (progress, queued work): they need not read those.
   - Nothing that matters lives only in the chat: decisions, answers and
     requests to the person go in the report too.
-  - The person answers on the board at their own pace (y / n, answers,
-    thoughts, hides) and then sends them all at once (Send, below). You
+  - The person answers on the board at their own pace (answers, thoughts,
+    hides) and then sends them all at once (Send, below). You
     need not call 'changes' often yourself: it prints only what was sent,
     and nothing twice.
   - Before you end your turn, run 'pitboard -s SESSION wait' in the
@@ -315,10 +321,8 @@ Manners:
     reaches you then. Once it has ended, start it again.
 
 'changes' prints lines like:
-    y hook (Decide whether to install the hook)
-    n impl (Implement the viewer → now: Implement the viewer and the CLI)
-    y old (Drop the log → now gone)
     answer unit = a (per session)
+    answer hook = b (look at it first; question: Install the hook? → now: Install the hook now?)
     thought 7 on hook (Decide whether to install the hook): only post-tool
     thought 8: maybe drop the log
     thought 9: a thought written on two lines
@@ -329,20 +333,20 @@ Manners:
     unhide (1): Drop the log
     retract thought 7: only post-tool
     edit thought 8: maybe drop the log, and the history too
-    retract y hook (Decide whether to install the hook)
+    retract answer unit = a (per session)
     retract hide: Drop the log
-  y means "good / done", n "not needed / no". answer is the option chosen.
-  The text in parentheses is the line's title when the person pressed the
+  answer is the option chosen, with its text. The text in parentheses (or
+  after "question:") is the line's title when the person pressed the
   key (or began writing). "→ now: ..." means you have rewritten the line
   since: the person judged the old title, so think about which one the
-  reaction is for before applying it. "→ now gone" means the line is gone.
+  answer is for before applying it. "→ now gone" means the line is gone.
   thought N is a thought; "on ID" when written on that line (the titles are
   cut to 30 characters there), 'on fold "TITLE"' when written on a Fold
   without an id. A thought may hold images, "[Image #N]" in
   its text: the line under it gives the image's path; open it (Read) to see
   it.
-  A line the person reacted to more than once (y, then n; one option, then
-  another) is told once, with the last.
+  An Ask the person answered more than once (one option, then another) is
+  told once, with the last.
   hide / unhide come last, all on one line (titles cut to 20 characters).
   hide means the person decided they no longer need to see that line. Drop it
   from report.md unless you still need it (always drop an answer; see
@@ -357,9 +361,9 @@ Manners:
   acting on it, stop. It needs no settle. (A thought taken back before it
   reached you is never told; "unretract thought N" means a retract you were
   told was undone, and the thought stands again.)
-  retract followed by a reaction, answer, hide or unhide line means the
+  retract followed by an answer, hide or unhide line means the
   person took back that one, which you were told before (u on the board):
-  act as if it had not been given (a reaction given before it, if any,
+  act as if it had not been given (an answer given before it, if any,
   stands again). Taking back a thought is "retract thought N", taking back
   a rewrite an "edit thought N" with the text before it. What the person
   takes back before you were told it is never told.
@@ -406,7 +410,9 @@ Browser:
   opens it (--no-open: only prints it) and returns at once. Run for another
   session or project, it adds that board to the same server; nothing
   restarts. The index (/) lists every board added. It listens on 127.0.0.1
-  only, and the URL holds a key that changes each time the server starts.
+  only, and the URL holds a key, kept across restarts (an open tab comes
+  back by itself, and serve then opens no second one); 'pitboard serve
+  --rotate' changes it.
   Its port is 7482 ("PITB" on a phone keypad), or the next free one up to
   7491, else any free one; --port N is exact.
   The server stops by itself after 30 minutes with no page open;
@@ -414,7 +420,7 @@ Browser:
   and its boards (--url: with their URLs), 'pitboard -s ID serve --forget'
   takes a board off it, --foreground keeps it in the terminal (ctrl+c stops
   it). Its state and log: $XDG_STATE_HOME/pitboard/ (or
-  ~/.local/state/pitboard/): serve.json, serve.log, boards.json (the boards
+  ~/.local/state/pitboard/): token, serve.json, serve.log, boards.json (the boards
   added, shown again when it starts again, unless their directory is gone).
   If the person would rather use a browser than a terminal pane, tell them
   to run:

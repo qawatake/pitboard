@@ -32,14 +32,13 @@ export function signOf(cx, sign) {
   return s;
 }
 
-// rightOf is the right end (page.Right): the reaction, the state of the
+// rightOf is the right end (page.Right): the answer, the state of the
 // latest input, then the AI's status (or, on a notice, when it went up).
 export function rightOf(t, open) {
   const r = t.Right || {};
   const box = el('span', 'right');
   if (r.Reaction) {
-    const cls = r.Reaction === 'y' ? 'yes' : r.Reaction === 'n' ? 'no' : 'optkey';
-    box.appendChild(el('span', cls, r.Reaction));
+    box.appendChild(el('span', 'optkey', r.Reaction));
     if (t.Kind === 'ask' && r.Option && !open) box.appendChild(el('span', 'quiet ohead', r.Option));
   }
   if (r.Input && r.Input.Text) {

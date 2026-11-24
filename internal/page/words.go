@@ -100,14 +100,14 @@ func (b *Board) ThoughtNote(t *board.Thought) string {
 	return "AI は読みました。対応はまだです"
 }
 
-// Right is what goes at the right end of a line: the person's reaction on
+// Right is what goes at the right end of a line: the person's answer on
 // what the line says now and the state of their latest input on it, then
 // the AI's status.
 type Right struct {
-	// Reaction is the person's y, n or option key ("" for none, or when it
-	// is being taken back).
+	// Reaction is the person's answer on an Ask: the option's key ("" for
+	// none, or when it is being taken back).
 	Reaction string
-	// Option is, on an Ask with a reaction, the chosen option's text, and
+	// Option is, on an Ask with an answer, the chosen option's text, and
 	// OptionHead its head as a closed Ask shows it (AnswerHead cells).
 	Option     string
 	OptionHead string
@@ -129,7 +129,7 @@ type Right struct {
 // WorkingWord is what a doing Item without a status says.
 const WorkingWord = "作業中"
 
-// UndoingWord is what a line says while a sent reaction (or hide) on it is
+// UndoingWord is what a line says while a sent answer (or hide) on it is
 // taken back and the taking back not sent.
 const UndoingWord = "取り消し 未送信"
 

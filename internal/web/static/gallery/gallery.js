@@ -37,7 +37,8 @@ const W = Number(params.get('w')) || 1280;
 const THEME = params.get('theme') === 'dark' ? 'dark' : 'light';
 const CUR = params.get('cur') === '1';
 const ONLY = params.get('only') || ''; // module, or module/NN
-const env = { imageURL: (n) => (n === 2 ? '/gallery/large.svg' : '/gallery/sample.svg') };
+// Image 2 is large (2400 × 1600), 3 tall (600 × 1800), any other small.
+const env = { imageURL: (n) => (n === 2 ? '/gallery/large.svg' : n === 3 ? '/gallery/tall.svg' : '/gallery/sample.svg') };
 
 const fx = await (await fetch('/gallery/fixtures.json')).json();
 const report = { ready: false, stories: [], errors: [] };
@@ -86,7 +87,7 @@ function resolve(v, isPart) {
     if (t) {
       ui.sel = t.Token;
       const o = sit.Offers && sit.Offers[t.Key];
-      const offer = v.locked ? fx.Locked : v.placed ? sit.Placed[t.Key] : o && (S.isOpen(ui, t) ? o.Open : o.Closed);
+      const offer = v.locked ? fx.Locked : v.placed ? (S.isOpen(ui, t) && sit.PlacedOpen ? sit.PlacedOpen[t.Key] : sit.Placed[t.Key]) : o && (S.isOpen(ui, t) ? o.Open : o.Closed);
       if (offer) ui.offer = { key: t.Key, sel: t.Token, offer };
     }
   }
@@ -174,7 +175,6 @@ function facts(app) {
   for (const h of all(app, '.creply > .quiet:first-child')) add('settle', settleOf[h.textContent]);
   const bar = all(app, '.foot .bar [data-act]').map((b) => b.dataset.act);
   for (const a of bar) add('hint', a);
-  if (bar.includes('y') || bar.includes('n')) add('action', 'YN');
   if (bar.includes('answer')) add('action', 'Options');
   if (bar.includes('comment')) add('action', 'Comment');
   if (bar.includes('hide')) add('action', 'Hide');

@@ -11,7 +11,10 @@ import (
 
 const marksReport = `<Title>t</Title>
 <Section title="あなたへ">
-<Item id="plan" ask="y">この方針で進めてよいか</Item>
+<Ask id="plan">この方針で進めてよいか
+<Option key="y">進める</Option>
+<Option key="n">待つ</Option>
+</Ask>
 <Item id="other" look="y">ただの項目</Item>
 </Section>
 <Fold title="済んだこと">
@@ -46,20 +49,26 @@ func TestWaitingAndNewMarks(t *testing.T) {
 	// The marks have a column of their own, beside the cursor's, the
 	// Fold's too.
 	rows := shown(a)
-	for _, want := range []string{"> ● · この方針", "  ● · ただの項目", "  ● ▸ 済んだこと"} {
+	for _, want := range []string{"> ● ? この方針", "  ● · ただの項目", "  ● ▸ 済んだこと"} {
 		if !strings.Contains(rows, want) {
 			t.Errorf("want %q in\n%s", want, rows)
 		}
 	}
-	// y on plan: no longer waiting.
+	// Answering plan (option y: y and n are option keys now): no longer
+	// waiting. The first y opens the closed Ask, the second answers.
 	a.handle(key{r: 'j'})
 	a.handle(key{r: 'k'})
 	a.render()
 	wait(t, settleDelay)
 	a.handle(key{r: 'y'})
+	a.render()
+	a.handle(key{r: 'y'})
+	a.render()
 	if w, _ := a.counts(pv); w != 1 {
-		t.Errorf("waiting after y: %d", w)
+		t.Errorf("waiting after answering y: %d", w)
 	}
+	a.handle(key{name: "enter"}) // close it again
+	a.render()
 	// On "other": still unread while the cursor is on it, however long.
 	a.handle(key{r: 'j'})
 	a.render()
@@ -252,11 +261,12 @@ func TestReadOnlyByKeys(t *testing.T) {
 	if _, f := a.counts(a.top()); f != 6 {
 		t.Fatalf("unread after moving: %d", f)
 	}
-	// y reads its line; a comment on a line too; x too.
+	// r reads its line; a comment on a line too; x too. (An answer on an
+	// Ask reads it too: TestWaitingAndNewMarks.)
 	to(t, a, "b")
-	a.handle(key{r: 'y'})
+	a.handle(key{r: 'r'})
 	if unreadOf(a, "b") {
-		t.Error("y did not read the line")
+		t.Error("r did not read the line")
 	}
 	to(t, a, "c")
 	a.handle(key{r: 'c'})

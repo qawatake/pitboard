@@ -132,12 +132,12 @@ func TestReadTallContents(t *testing.T) {
 			if s := hintLine(a); !strings.Contains(s, "↑ カーソルは上") {
 				t.Errorf("off screen hints %q", s)
 			}
-			// y on a line off the screen: brought back, nothing recorded.
+			// x on a line off the screen: brought back, nothing recorded.
 			top := pv.top
-			a.handle(key{r: 'y'})
+			a.handle(key{r: 'x'})
 			a.render()
 			if len(st.Events()) != 0 || !pv.curShown {
-				t.Errorf("y off screen: events %d shown %v", len(st.Events()), pv.curShown)
+				t.Errorf("x off screen: events %d shown %v", len(st.Events()), pv.curShown)
 			}
 			pv.top, pv.follow = top, false
 			a.render()

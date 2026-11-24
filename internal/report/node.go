@@ -34,7 +34,6 @@ type Node struct {
 	Label  string // Option key: "a"
 	Status string // short word on the right end
 	Reason string // note: why, shown when opened
-	Ask    string // Item / Link: "y" when the AI asks for y / n on it
 	Wait   string // Item: "you" when it cannot move on without the person
 	Look   string // Item / Link / Fold (/ Ask): "y" when the AI wants it read
 	// At is when the AI put up a Notice (local time; zero when not given).

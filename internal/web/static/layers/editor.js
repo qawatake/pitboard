@@ -70,6 +70,7 @@ export const variants = [
   { name: 'm: a comment on no line, floating', ui: { cur: 'hook', mode: 'editor', editor: { kind: 'comment', key: '', at: 'hook', label: '宛先なしのコメント', text: '' } }, responsive: true },
   { name: 'm: long text grows upward', ui: { cur: 'hook', mode: 'editor', editor: { kind: 'comment', key: '', at: 'hook', label: '宛先なしのコメント', text: long } }, responsive: true },
   { name: 'one large image', fixture: 'comments', ui: { cur: 'c1', mode: 'editor', editor: { kind: 'comment', key: 'c1', at: 'c1', label: '「未送信のコメントのある行」にコメント', text: 'この画面 [Image #2]' } }, responsive: true },
+  { name: 'one tall image', fixture: 'comments', ui: { cur: 'c1', mode: 'editor', editor: { kind: 'comment', key: 'c1', at: 'c1', label: '「未送信のコメントのある行」にコメント', text: '縦長 [Image #3]' } }, responsive: true },
   { name: 'three images', fixture: 'comments', ui: { cur: 'c1', mode: 'editor', editor: { kind: 'comment', key: 'c1', at: 'c1', label: '「未送信のコメントのある行」にコメント', text: '前 [Image #1] 後 [Image #3] 全体 [Image #2]' } }, responsive: true },
   { name: 'editing a comment in the panel', fixture: 'comments', ui: { panel: true, cur: '#l:first', mode: 'editor', editor: { kind: 'edit', at: '#l:first', label: 'コメントを直す', text: '同じ行への 2 つ目' } } },
 ];

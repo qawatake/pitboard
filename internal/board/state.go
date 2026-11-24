@@ -28,6 +28,7 @@ type State struct {
 // Replay adds up the events. What was taken back (undo) is as if it
 // never happened.
 func Replay(evs []Event, seen int) *State {
+	evs = dropLegacy(evs)
 	st := &State{React: map[string]Event{}, Seen: seen, Sent: lastSend(evs), Hidden: map[string]bool{},
 		Undoing: map[string]bool{}, UndoingKey: map[string]bool{}}
 	byN := map[int]*Thought{}

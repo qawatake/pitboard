@@ -133,7 +133,7 @@ function setConn(conn, msg) {
   clearInterval(retryTimer);
   // Keep trying quietly while offline: the first page that comes back
   // clears it. A board that is gone stays gone.
-  if (conn === 'offline') retryTimer = setInterval(() => { etag = ''; refresh(); }, 3000);
+  if (conn === 'offline') retryTimer = setInterval(() => { etag = ''; refresh(); }, 2000);
   // A board that is gone comes back when it is registered again under the
   // same id (pitboard serve in its directory): ask now and then.
   if (conn === 'gone') retryTimer = setInterval(() => { etag = ''; refresh(true); }, 4000);
@@ -166,6 +166,7 @@ async function refresh(retry) {
   }
   const first = !page;
   if (wasGone) stream.reopen();
+  else if (stream) stream.revive();
   page = d;
   if (first) fromURL();
   ui = S.placed(ui, page, now());
@@ -496,7 +497,7 @@ function doAct(what, key) {
     case 'jumpTo': { const t = S.jumpOf(page, key); set(S.endGoto(ui)); if (t) goTo(t); break; }
     case 'closeHelp': closeHelp(); break;
     case 'closeImage': closeImage(); break;
-    default: press(key); // y n r c x and an option's key
+    default: press(key); // r c x and an option's key
   }
 }
 
@@ -552,13 +553,31 @@ function editorKey(e) {
   if (e.isComposing || e.keyCode === 229) return; // the input method's enter
   if (e.key === 'Escape') { e.preventDefault(); closeEditor(); return; }
   if (e.key === 'Enter' && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey) { e.preventDefault(); place(); }
+  // alt+↑ ↓ (as the terminal's): the page half a screen up / down, the
+  // focus staying in the text (what is under a floating editor can be
+  // read without leaving it).
+  if (e.altKey && !e.ctrlKey && !e.metaKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+    e.preventDefault();
+    scroller.scrollBy(0, (e.key === 'ArrowUp' ? -1 : 1) * Math.round(scroller.clientHeight / 2));
+  }
 }
 
 // syncPadding keeps the end of the page above the bottom, however tall
-// the message above the keys is.
+// the message above the keys is, and above a floating layer (the m editor,
+// the comment panel) while one is open, however tall it grows: the page
+// gets that much more room at its end (--float-h), so every line can be
+// scrolled to above it. Each layer is watched as it grows.
+const floatWatch = window.ResizeObserver ? new ResizeObserver(() => syncPadding()) : null;
+const watched = new WeakSet();
 function syncPadding() {
   const h = $('.foot').offsetHeight;
   app.style.setProperty('--foot-h', h + 'px');
+  let fh = 0;
+  for (const f of app.querySelectorAll('.editor.loose, .cpanel:not([hidden])')) {
+    if (floatWatch && !watched.has(f)) { floatWatch.observe(f); watched.add(f); }
+    fh = Math.max(fh, f.offsetHeight);
+  }
+  app.style.setProperty('--float-h', fh ? fh + 'px' : '0px');
 }
 
 function start() {

@@ -31,7 +31,7 @@ const src = `<Notice id="note" at="2026-11-23 21:46">開き直してください
     <Option key="a">セッションごと</Option>
     <Option key="b">プロジェクトごと</Option>
   </Ask>
-  <Item id="hook" ask="y">hook を入れるか決める
+  <Item id="hook">hook を入れるか決める
     中身
   </Item>
   <Item id="impl" state="doing" look="y">実装する</Item>
@@ -285,7 +285,7 @@ func TestPageJSON(t *testing.T) {
 	s := string(b)
 	for _, w := range []string{`"Kind":"notice"`, `"Kind":"ask"`, `"Kind":"item"`, `"Kind":"option"`, `"Kind":"section"`,
 		`"Mark":"waiting"`, `"Mark":"new"`, `"Tone":"move"`, `"Style":"plain"`, `"Token":"`, `"Sign":"?"`, `"Words":{`,
-		`"AtText":"`, `"反応待ち 2"`, `"未読 1"`, `"JumpTo":["note","unit"]`, `"Session":"sess1234"`, `"Next":[`} {
+		`"AtText":"`, `"反応待ち 1"`, `"未読 1"`, `"JumpTo":["note","unit"]`, `"Session":"sess1234"`, `"Next":[`} {
 		if !strings.Contains(s, w) {
 			t.Errorf("page lacks %s", w)
 		}
@@ -301,7 +301,7 @@ func TestActRoundTrips(t *testing.T) {
 	f := setup(t)
 	f.page("tab1")
 	hook := f.thing("hook")
-	if !hook.Actions.YN || !hook.Actions.Comment || !hook.Actions.Hide {
+	if len(hook.Actions.Options) != 0 || !hook.Actions.Comment || !hook.Actions.Hide {
 		t.Fatalf("hook actions %+v", hook.Actions)
 	}
 	steps := []struct {
@@ -309,7 +309,7 @@ func TestActRoundTrips(t *testing.T) {
 		op   string
 		want string
 	}{
-		{Act{Action: "react", Target: "hook", Seen: hook.Token, Value: "y"}, "react", "y を付けました: hook を入れるか決める (u で戻す)"},
+		{Act{Action: "react", Target: "unit", Seen: f.thing("unit").Token, Value: "a", Cur: Cur{Open: true}}, "react", "答え a を付けました: ページの単位 (u で戻す)"},
 		{Act{Action: "key", Key: "b", Target: "unit", Seen: f.thing("unit").Token, Cur: Cur{Open: true}}, "react", "答え b を付けました: ページの単位 (u で戻す)"},
 		{Act{Action: "comment", Target: "hook", Seen: hook.Token, Text: "なぜ?"}, "thought", page.MsgCommented},
 		{Act{Action: "comment", Text: "宛先なし"}, "thought", page.MsgCommented},
@@ -328,7 +328,7 @@ func TestActRoundTrips(t *testing.T) {
 		}
 	}
 	ev := f.st.Events()
-	if ev[0].Value != "y" || ev[0].ID != "hook" || ev[1].Value != "b" || ev[2].ID != "hook" || ev[2].Title != "hook を入れるか決める" || ev[3].ID != "" {
+	if ev[0].Value != "a" || ev[0].ID != "unit" || ev[0].Option != "セッションごと" || ev[1].Value != "b" || ev[2].ID != "hook" || ev[2].Title != "hook を入れるか決める" || ev[3].ID != "" {
 		t.Errorf("events %+v", ev)
 	}
 	// read: the unread line's green mark goes.
@@ -389,7 +389,6 @@ func TestStaleSeen(t *testing.T) {
 	os.Chtimes(f.st.ReportPath(), future, future)
 	// The line under the cursor was rewritten: locked, as in the terminal.
 	for _, a := range []Act{
-		{Action: "react", Target: "hook", Seen: old, Value: "y"},
 		{Action: "hide", Target: "hook", Seen: old},
 	} {
 		if r := f.act("tab1", a); r.OK || r.Message != page.MsgMoved {

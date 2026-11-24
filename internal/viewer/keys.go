@@ -153,10 +153,10 @@ func imeFree(k key) key {
 	return k
 }
 
-// keysFor lists what the reaction keys do on n, in the order shown.
-func keysFor(n *report.Node) (yn bool, choices []string, thought bool) { return page.KeysFor(n) }
+// keysFor lists what keys n takes: its options (an Ask), and comments.
+func keysFor(n *report.Node) (choices []string, thought bool) { return page.KeysFor(n) }
 
-// react is a key that acts on the cursor's line (y n x r c, an option's
+// react is a key that acts on the cursor's line (x r c, an option's
 // key, or any other letter): page's guard says what it does there.
 func (a *app) react(pv *view, r rune) {
 	n := pv.shownLine()

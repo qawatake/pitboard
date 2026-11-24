@@ -145,21 +145,21 @@ export function fit(foot) {
 
 const at = (cur, extra) => ({ cur, ...extra });
 
-export const covers = {"mode": {"normal": ["an Item: enter y n c x, space g, s m ?"]}, "action": {"YN": ["an Item: enter y n c x, space g, s m ?"], "Options": ["an open Ask: its options"], "Comment": ["an Item: enter y n c x, space g, s m ?"], "Hide": ["a list line: x, and room for u 元に戻す, space 次へ"], "Read": ["unread: r 読んだ"]}, "hint": {"undo": ["after an act in this tab: u 元に戻す"], "open": ["an Item: enter y n c x, space g, s m ?"], "close": ["an open Item: enter 閉じる"], "read": ["unread: r 読んだ"], "answer": ["an open Ask: its options"], "wait": ["placed by the page: j k 動かすと…"], "y": ["an Item: enter y n c x, space g, s m ?"], "n": ["an Item: enter y n c x, space g, s m ?"], "comment": ["an Item: enter y n c x, space g, s m ?"], "hide": ["a list line: x, and room for u 元に戻す, space 次へ"], "next": ["a list line: x, and room for u 元に戻す, space 次へ"], "jump": ["an Item: enter y n c x, space g, s m ?"], "send": ["an Item: enter y n c x, space g, s m ?"], "write": ["an Item: enter y n c x, space g, s m ?"], "keys": ["an Item: enter y n c x, space g, s m ?"]}, "refusal": {"back": ["refusal: back"], "changed": ["refusal: changed"], "emptyComment": ["refusal: emptyComment"], "moved": ["refusal: moved"], "noMarked": ["refusal: noMarked"], "placedAnswer": ["refusal: placedAnswer"], "placedYN": ["refusal: placedYN"], "settlingHide": ["refusal: settlingHide"], "settlingReact": ["refusal: settlingReact"], "settlingShow": ["refusal: settlingShow"], "tooLong": ["refusal: tooLong"]}};
+export const covers = {"mode": {"normal": ["an Item: enter c x, space g, s m ?"]}, "action": {"Options": ["an open Ask: its options"], "Comment": ["an Item: enter c x, space g, s m ?"], "Hide": ["a list line: x, and room for u 元に戻す, space 次へ"], "Read": ["unread: r 読んだ"]}, "hint": {"undo": ["after an act in this tab: u 元に戻す"], "open": ["an Item: enter c x, space g, s m ?"], "close": ["an open Item: enter 閉じる"], "read": ["unread: r 読んだ"], "answer": ["an open Ask: its options"], "wait": ["placed by the page: j k 動かすと…"], "comment": ["an Item: enter c x, space g, s m ?"], "hide": ["a list line: x, and room for u 元に戻す, space 次へ"], "next": ["a list line: x, and room for u 元に戻す, space 次へ"], "jump": ["an Item: enter c x, space g, s m ?"], "send": ["an Item: enter c x, space g, s m ?"], "write": ["an Item: enter c x, space g, s m ?"], "keys": ["an Item: enter c x, space g, s m ?"]}, "refusal": {"back": ["refusal: back"], "changed": ["refusal: changed"], "emptyComment": ["refusal: emptyComment"], "moved": ["refusal: moved"], "noMarked": ["refusal: noMarked"], "placedAnswer": ["refusal: placedAnswer"], "settlingHide": ["refusal: settlingHide"], "settlingReact": ["refusal: settlingReact"], "settlingShow": ["refusal: settlingShow"], "tooLong": ["refusal: tooLong"]}};
 
 export const differences = {"message": ["a message"], "sent": ["sent"]};
 
 export const variants = [
-  { name: 'an Item: enter y n c x, space g, s m ?', ui: at('hook'), responsive: true },
+  { name: 'an Item: enter c x, space g, s m ?', ui: at('hook'), responsive: true },
   { name: 'after an act in this tab: u 元に戻す', ui: at('ただの行'), undo: true },
   { name: 'an open Item: enter 閉じる', ui: at('hook'), open: ['hook'] },
   { name: 'an open Ask: its options', ui: at('where'), open: ['where'] },
   { name: 'unread: r 読んだ', ui: at('reply') },
   { name: 'a list line: x, and room for u 元に戻す, space 次へ', ui: at('ただの行') },
-  { name: 'placed by the page: j k 動かすと…', ui: at('merge'), placed: true },
+  { name: 'placed by the page: j k 動かすと…', ui: at('merge'), open: ['merge'], placed: true },
   { name: 'rewritten under the cursor', ui: at('hook'), locked: true },
   { name: 'a hidden line: x 表示に戻す', fixture: 'hidden', ui: at('h1') },
-  { name: 'a message', ui: at('hook', { status: 'n を付けました: プルリクエスト' }) },
+  { name: 'a message', ui: at('hook', { status: '答え a を付けました: ページの単位' }) },
   { name: 'a message in two parts', ui: at('hook', { status: '送りました。ただ AI が待っていないので、チャットで一言伝えてください。\nAI に pitboard wait を動かしてもらうか、PITBOARD_SEND を設定してください (pitboard -h の "Send")' }) },
   { name: 'sending', ui: at('hook', { busy: true, status: '送っています…' }) },
   { name: 'sent', ui: at('hook'), sent: true },
@@ -169,7 +169,6 @@ export const variants = [
   { name: 'refusal: moved', ui: at('hook'), refusal: 'moved' },
   { name: 'refusal: noMarked', ui: at('hook'), refusal: 'noMarked' },
   { name: 'refusal: placedAnswer', ui: at('hook'), refusal: 'placedAnswer' },
-  { name: 'refusal: placedYN', ui: at('hook'), refusal: 'placedYN' },
   { name: 'refusal: settlingHide', ui: at('hook'), refusal: 'settlingHide' },
   { name: 'refusal: settlingReact', ui: at('hook'), refusal: 'settlingReact' },
   { name: 'refusal: settlingShow', ui: at('hook'), refusal: 'settlingShow' },

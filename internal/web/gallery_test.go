@@ -64,6 +64,8 @@ type Situation struct {
 	// cursor to it, closed and open; Placed, when the page put it there.
 	Offers map[string]OfferPair  `json:",omitempty"`
 	Placed map[string]*OfferJSON `json:",omitempty"`
+	// PlacedOpen is Placed on the line open (an Ask's options shown).
+	PlacedOpen map[string]*OfferJSON `json:",omitempty"`
 	// UndoMore is the bar's More for the tab that did the acts above (it
 	// can take them back: u). Page is as a fresh tab sees it, as the live
 	// page the gallery is compared with.
@@ -227,6 +229,10 @@ func (g *gboard) situation(note string, showHidden, placed bool) *Situation {
 						out.Placed = map[string]*OfferJSON{}
 					}
 					out.Placed[x.Key] = of(page.Touch{Placed: true})
+					if out.PlacedOpen == nil {
+						out.PlacedOpen = map[string]*OfferJSON{}
+					}
+					out.PlacedOpen[x.Key] = of(page.Touch{Placed: true, Open: true})
 				}
 			}
 			walk(x.Kids)
@@ -304,10 +310,13 @@ inbox を広げた pitboard を作る。いまは **報告の書き方** を決�
     <Option key="a">cwd</Option>
     <Option key="b">XDG の状態ディレクトリ (長い選択肢の文は折り返し、選んでいてもいなくても同じ列にそろう)</Option>
   </Ask>
-  <Item id="hook" ask="y">hook を入れるか決める
+  <Item id="hook">hook を入れるか決める
     入れると、書いたことが AI の作業中にも届く。` + "`~/.claude/settings.json`" + ` を触る。
   </Item>
-  <Item id="merge" ask="y">WEB4 をこのまま merge してよいか</Item>
+  <Ask id="merge">WEB4 をこのまま merge してよいか
+    <Option key="y">merge する</Option>
+    <Option key="n">直してから</Option>
+  </Ask>
   <Item id="reply" look="y">> 左の印の列をどこに置くか
     ページの左の余白に置く。題の文の左端は見出しとそろえる。
   </Item>
@@ -339,7 +348,7 @@ inbox を広げた pitboard を作る。いまは **報告の書き方** を決�
 
 <Section title="見せたいもの">
   <Link id="spec" path="docs/spec/SPEC.md">最小版の仕様</Link>
-  <Link id="pr" url="https://example.com/pull/1" ask="y">プルリクエスト</Link>
+  <Link id="pr" url="https://example.com/pull/1">プルリクエスト</Link>
   <Code>
   go test ./...
   </Code>
@@ -373,7 +382,10 @@ const commentsReport = `<Title>コメント</Title>
   <Item id="c5">保留の行</Item>
   <Item id="c6">対応済の行</Item>
   <Item id="c7">題を書き換えた行</Item>
-  <Item id="u1" ask="y">送った y を取り消した行</Item>
+  <Ask id="u1">送った答えを取り消した問い
+    <Option key="a">はい</Option>
+    <Option key="b">いいえ</Option>
+  </Ask>
   <Fold id="f1" title="コメントのある折りたたみ">
     <Item id="c8">中の行</Item>
   </Fold>
@@ -470,14 +482,13 @@ func makeFixtures(t *testing.T) *Fixtures {
 	// something to take back and to send.
 	g := newGBoard(t, "dense", denseReport, true)
 	g.react("merge", "y")
-	g.react("pr", "n")
 	g.react("unit", "b")
 	g.comment("hook", "", "入れてよい。settings.json は手で直す")
 	f.Situations["dense"] = g.situation("a whole report: every part, reactions, something to send and to take back", false, true)
 
 	// comments: a comment in every state, on lines and on none.
 	g = newGBoard(t, "comments", commentsReport, true)
-	g.react("u1", "y")
+	g.react("u1", "a")
 	c3 := g.comment("c3", "", "読んでください")
 	c4 := g.comment("c4", "", "直してほしい")
 	c5 := g.comment("c5", "", "あとでよい")
@@ -494,11 +505,14 @@ func makeFixtures(t *testing.T) *Fixtures {
 	g.send()
 	n := g.image()
 	g.comment("c1", "", "1 行目\n2 行目\n3 行目 [Image #"+itoa(n)+"]")
-	g.comment("c1", "", "同じ行への 2 つ目")
+	// Images 2 and 3: the gallery draws them large (2400 × 1600) and tall
+	// (600 × 1800), side by side under the line and in the panel.
+	n2, n3 := g.image(), g.image()
+	g.comment("c1", "", "同じ行への 2 つ目 [Image #"+itoa(n2)+"] [Image #"+itoa(n3)+"]")
 	g.comment("c7", "前の題", "題が変わる前に書いた")
 	g.comment("", "", "宛先なしのコメント")
 	g.comment("gone", "消えた行の題", "報告から消えた行へのコメント")
-	// The y on u1 went with the sends above; taken back now, not sent:
+	// The answer on u1 went with the sends above; taken back now, not sent:
 	// 取り消し 未送信.
 	g.undoReact("u1")
 	f.Situations["comments"] = g.situation("comments in every state: unsent, sent, read, doing, hold, done, on a gone line, on none, with an image", false, false)

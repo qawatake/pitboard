@@ -14,7 +14,10 @@ import (
 
 func TestOnlyChangedRowsAreWritten(t *testing.T) {
 	st := testStore(t)
-	os.WriteFile(st.ReportPath(), []byte(`<Item id="a" ask="y">一</Item>
+	os.WriteFile(st.ReportPath(), []byte(`<Ask id="a">一
+<Option key="a">A</Option>
+<Option key="b">B</Option>
+</Ask>
 <Item id="b" look="y">二</Item>
 <Item id="c">三</Item>
 <Item id="d">四</Item>
@@ -42,7 +45,7 @@ func TestOnlyChangedRowsAreWritten(t *testing.T) {
 	// The marks stay in their column under the cursor and beside it, and
 	// moving the cursor does not read a line.
 	rows := shown(a)
-	for _, want := range []string{"  ● · 一", "> ● · 二", "    · 三"} {
+	for _, want := range []string{"  ● ? 一", "> ● · 二", "    · 三"} {
 		if !strings.Contains(rows, want) {
 			t.Errorf("want %q in\n%s", want, rows)
 		}
@@ -243,7 +246,7 @@ func TestSmallDisplayFixes(t *testing.T) {
 // 3, 7: no line runs past the width, however narrow.
 func TestNothingPastTheWidth(t *testing.T) {
 	st := testStore(t)
-	src := "<Title>テストのとても長い題</Title>\n<Item id=\"a\" ask=\"y\">一</Item>\n"
+	src := "<Title>テストのとても長い題</Title>\n<Ask id=\"a\">一\n<Option key=\"a\">A</Option>\n<Option key=\"b\">B</Option>\n</Ask>\n"
 	for i := range 5 {
 		src += fmt.Sprintf("<Item id=\"n%d\" look=\"y\">新しい %d</Item>\n", i, i)
 	}

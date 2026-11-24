@@ -80,7 +80,7 @@ const maxListLevel = 2
 
 // ViewerKeys are the keys the viewer uses for itself; an Option cannot use
 // them as its key.
-const ViewerKeys = "cgjkmnqrsuxy"
+const ViewerKeys = "cgjkmqrsux"
 
 // ViewerKeyList is ViewerKeys spaced out for messages ("c j k ...").
 func ViewerKeyList() string { return strings.Join(strings.Split(ViewerKeys, ""), " ") }
@@ -347,19 +347,13 @@ func (p *reportParser) open(no int, raw, trim string) {
 			n.Wait = v
 		}
 	}
-	if v, ok := attrs["ask"]; ok {
-		switch {
-		case v != "y":
-			p.errf(no, "ask %q: the only value is \"y\" (asking for y / n)", v)
-		case n.Kind == KindDone:
-			p.errf(no, "a done <Item> asks nothing: drop ask=\"y\"")
-		default:
-			n.Ask = v
-		}
+	if _, ok := attrs["ask"]; ok {
+		// y / n reactions are gone: a question is an Ask, answered by an
+		// Option.
+		p.errf(no, `ask="y" was removed: write an <Ask> with <Option>s instead (e.g. <Option key="a">入れる</Option> <Option key="b">見てから</Option>)`)
 	}
 	if v, ok := attrs["look"]; ok {
-		// On a line that asks (Ask, ask="y"), the yellow mark wins; not an
-		// error.
+		// On an Ask, the yellow mark wins; not an error.
 		if v != "y" {
 			p.errf(no, "look %q: the only value is \"y\" (asking the person to read the line)", v)
 		} else {

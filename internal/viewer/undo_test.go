@@ -8,24 +8,44 @@ import (
 	"github.com/qawatake/pitboard/internal/report"
 )
 
+// onUnit puts the cursor on the Ask unit, pointed at by the person, and
+// opens it (its options answer).
+func onUnit(t *testing.T, a *app) {
+	t.Helper()
+	a.render()
+	a.handle(key{r: 'j'})
+	a.handle(key{r: 'k'})
+	a.render()
+	wait(t, settleDelay)
+	a.render()
+	if a.top().cur != "unit" {
+		t.Fatalf("cursor on %q", a.top().cur)
+	}
+	a.handle(key{name: "enter"})
+	a.render()
+	if !a.top().open["unit"] {
+		t.Fatal("unit did not open")
+	}
+}
+
 func TestUndoReactionNotSent(t *testing.T) {
 	st := testStore(t)
 	a := testApp(t, st)
-	onHook(t, a)
-	a.handle(key{r: 'n'})
-	a.handle(key{r: 'y'})
+	onUnit(t, a)
+	a.handle(key{r: 'a'})
+	a.handle(key{r: 'b'})
 	a.handle(key{r: 'u'})
-	if a.msg != "y を取り消しました: hook を入れるか決める" {
+	if a.msg != "答え b を取り消しました: ページの単位" {
 		t.Errorf("msg %q", a.msg)
 	}
-	if e := a.b.State.React["hook"]; e.Value != "n" {
-		t.Errorf("after u: %q, want n back", e.Value)
+	if e := a.b.State.React["unit"]; e.Value != "a" {
+		t.Errorf("after u: %q, want a back", e.Value)
 	}
-	if a.top().cur != "hook" {
+	if a.top().cur != "unit" {
 		t.Error("the cursor moved")
 	}
 	a.handle(key{r: 'u'})
-	if _, ok := a.b.State.React["hook"]; ok || a.b.Unsent != 0 {
+	if _, ok := a.b.State.React["unit"]; ok || a.b.Unsent != 0 {
 		t.Errorf("after u u: %+v unsent %d", a.b.State.React, a.b.Unsent)
 	}
 	a.handle(key{r: 'u'})
@@ -35,7 +55,7 @@ func TestUndoReactionNotSent(t *testing.T) {
 	if got := changes(t, st); got != "" {
 		t.Errorf("the AI hears of what never was sent: %q", got)
 	}
-	// Only appended: n, y and the two undos.
+	// Only appended: a, b and the two undos.
 	if evs := st.Events(); len(evs) != 5 || evs[2].Op != "undo" || evs[2].Undo != evs[1].N {
 		t.Errorf("events %+v", evs)
 	}
@@ -44,9 +64,9 @@ func TestUndoReactionNotSent(t *testing.T) {
 func TestUndoReactionSent(t *testing.T) {
 	st := testStore(t)
 	a := testApp(t, st)
-	onHook(t, a)
-	a.handle(key{r: 'y'})
-	if got := changes(t, st); got != "y hook (hook を入れるか決める)" {
+	onUnit(t, a)
+	a.handle(key{r: 'b'})
+	if got := changes(t, st); got != "answer unit = b (プロジェクトごと)" {
 		t.Fatalf("changes %q", got)
 	}
 	a.loadEvents()
@@ -54,18 +74,18 @@ func TestUndoReactionSent(t *testing.T) {
 	if a.b.Unsent != 1 {
 		t.Errorf("unsent %d", a.b.Unsent)
 	}
-	if r := rightOf(a, "hook"); r != "取り消し 未送信" {
+	if r := rightOf(a, "unit"); r != "取り消し 未送信" {
 		t.Errorf("right %q", r)
 	}
-	if got := changes(t, st); got != "retract y hook (hook を入れるか決める)" {
+	if got := changes(t, st); got != "retract answer unit = b (プロジェクトごと)" {
 		t.Errorf("changes %q", got)
 	}
 	a.loadEvents()
-	if r := rightOf(a, "hook"); r != "" {
+	if r := rightOf(a, "unit"); r != "" {
 		t.Errorf("right after sending %q", r)
 	}
 	// Sent but not read yet, then taken back and sent: the AI hears neither.
-	a.handle(key{r: 'n'})
+	a.handle(key{r: 'a'})
 	sendAll(st)
 	a.loadEvents()
 	a.handle(key{r: 'u'})
@@ -170,11 +190,11 @@ func itoa(n int) string { return strconv.Itoa(n) }
 func TestUndoHint(t *testing.T) {
 	st := testStore(t)
 	a := testApp(t, st)
-	onHook(t, a)
+	onUnit(t, a)
 	if strings.Contains(hintLine(a), "u 元に戻す") {
 		t.Error("u shown with nothing to take back")
 	}
-	a.handle(key{r: 'y'})
+	a.handle(key{r: 'a'})
 	// Narrow: u goes first.
 	if s := hintLine(a); strings.Contains(s, "u 元に戻す") || !strings.Contains(s, "c 行に書く") {
 		t.Errorf("narrow hints %q", s)
@@ -184,7 +204,7 @@ func TestUndoHint(t *testing.T) {
 		t.Errorf("hints %q", s)
 	}
 	a.handle(key{r: 'u'}) // works in the list too
-	if _, ok := a.b.State.React["hook"]; ok {
+	if _, ok := a.b.State.React["unit"]; ok {
 		t.Error("u in the list did nothing")
 	}
 }

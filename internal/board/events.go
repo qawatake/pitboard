@@ -16,7 +16,9 @@ import (
 
 // Event is one line of events.jsonl.
 //
-//	react    id, value (y / n / a choice letter), line (what the line was)
+//	react    id, value (an Ask's option key), option (its text), line (what
+//	         the line was). Older viewers also wrote y / n on any line
+//	         (no option): those are ignored (Legacy).
 //	thought  text, and id when written on a line
 //	settle   thought, text, by (the AI's note on where a thought went), and
 //	         state: doing / hold / done (none: done). The latest counts.
@@ -61,6 +63,36 @@ type Event struct {
 	// of is, on an undo told to the AI, the op of the event it takes back
 	// (never written).
 	of string
+}
+
+// Legacy says whether e is a y / n reaction of an older viewer (y / n on
+// an Item, Link, Notice or Fold, before an Ask was the one way to
+// answer). It is not shown, not counted and not told; an answer with
+// option key y or n records the option's text, so it is not one.
+func (e Event) Legacy() bool {
+	return e.Op == "react" && e.Option == "" && (e.Value == "y" || e.Value == "n")
+}
+
+// dropLegacy is evs without the y / n reactions of older viewers, and the
+// undos of them.
+func dropLegacy(evs []Event) []Event {
+	gone := map[int]bool{}
+	for _, e := range evs {
+		if e.Legacy() {
+			gone[e.N] = true
+		}
+	}
+	if len(gone) == 0 {
+		return evs
+	}
+	out := make([]Event, 0, len(evs))
+	for _, e := range evs {
+		if gone[e.N] || (e.Op == "undo" && gone[e.Undo]) {
+			continue
+		}
+		out = append(out, e)
+	}
+	return out
 }
 
 // undoable says whether u can take back an event with op.

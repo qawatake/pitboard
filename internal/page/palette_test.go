@@ -10,9 +10,9 @@ import (
 // often it was pressed, one per comment however often it was changed.
 func TestPendingCount(t *testing.T) {
 	evs := []board.Event{
-		{N: 1, Op: "react", ID: "a", Value: "y"},
-		{N: 2, Op: "react", ID: "a", Value: "y"},
-		{N: 3, Op: "react", ID: "a", Value: "n"},
+		{N: 1, Op: "react", ID: "a", Value: "a", Option: "A"},
+		{N: 2, Op: "react", ID: "a", Value: "a", Option: "A"},
+		{N: 3, Op: "react", ID: "a", Value: "b", Option: "B"},
 		{N: 4, Op: "hide", Key: "k"},
 		{N: 5, Op: "thought", Text: "x"},
 		{N: 6, Op: "edit", Thought: 5, Text: "y"},

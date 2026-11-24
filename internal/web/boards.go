@@ -329,6 +329,11 @@ type Registration struct {
 	Error string `json:",omitempty"`
 }
 
+// Watching is what /api/watching?id= returns: whether a page of that
+// board (id "": the index) has its event stream open (serve opens no
+// second tab then).
+type Watching struct{ Watching bool }
+
 func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request, body []byte) {
 	var ref BoardRef
 	if err := json.Unmarshal(body, &ref); err != nil {

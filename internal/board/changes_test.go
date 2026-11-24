@@ -26,8 +26,8 @@ func TestChangesAreCompact(t *testing.T) {
 	sendAll(st)
 	lines, _ := st.Changes()
 	cut30 := string([]rune(long)[:29]) + "…"
+	// y / n of an older viewer (no option) are not told (Event.Legacy).
 	want := []string{
-		"n hook (" + long + ")",
 		"thought 5 on hook (" + cut30 + "): これ",
 		"answer unit = b (B)",
 		"hide (2): 一つ目の行 / " + strings.Repeat("と", 19) + "…",
@@ -40,11 +40,11 @@ func TestChangesAreCompact(t *testing.T) {
 
 func TestChangesInEnglish(t *testing.T) {
 	st := testStore(t)
-	st.Append(Event{Op: "react", ID: "gone", Value: "y", Title: "消えた行"})
-	st.Append(Event{Op: "react", ID: "hook", Value: "n", Title: "前の題"})
+	st.Append(Event{Op: "react", ID: "gone", Value: "a", Title: "消えた問い", Option: "はい"})
+	st.Append(Event{Op: "react", ID: "hook", Value: "n", Title: "前の題"}) // an older viewer's n: not told
 	sendAll(st)
 	lines, _ := st.Changes()
-	want := "y gone (消えた行 → now gone)\nn hook (前の題 → now: hook を入れるか決める)"
+	want := "answer gone = a (はい; question: 消えた問い → now gone)"
 	if strings.Join(lines, "\n") != want {
 		t.Errorf("got\n%s", strings.Join(lines, "\n"))
 	}
@@ -141,16 +141,16 @@ func TestChangesStopsAtTheLatestSend(t *testing.T) {
 	if lines, _ := st.Changes(); len(lines) != 0 {
 		t.Errorf("nothing sent, yet changes gave %q", lines)
 	}
-	if n := Unsent(st.Events()); n != 2 {
+	if n := Unsent(st.Events()); n != 1 { // the older viewer's y is not counted
 		t.Errorf("unsent = %d", n)
 	}
 	sendAll(st) // 3
 	st.Append(Event{Op: "thought", Text: "after the send"})
-	if n, m := Unsent(st.Events()), SentUnread(st.Events(), st.Seen()); n != 1 || m != 2 {
-		t.Errorf("unsent %d (want 1), sent unread %d (want 2)", n, m)
+	if n, m := Unsent(st.Events()), SentUnread(st.Events(), st.Seen()); n != 1 || m != 1 {
+		t.Errorf("unsent %d (want 1), sent unread %d (want 1)", n, m)
 	}
 	lines, _ := st.Changes()
-	if strings.Join(lines, "\n") != "y hook (hook を入れるか決める)\nthought 2: one" {
+	if strings.Join(lines, "\n") != "thought 2: one" {
 		t.Errorf("first send: %q", lines)
 	}
 	if st.Seen() != 3 {
@@ -280,11 +280,9 @@ func TestChangesAndSettle(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []string{
-		"y hook (hook を入れるか決める)",
 		"answer unit = b (プロジェクトごと)",
 		"thought 3 on hook (hook を入れるか決める): post-tool だけ入れたい",
 		"thought 4: 経過は要らないかも\n  2 行目",
-		"n gone (gone)",
 	}
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Errorf("changes:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -339,10 +337,8 @@ func TestChangesTellsTheTitleSeen(t *testing.T) {
 	sendAll(st)
 	got, _ := st.Changes()
 	want := []string{
-		"y hook (hook を入れるか決める → now: hook は入れない (決定))",
 		"answer unit = a (セッションごと; question: ページの単位 → now: 板の単位)",
 		"thought 3 on hook (hook を入れるか決める → now: hook は入れない (決定)): x",
-		"n old (古い行 → now gone)",
 	}
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Errorf("changes:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))

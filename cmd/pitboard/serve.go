@@ -27,6 +27,8 @@ import (
 // /s/<id>/. Running it for another session or project adds that board;
 // nothing restarts. The server keeps its state in the user's state
 // directory ($XDG_STATE_HOME/pitboard or ~/.local/state/pitboard):
+// token (the key of its URLs and cookies; 0600; made once, kept across
+// restarts so an open tab comes back by itself, new with --rotate),
 // serve.json (pid, when the process started, port, token; 0600) while it
 // runs, serve.log (never the token), and boards.json (the boards
 // registered, restored when it starts again). It stops by itself when no
@@ -74,6 +76,42 @@ func stateDir() (string, error) {
 func statePath(dir string) string    { return filepath.Join(dir, "serve.json") }
 func logPath(dir string) string      { return filepath.Join(dir, "serve.log") }
 func registryPath(dir string) string { return filepath.Join(dir, "boards.json") }
+func tokenPath(dir string) string    { return filepath.Join(dir, "token") }
+
+// readToken is the kept token, if there is a good one: a regular file,
+// not a link, of this user, 0600 or tighter, holding 64 hex digits.
+func readToken(dir string) (string, bool) {
+	p := tokenPath(dir)
+	fi, err := os.Lstat(p)
+	if err != nil || !fi.Mode().IsRegular() || fi.Mode().Perm()&^0o600 != 0 {
+		return "", false
+	}
+	if sys, ok := fi.Sys().(*syscall.Stat_t); !ok || int(sys.Uid) != os.Getuid() {
+		return "", false
+	}
+	b, err := os.ReadFile(p)
+	if err != nil {
+		return "", false
+	}
+	t := strings.TrimSpace(string(b))
+	return t, web.ValidToken(t)
+}
+
+// serveToken is the kept token; one is made when there is none (or it is
+// not good), or with rotate.
+func serveToken(dir string, rotate bool) (string, error) {
+	if t, ok := readToken(dir); ok && !rotate {
+		return t, nil
+	}
+	t, err := web.NewToken()
+	if err != nil {
+		return "", err
+	}
+	if err := web.WritePrivate(tokenPath(dir), []byte(t+"\n")); err != nil {
+		return "", fmt.Errorf("serve: token: %w", err)
+	}
+	return t, nil
+}
 
 func readState(p string) (serveState, bool) {
 	var s serveState
@@ -134,29 +172,36 @@ func removeState(dir string) {
 type serveArgs struct {
 	o                                web.Options
 	foreground, stop, status, forget bool
-	showURL, help                    bool
+	showURL, help, rotate            bool
 }
 
-const serveUsage = "usage: pitboard [-s SESSION] serve [--port N] [--no-open] [--foreground] | serve --stop | serve --status [--url] | [-s SESSION] serve --forget"
+const serveUsage = "usage: pitboard [-s SESSION] serve [--port N] [--open | --no-open] [--foreground] | serve --stop | serve --status [--url] | [-s SESSION] serve --forget | serve --rotate"
 
 // serveHelp is 'pitboard serve -h'.
 const serveHelp = serveUsage + `
 
   (no flag)       start the server if it is not running, add the board, print
-                  its URL and open it
+                  its URL and open it, unless a tab of the board is already
+                  open (one comes back by itself within 3 s of a restart)
   --port N        listen on port N exactly (0: any free one); default 7482,
                   else the next free up to 7491, else any free one
+  --open          open the URL even when a tab of the board is open
   --no-open       only print the URL
   --foreground    serve in this terminal (ctrl+c stops it)
   --stop          stop the server
   --status        show the server and its boards (--url: with their URLs)
   --forget        take the board of -s SESSION off the server
+  --rotate        make a new key: every URL and cookie given so far stops
+                  working; a running server is started again with it
   --gallery       with --foreground, for scripts/web-gallery.sh only: a page
                   may be put in a state by ?ui= and the clock is fixed
 
-The server keeps serve.json, serve.log and boards.json in
+The server keeps token, serve.json, serve.log and boards.json in
 $XDG_STATE_HOME/pitboard/ (or ~/.local/state/pitboard/), and stops by itself
-after 30 minutes with no page open. 'pitboard -h' says more ("Browser").
+after 30 minutes with no page open. The key (token) stays the same across
+restarts, so a URL or a bookmark (http://127.0.0.1:7482/s/<id>/, once
+opened with ?t=) and an open tab keep working; --stop and stopping by itself
+keep it, --rotate changes it. 'pitboard -h' says more ("Browser").
 `
 
 func parseServe(args []string) (serveArgs, error) {
@@ -178,6 +223,10 @@ func parseServe(args []string) (serveArgs, error) {
 		switch k {
 		case "--no-open", "-no-open":
 			err = flag(&a.o.Open, false)
+		case "--open", "-open":
+			err = flag(&a.o.ForceOpen, true)
+		case "--rotate", "-rotate":
+			err = flag(&a.rotate, true)
 		case "--foreground", "-foreground":
 			err = flag(&a.foreground, true)
 		case "--stop", "-stop":
@@ -212,17 +261,20 @@ func parseServe(args []string) (serveArgs, error) {
 			return a, err
 		}
 	}
+	if a.o.ForceOpen && !a.o.Open {
+		return a, errors.New("serve: give one of --open, --no-open")
+	}
 	if a.o.Gallery && !a.foreground {
 		return a, errors.New("serve: --gallery only with --foreground")
 	}
 	n := 0
-	for _, b := range []bool{a.stop, a.status, a.forget} {
+	for _, b := range []bool{a.stop, a.status, a.forget, a.rotate} {
 		if b {
 			n++
 		}
 	}
 	if n > 1 {
-		return a, errors.New("serve: give one of --stop, --status, --forget")
+		return a, errors.New("serve: give one of --stop, --status, --forget, --rotate")
 	}
 	return a, nil
 }
@@ -262,7 +314,10 @@ func runServe(base string, st *board.Store, args []string, out io.Writer) error 
 		}
 		return serveForget(dir, st, out)
 	}
-	if st != nil && !isDir(st.Dir) {
+	if a.rotate && a.foreground {
+		return errors.New("serve: --rotate and --foreground: rotate first, then serve --foreground")
+	}
+	if st != nil && !isDir(st.Dir) && !a.rotate {
 		return fmt.Errorf("no session %q yet (pitboard -s %s path creates it)", st.Session, st.Session)
 	}
 	if a.foreground {
@@ -277,26 +332,88 @@ func runServe(base string, st *board.Store, args []string, out io.Writer) error 
 		return err
 	}
 	s, ok := runningServe(dir)
-	if !ok || !answers(s.Port) {
+	running := ok && answers(s.Port)
+	if a.rotate {
+		if _, err := serveToken(dir, true); err != nil {
+			unlock()
+			return err
+		}
+		if !running {
+			unlock()
+			fmt.Fprintln(out, "new key: the URLs and cookies given so far no longer work (no serve running)")
+			return nil
+		}
+		// Started again with the new key, on the port it had if it is free.
+		if err := serveStop(dir, io.Discard); err != nil {
+			unlock()
+			return err
+		}
+		if a.o.Port == web.PortDefault {
+			a.o.Port = s.Port
+			if !portFree(s.Port) {
+				a.o.Port = web.PortDefault
+			}
+		}
+		running = false
+		fmt.Fprintln(out, "new key: the URLs and cookies given so far no longer work; serve started again")
+		if st != nil && !isDir(st.Dir) {
+			st = nil
+		}
+	}
+	if !running {
+		if _, err := serveToken(dir, false); err != nil {
+			unlock()
+			return err
+		}
 		if s, err = startBackground(dir, a.o.Port); err != nil {
 			unlock()
 			return err
 		}
 	}
 	unlock()
-	url := s.url()
+	url, id := s.url(), ""
 	if st != nil {
-		id, err := register(s, "/api/register", st)
-		if err != nil {
+		if id, err = register(s, "/api/register", st); err != nil {
 			return err
 		}
 		url = s.boardURL(id)
 	}
 	fmt.Fprintln(out, url)
-	if a.o.Open {
-		web.OpenBrowser(url)
+	if a.o.Open && (a.o.ForceOpen || !tabOpen(s, id)) {
+		openBrowser(url)
 	}
 	return nil
+}
+
+// openBrowser opens a URL (tests watch it).
+var openBrowser = web.OpenBrowser
+
+// tabOpen says whether a page of board id ("" the index) is open on s: one
+// open already, or one that comes back within web.OpenWait of the server's
+// start (its tab outlived a restart). A restart with the tab open then
+// opens no second one.
+func tabOpen(s serveState, id string) bool {
+	deadline := s.Started.Add(web.OpenWait)
+	for {
+		var w web.Watching
+		if call(s, http.MethodGet, "/api/watching?id="+id, nil, &w) == nil && w.Watching {
+			return true
+		}
+		if time.Now().After(deadline) {
+			return false
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+// portFree says whether 127.0.0.1:port can be listened on now.
+func portFree(port int) bool {
+	ln, err := web.Listen(port)
+	if err != nil {
+		return false
+	}
+	ln.Close()
+	return true
 }
 
 // dropOldState deletes the serve.json a per-session server of an older
@@ -371,7 +488,7 @@ func tightenState(dir string) {
 		}
 	}
 	fix(dir, 0o700, true)
-	for _, n := range []string{"serve.log", "serve.lock", "serve.json", "boards.json"} {
+	for _, n := range []string{"serve.log", "serve.lock", "serve.json", "boards.json", "token"} {
 		fix(filepath.Join(dir, n), 0o600, false)
 	}
 }
@@ -393,6 +510,11 @@ func serveForeground(dir string, bs []*board.Store, o web.Options, out io.Writer
 	if s, ok := runningServe(dir); ok && s.PID != os.Getpid() && answers(s.Port) {
 		return fmt.Errorf("serve: already running (pid %d, port %d); pitboard serve --stop stops it", s.PID, s.Port)
 	}
+	tok, err := serveToken(dir, false)
+	if err != nil {
+		return err
+	}
+	o.Token = tok
 	o.Listening = func(port int, token string) {
 		s := serveState{PID: os.Getpid(), Start: board.ProcessStart(os.Getpid()), Port: port, Token: token, Started: time.Now()}
 		if err := writeState(dir, s); err != nil {
@@ -405,7 +527,7 @@ func serveForeground(dir string, bs []*board.Store, o web.Options, out io.Writer
 	defer removeState(dir)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	err := web.Run(ctx, o)
+	err = web.Run(ctx, o)
 	if detached {
 		fmt.Fprintf(os.Stderr, "%s pitboard serve: stopped (%v)\n", time.Now().Format(time.RFC3339), errOrNone(err, ctx))
 	}

@@ -63,7 +63,7 @@ const noticeReport = `<Notice id="restart">pitboard を開き直してくださ�
 <Title>題</Title>
 
 <Section title="s">
-<Item id="a" ask="y">項目 a</Item>
+<Item id="a">項目 a</Item>
 </Section>
 `
 

@@ -28,7 +28,6 @@ func (b *Board) CanOpen(n *report.Node) bool {
 
 // Actions is what the person can do on a line.
 type Actions struct {
-	YN      bool     // y / n
 	Options []string // the keys of an Ask's options that can be chosen
 	Comment bool     // write a comment on it
 	Hide    bool     // hide it (or show it again when hidden)
@@ -41,20 +40,19 @@ type Actions struct {
 func (b *Board) ActionsOf(n *report.Node) Actions {
 	var a Actions
 	if report.Target(n) != "" && b.CanWrite() {
-		a.YN, a.Options, a.Comment = KeysFor(n)
+		a.Options, a.Comment = KeysFor(n)
 	}
 	a.Hide = report.HideKey(n) != "" && b.CanWrite()
 	a.Read = b.CanWrite() && b.MarkOf(n) == MarkNew
 	return a
 }
 
-// KeysFor is what reactions n takes, whoever may give them: y / n, the
-// keys of its options (an Option whose key a screen uses itself, a check
-// error, cannot be chosen), and comments.
-func KeysFor(n *report.Node) (yn bool, choices []string, comment bool) {
+// KeysFor is what n takes, whoever may give it: the keys of its options
+// when it is an Ask (an Option whose key a screen uses itself, a check
+// error, cannot be chosen; answering an Ask is the one way to answer), and
+// comments.
+func KeysFor(n *report.Node) (choices []string, comment bool) {
 	switch n.Kind {
-	case report.KindTodo, report.KindDoing, report.KindDone, report.KindLink, report.KindNotice:
-		yn = true
 	case report.KindQuestion:
 		for _, c := range n.Kids {
 			if c.Kind == report.KindChoice && len(c.Label) == 1 && !strings.Contains(report.ViewerKeys+"?", c.Label) {
@@ -62,7 +60,7 @@ func KeysFor(n *report.Node) (yn bool, choices []string, comment bool) {
 			}
 		}
 	}
-	return yn, choices, true
+	return choices, true
 }
 
 // Seen is a line as the person saw it. An action carries it, and is

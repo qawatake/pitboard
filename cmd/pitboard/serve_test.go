@@ -25,11 +25,13 @@ import (
 func TestServeArgs(t *testing.T) {
 	t.Chdir(t.TempDir())
 	for args, want := range map[string]string{
-		"serve --bogus":       "unknown argument",
-		"serve --port":        "--port needs",
-		"serve --port x":      "give a port number",
-		"serve --port=70000":  "give a port number",
-		"serve --no-open=yes": "takes no value",
+		"serve --bogus":          "unknown argument",
+		"serve --port":           "--port needs",
+		"serve --port x":         "give a port number",
+		"serve --port=70000":     "give a port number",
+		"serve --no-open=yes":    "takes no value",
+		"serve --open --no-open": "one of --open, --no-open",
+		"serve --rotate --stop":  "give one of",
 	} {
 		err := run(append([]string{"-s", "abc"}, strings.Fields(args)...), io.Discard)
 		if err == nil || !strings.Contains(err.Error(), want) {
@@ -88,7 +90,7 @@ func serveCmd(t *testing.T, args ...string) string {
 		s, args = slices.Clone(args[:2]), args[2:]
 	}
 	full := append(append(s, "serve"), args...)
-	if !slices.ContainsFunc(args, func(a string) bool { return strings.HasPrefix(a, "--st") || a == "--forget" }) {
+	if !slices.ContainsFunc(args, func(a string) bool { return strings.HasPrefix(a, "--st") || a == "--forget" || a == "--port" }) {
 		full = append(full, "--port", "0")
 	}
 	var b bytes.Buffer

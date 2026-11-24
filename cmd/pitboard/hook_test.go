@@ -95,14 +95,14 @@ func TestHookOutputs(t *testing.T) {
 		}
 	}
 
-	st.Append(board.Event{Op: "react", ID: "hook", Value: "y", Title: "hook を入れるか決める"})
+	st.Append(board.Event{Op: "react", ID: "hook", Value: "a", Title: "hook を入れるか決める", Option: "入れる"})
 	// Not sent yet: nothing is delivered.
 	if got := runHook(t, "prompt-submit", in); got != "" {
 		t.Errorf("delivered before send: %q", got)
 	}
 	sendAll(st)
 	got := runHook(t, "prompt-submit", in)
-	want := "pitboard (the person acted on the board):\ny hook (hook を入れるか決める)\n" + settleLine + "\n"
+	want := "pitboard (the person acted on the board):\nanswer hook = a (入れる)\n" + settleLine + "\n"
 	if got != want {
 		t.Errorf("prompt-submit:\n%q\nwant\n%q", got, want)
 	}
@@ -232,9 +232,9 @@ func TestStopDoesNotBlockForHides(t *testing.T) {
 		t.Errorf("the hide must wait for the next delivery: %q", got)
 	}
 	st.Append(board.Event{Op: "hide", Key: "-|y", Title: "y"})
-	st.Append(board.Event{Op: "react", ID: "hook", Value: "y"})
+	st.Append(board.Event{Op: "react", ID: "hook", Value: "a", Option: "入れる"})
 	sendAll(st)
 	if got := runHook(t, "stop", in); !strings.Contains(got, "block") || !strings.Contains(got, "hide (1): y") {
-		t.Errorf("stop with a reaction: %q", got)
+		t.Errorf("stop with an answer: %q", got)
 	}
 }

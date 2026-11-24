@@ -98,12 +98,12 @@ func TestGuardTable(t *testing.T) {
 // the same line.
 func TestGuardAgainIsPerKey(t *testing.T) {
 	b, _ := openBoard(t, guardtable.Report)
-	n := nodeOf(b, "a")
-	tc := page.Touch{Auto: true}
+	n := nodeOf(b, "q")
+	tc := page.Touch{Auto: true, Open: true}
 	v := b.Allow(n, "x", tc)
 	tc.Again = v.Again
-	if v := b.Allow(n, "y", tc); v.Do != page.DoNothing || v.Msg != page.MsgSettlingReact {
-		t.Errorf("y after a dropped x: %+v", v)
+	if v := b.Allow(n, "b", tc); v.Do != page.DoNothing || v.Msg != page.MsgSettlingReact {
+		t.Errorf("b after a dropped x: %+v", v)
 	}
 }
 
@@ -121,16 +121,16 @@ func TestOffer(t *testing.T) {
 		t    page.Touch
 		want string
 	}{
-		{"a", page.Touch{}, "y よし | n だめ | c 行に書く | x 隠す"},
-		{"a", page.Touch{Placed: true}, "j k 動かすと y n が効く | c 行に書く | x 隠す"},
+		{"a", page.Touch{}, "c 行に書く | x 隠す"},
+		{"a", page.Touch{Placed: true}, "c 行に書く | x 隠す"},
 		{"a", page.Touch{Locked: true}, ""},
 		{"a", page.Touch{Auto: true}, "c 行に書く"},
-		{"b", page.Touch{Placed: true}, "r 読んだ | j k 動かすと y n が効く | c 行に書く | x 隠す"},
+		{"b", page.Touch{Placed: true}, "r 読んだ | c 行に書く | x 隠す"},
 		{"b", page.Touch{Auto: true}, "r 読んだ | c 行に書く"},
 		{"q", page.Touch{}, "enter 開く | c 行に書く | x 隠す"},
 		{"q", page.Touch{Open: true}, "a b 答える | enter 閉じる | c 行に書く | x 隠す"},
 		{"q", page.Touch{Open: true, Placed: true}, "j k 動かすと答えられる | enter 閉じる | c 行に書く | x 隠す"},
-		{"restart", page.Touch{Placed: true}, "j k 動かすと y n が効く | c 行に書く | x 隠す"},
+		{"restart", page.Touch{Placed: true}, "c 行に書く | x 隠す"},
 	}
 	for _, c := range cases {
 		if got := words(b.Offer(nodeOf(b, c.line), c.t)); got != c.want {

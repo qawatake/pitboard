@@ -28,7 +28,7 @@ const noticeReport = `<Notice id="restart">pitboard を開き直してくださ�
 <Title>題</Title>
 
 <Section title="s">
-<Item id="a" ask="y">項目 a</Item>
+<Item id="a">項目 a</Item>
 </Section>
 `
 
@@ -71,12 +71,12 @@ func TestNoticeParse(t *testing.T) {
 
 func TestAskAttributeCheck(t *testing.T) {
 	for _, c := range []struct{ src, want string }{
-		{`<Item id="a" ask="y">x</Item>`, ""},
-		{`<Link id="a" ask="y" path="p">x</Link>`, ""},
-		{`<Item id="a" ask="n">x</Item>`, `ask "n"`},
-		{`<Item id="a" state="done" ask="y">x</Item>`, "done"},
+		// ask="y" (y / n on a line) was removed: the error says what to
+		// write instead.
+		{`<Item id="a" ask="y">x</Item>`, `ask="y" was removed: write an <Ask> with <Option>s instead`},
+		{`<Link id="a" ask="y" path="p">x</Link>`, `ask="y" was removed`},
+		{`<Item id="a" ask="n">x</Item>`, `ask="y" was removed`},
 		{`<Item id="a" look="y">x</Item>`, ""},
-		{`<Item id="a" ask="y" look="y">x</Item>`, ""},
 		{`<Fold title="f" look="y">x</Fold>`, ""},
 		{"<Ask id=\"a\" look=\"y\">x\n<Option key=\"a\">a</Option>\n<Option key=\"b\">b</Option>\n</Ask>", ""},
 		{`<Item id="a" look="n">x</Item>`, `look "n"`},
@@ -171,6 +171,14 @@ func TestListErrors(t *testing.T) {
 		if (c.want == "") != (got == "") || !strings.Contains(got, c.want) {
 			t.Errorf("%q: %q (want %q)", c.src, got, c.want)
 		}
+	}
+}
+
+// y and n are no viewer keys (FEAT25): an Ask may use them.
+func TestYNAreOptionKeys(t *testing.T) {
+	_, probs, _ := Parse("<Ask id=\"q\">入れるか\n<Option key=\"y\">入れる</Option>\n<Option key=\"n\">見送る</Option>\n</Ask>")
+	if len(probs) != 0 {
+		t.Errorf("y / n as Option keys: %v", probs)
 	}
 }
 
@@ -422,12 +430,12 @@ func FuzzParseReport(f *testing.F) {
 }
 
 func TestLowercaseAndViewerKeys(t *testing.T) {
-	nodes, probs, _ := Parse("<section title=\"s\">\n<item id=\"a\">x</item>\n</Section>\n<Ask id=\"q\">?\n<Option key=\"y\">yes</Option>\n<Option key=\"a\">ok</Option>\n</Ask>")
+	nodes, probs, _ := Parse("<section title=\"s\">\n<item id=\"a\">x</item>\n</Section>\n<Ask id=\"q\">?\n<Option key=\"x\">yes</Option>\n<Option key=\"a\">ok</Option>\n</Ask>")
 	var got []string
 	for _, p := range probs {
 		got = append(got, p.String())
 	}
-	for _, want := range []string{"1: part names start with a capital letter", "2: part names start with a capital letter", `5: Option key "y" is a viewer key`} {
+	for _, want := range []string{"1: part names start with a capital letter", "2: part names start with a capital letter", `5: Option key "x" is a viewer key`} {
 		found := false
 		for _, g := range got {
 			found = found || strings.HasPrefix(g, want)

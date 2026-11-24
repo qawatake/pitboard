@@ -35,7 +35,9 @@ export function connect(base, tabId) {
     let es = null;
     let retry = 2000;
     let stopped = false;
+    let again = 0;
     const open = () => {
+      clearTimeout(again);
       es = new EventSource(base + '/api/events');
       es.addEventListener('changed', () => on.changed());
       es.addEventListener('open', () => { retry = 2000; on.open(); });
@@ -45,14 +47,19 @@ export function connect(base, tabId) {
         on.lost();
         if (es.readyState === EventSource.CLOSED) {
           es.close();
-          setTimeout(open, retry);
+          again = setTimeout(open, retry);
           retry = Math.min(retry * 2, 30000);
         }
       });
     };
     open();
-    // reopen opens it again (the board came back after gone).
-    return { reopen: () => { if (es) es.close(); stopped = false; retry = 2000; open(); } };
+    // reopen opens it again (the board came back after gone). revive opens
+    // it now if it is closed and waiting out its back-off (the server came
+    // back: the page answered first).
+    return {
+      reopen: () => { if (es) es.close(); clearTimeout(again); stopped = false; retry = 2000; open(); },
+      revive: () => { if (!stopped && es && es.readyState === EventSource.CLOSED) { retry = 2000; open(); } },
+    };
   }
   return { request, api, events };
 }

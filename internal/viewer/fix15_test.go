@@ -22,7 +22,7 @@ const fix15Report = `<Notice id="restart">開き直してください
 <Title>題</Title>
 
 <Section title="s">
-<Item id="a" ask="y">項目 a</Item>
+<Item id="a">項目 a</Item>
 </Section>
 `
 
@@ -41,16 +41,16 @@ func TestPlacedNoticeTakesX(t *testing.T) {
 		t.Fatalf("cursor %q placed %v", pv.cur, pv.placed)
 	}
 	s := bottomText(a)
-	if !strings.Contains(s, "x 隠す") || !strings.Contains(s, "j k 動かすと y n が効く") {
+	if !strings.Contains(s, "x 隠す") || strings.Contains(s, "y n") {
 		t.Errorf("placed hint: %q", s)
 	}
 	a.t.w = 60
-	if s := bottomText(a); !strings.Contains(s, "動かすと y n が効く") {
-		t.Errorf("placed hint shrunk at 60: %q", s)
+	if s := bottomText(a); !strings.Contains(s, "x 隠す") {
+		t.Errorf("placed x left out at 60: %q", s)
 	}
 	a.t.w = 80
 	a.handle(key{r: 'y'})
-	if a.msg != msgPlacedYN || len(st.Events()) != 0 {
+	if len(st.Events()) != 0 {
 		t.Fatalf("y on placed: %q %+v", a.msg, st.Events())
 	}
 	a.handle(key{r: 'x'})
@@ -158,17 +158,28 @@ func TestReadingTallNoticeUnplaces(t *testing.T) {
 	}
 }
 
-// At 40 columns "j k" keeps a word (REVIEW14 f), and the editor keeps its
-// newline key.
+// At 40 columns "j k" keeps a word (REVIEW14 f; it is offered on an open
+// Ask the viewer placed the cursor on, the one line it waits on now), and
+// the editor keeps its newline key.
 func TestNarrowKeepsWaitWordAndNewline(t *testing.T) {
+	qs := testStore(t)
+	os.WriteFile(qs.ReportPath(), []byte("<Ask id=\"q\">どちら\n<Option key=\"a\">A</Option>\n<Option key=\"b\">B</Option>\n</Ask>\n"), 0o644)
+	q := testApp(t, qs)
+	q.t.w = 40
+	q.render()
+	if pv := q.top(); pv.cur != "q" || !pv.placed {
+		t.Fatalf("cursor %q placed %v", pv.cur, pv.placed)
+	}
+	q.top().open["q"] = true
+	q.render()
+	if s := bottomText(q); !strings.Contains(s, "j k "+wordWaitNarrow) {
+		t.Errorf("placed hint at 40: %q", s)
+	}
 	st := testStore(t)
 	os.WriteFile(st.ReportPath(), []byte(fix15Report), 0o644)
 	a := testApp(t, st)
 	a.t.w = 40
 	a.render()
-	if s := bottomText(a); !strings.Contains(s, "j k "+wordWaitNarrow) {
-		t.Errorf("placed hint at 40: %q", s)
-	}
 	a.handle(key{r: 'j'})
 	a.render()
 	a.handle(key{r: 'c'})

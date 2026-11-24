@@ -22,7 +22,7 @@ func wordText(w page.Word) text {
 }
 
 // right is what goes on the right end of a line (page.Right): the state of
-// the person's latest input on it (a reaction, or a comment), then the
+// the person's latest input on it (an answer, or a comment), then the
 // status the AI wrote.
 func (a *app) right(pv *view, n *report.Node) text {
 	r := a.b.RightOf(n)
@@ -33,10 +33,6 @@ func (a *app) right(pv *view, n *report.Node) text {
 	var re text
 	switch r.Reaction {
 	case "":
-	case "y":
-		re = plainText("y", bold+cMove)
-	case "n":
-		re = plainText("n", bold+cBad)
 	default:
 		re = plainText(r.Reaction, bold+cYours)
 	}
