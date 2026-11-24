@@ -14,3 +14,11 @@ Earlier rule "no cards/borders anywhere" was about the PAGE CONTENT (rows). Keep
 6. Gallery: surface variants in both themes (composer empty / with text / with 1, 3, 7 images; inline editor; panel; `?`; viewer with a white image), a DIFFS check that floating layers have a visible border (computed border-width ≥ 1 and color ≠ background), live fidelity.
 
 `scripts/check.sh`. No git. Report `docs/dev/WEB9-result.md` ≤10 lines + gallery path. Reply on screen: one line.
+
+## Correction (user's follow-up) — overrides points 2(a), 3 and 4 above
+
+User: 「画像の位置自体はそんなに悪いと感じなかったけどなぁ。chatgptは小さすぎるんじゃないかとも思ったけどどうなんだろう」 — I over-copied the reference. The complaint is the missing EDGES, not position or size.
+- Image position: unchanged — previews stay directly UNDER the text area (inside the same card for the composer / inline editor), and under the comment text for placed comments.
+- Image size: unchanged from FEAT25-B (fit inside a square of half the text column's width, aspect kept, never upscaled, wrapping row). No 88px thumbnails, no cover-cropping.
+- What IS added to images: 1px border in `line` color, radius 8px, a clear gap between images (≥ 12px) and from the text; a small × on each editor preview. In the viewer, the image has a border on the scrim.
+- Everything else in WEB9 (surface style for floating layers, borderless textarea inside the card, focus on the card, label instead of blue heading, DIFFS checks, gallery variants) stands.
