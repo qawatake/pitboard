@@ -33,6 +33,8 @@ func TestGuardTable(t *testing.T) {
 				cur.How, cur.Ago = "app", 50
 			case guardtable.Settled:
 				cur.How, cur.Ago = "app", int(page.SettleDelay.Milliseconds())
+			case guardtable.Hid:
+				cur.How, cur.Ago = "hid", 50
 			}
 			a := Act{Action: "key", Key: c.Key, Target: c.Line, Seen: tok, Cur: cur}
 			r := f.act("tab1", a)

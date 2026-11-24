@@ -88,14 +88,12 @@ func TestHideAndUnhide(t *testing.T) {
 	if pv.cur != "a" {
 		t.Errorf("after hiding, the cursor goes to the next line: %q", pv.cur)
 	}
-	// Right after the viewer moved the cursor, x is dropped (y is no key).
-	a.handle(key{r: 'x'})
+	// x moved the cursor there: x again hides it at once (y is no key).
 	a.handle(key{r: 'y'})
-	if evs := st.Events(); len(evs) != 1 {
-		t.Fatalf("keys acted on a line just moved to: %+v", evs)
-	}
-	wait(t, settleDelay)
 	a.handle(key{r: 'x'})
+	if evs := st.Events(); len(evs) != 2 {
+		t.Fatalf("x right after x: %+v", evs)
+	}
 	a.draw()
 	if s := shown(a); strings.Contains(s, "決まったこと") {
 		t.Errorf("a section whose lines are all hidden is still drawn:\n%s", s)

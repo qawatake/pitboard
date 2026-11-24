@@ -70,7 +70,12 @@ func TestSettlingSaysWhy(t *testing.T) {
 	a := testApp(t, st)
 	pv := a.top()
 	a.render()
-	a.handle(key{r: 'x'})
+	a.handle(key{r: 'j'})
+	a.handle(key{r: 'k'})
+	a.handle(key{r: 'H'})
+	a.handle(key{r: 'x'}) // hidden lines are shown: the cursor stays
+	a.render()
+	a.handle(key{r: 'H'}) // the hidden line goes: the viewer moves the cursor
 	a.render()
 	if pv.cur != "a" || !pv.settling() {
 		t.Fatalf("cursor %q settling %v", pv.cur, pv.settling())

@@ -138,6 +138,11 @@ func (b *Board) Hide(seen Seen, showHidden bool) (msg string, hidden bool, err e
 		return "", false, ErrChanged
 	}
 	op, msg := "hide", "隠しました"
+	if b.IsHidden(n) && !showHidden {
+		// Not on the person's screen: x pressed again before the screen
+		// left the line it just hid must not bring it back.
+		return "", false, ErrChanged
+	}
 	if b.IsHidden(n) {
 		op, msg = "unhide", "表示に戻しました"
 	}

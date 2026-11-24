@@ -224,8 +224,8 @@ type Cur struct {
 	Start bool
 	// How the line became the cursor's: person (the person moved it there:
 	// keys, Tab, click), app (the page moved it there after the person's
-	// act took their line away, or for space / g), start (the page put it
-	// on its first line).
+	// act took their line away, or for space / g), hid (app, because x hid
+	// the person's line), start (the page put it on its first line).
 	How string
 	// Ago is how long ago it became the cursor's line, in ms.
 	Ago int
@@ -294,8 +294,9 @@ func (t *tab) now(key string) *report.Node {
 func (t *tab) touch(a Act, now *report.Node) page.Touch {
 	c := a.Cur
 	tc := page.Touch{Placed: c.Start, Open: c.Open, Again: t.again}
-	if c.How == "app" {
+	if c.How == "app" || c.How == "hid" {
 		tc.Auto, tc.Shown = true, time.Duration(max(c.Ago, 0))*time.Millisecond
+		tc.Hid = c.How == "hid"
 	}
 	sel := c.Sel
 	if sel == "" {
@@ -388,7 +389,7 @@ func (t *tab) act(a Act) Result {
 	case "retract":
 		// A comment the page just moved the cursor to (after x) waits, as
 		// a line does: x pressed twice takes back only the first.
-		if (page.Touch{Auto: a.Cur.How == "app", Shown: time.Duration(max(a.Cur.Ago, 0)) * time.Millisecond}).Settling() {
+		if (page.Touch{Auto: a.Cur.How == "app" || a.Cur.How == "hid", Shown: time.Duration(max(a.Cur.Ago, 0)) * time.Millisecond}).Settling() {
 			return Result{}
 		}
 		return res(b.Retract(a.N))

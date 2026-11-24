@@ -8,7 +8,8 @@
 //   cur        the cursor's line key ("#l:N": comment N in the panel)
 //   start, how, at, sel   how the cursor came there (the server's guard
 //              reads them): start (not moved since the page put it there),
-//              how (person / app / start), at (ms), sel (the line's token then)
+//              how (person / app / hid / start; hid: app, because x hid the
+//              person's line), at (ms), sel (the line's token then)
 //   lastIndex  where the cursor was among the lines (to stay near it)
 //   open       {key: bool}: what the person opened or closed
 //   mode       one of MODES (below); panel: the comment panel is open
@@ -24,6 +25,7 @@
 //   unpinned   {key: true}: notices opened too tall to pin
 //   reportCur  the report's cursor while the panel has it
 //   going      the line the person's own act is taking away
+//   hiding     that act is x hiding it
 
 // MODES is web.Modes (a Go test checks): each has a variant in the layer
 // that owns it.
@@ -36,7 +38,7 @@ export function initial() {
     cur: '', start: true, how: 'start', at: 0, sel: '', lastIndex: 0, open: {},
     mode: 'normal', panel: false, editor: null, image: 0,
     status: '', statusTone: '', statusSeq: 0, conn: 'live', connMsg: '', showHidden: false,
-    offer: null, busy: false, unpinned: {}, reportCur: null, going: '',
+    offer: null, busy: false, unpinned: {}, reportCur: null, going: '', hiding: false,
     back: [],
   };
 }
@@ -103,7 +105,8 @@ export function navKeys(page, ui) {
 export function placed(ui, page, now) {
   const keys = navKeys(page, ui);
   const going = ui.going;
-  ui = { ...ui, going: '' };
+  const hiding = ui.hiding;
+  ui = { ...ui, going: '', hiding: false };
   if (!keys.length) return { ...ui, cur: '' };
   if (ui.cur && keys.includes(ui.cur)) return { ...ui, lastIndex: keys.indexOf(ui.cur) };
   const had = ui.cur !== '';
@@ -114,7 +117,7 @@ export function placed(ui, page, now) {
     // The person took the line away (hid it, took the comment back): the
     // page's own move. Or the page put the cursor on its first line.
     const t = index(page).things.get(cur);
-    Object.assign(out, { how: had ? 'app' : 'start', at: now, sel: t ? t.Token : '' });
+    Object.assign(out, { how: !had ? 'start' : hiding ? 'hid' : 'app', at: now, sel: t ? t.Token : '' });
     if (!had) out.start = true;
   }
   return out;

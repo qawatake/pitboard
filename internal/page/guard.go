@@ -22,7 +22,9 @@ import (
 //   - Settling: the screen moved the cursor to the line (after x, H or u took
 //     the person's line away, or space / g went there) and it has not been
 //     on screen for SettleDelay. x and options are dropped, once: the
-//     same key pressed again on the same line works.
+//     same key pressed again on the same line works. x works at once on a
+//     line x itself moved the cursor to (Hid): x x x hides line after line,
+//     and u brings them back one by one.
 
 // SettleDelay is how long a line the screen moved the cursor to must have
 // been on screen before x and options work on it.
@@ -48,7 +50,10 @@ type Touch struct {
 	// has been on screen since (0: not yet).
 	Auto  bool
 	Shown time.Duration
-	Open  bool // the line is open on screen (an Ask's options are shown)
+	// Hid: the screen moved the cursor there because x hid the person's
+	// line. x is not dropped then: the person is hiding down the page.
+	Hid  bool
+	Open bool // the line is open on screen (an Ask's options are shown)
 	// Again is the press last dropped while settling (Verdict.Again): the
 	// screen keeps it and gives it back with the next press.
 	Again string
@@ -121,7 +126,7 @@ func (b *Board) Allow(n *report.Node, key string, t Touch) Verdict {
 		if !a.Hide || (t.Placed && !a.Untouched().Hide) {
 			return v
 		}
-		if drop() {
+		if !t.Hid && drop() {
 			v.Msg = MsgSettlingHide
 			if b.IsHidden(n) {
 				v.Msg = MsgSettlingShow
@@ -226,7 +231,7 @@ func (b *Board) Offer(n *report.Node, t Touch) Offer {
 	if !t.Locked && a.Read && (!t.Placed || a.Untouched().Read) {
 		read = []Hint{{"read", "r", "読んだ"}}
 	}
-	if !t.Locked && a.Hide && (!t.Placed || a.Untouched().Hide) && !t.Settling() {
+	if !t.Locked && a.Hide && (!t.Placed || a.Untouched().Hide) && (!t.Settling() || t.Hid) {
 		if b.IsHidden(n) {
 			hide = []Hint{{"hide", "x", "表示に戻す"}}
 		} else {

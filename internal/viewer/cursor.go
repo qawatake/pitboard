@@ -12,6 +12,7 @@ func (pv *view) touch() page.Touch {
 	t := page.Touch{Placed: pv.placed, Locked: pv.lock, Open: pv.open[pv.cur], Again: pv.again}
 	if pv.auto != "" && pv.auto == pv.cur {
 		t.Auto = true
+		t.Hid = pv.hidTo == pv.cur
 		if !pv.autoAt.IsZero() {
 			t.Shown = clock().Sub(pv.autoAt)
 		}
@@ -84,6 +85,7 @@ func (pv *view) offScreen() int {
 // if its line went, it goes to the next line that is still there (or the
 // one before), as j would.
 func (pv *view) moveFrom(before []string, i int) {
+	pv.hidTo = ""
 	if pv.nodeAt(pv.cur) != nil || i < 0 {
 		return
 	}

@@ -439,18 +439,12 @@ func TestHide(t *testing.T) {
 	}
 	v.WaitFor("隠しました (H で表示、u で戻す)")
 	v.WaitGone("hook を入れるか決める")
-	// The cursor moves to the next line, which takes no x for 0.4 s: a
-	// dropped x says why, and pressing it again takes it.
+	// The cursor moves to the next line, and x hides it at once.
 	v.WaitCursorOn("土台を選ぶ")
-	v.Keys("x")
-	v.WaitForJoined("いま移った行です。もう一度押すと隠れます")
-	if n := len(ss.records("hide")); n != 1 {
-		t.Fatalf("x right after hiding was taken (%d hides)", n)
-	}
 	v.WaitBottom("隠した行 1")
 	wantColor(t, v, "隠した行 1", "dim")
-	// 0.4 s later x works without moving.
-	v.pressUntil(ss, "x", "hide", 2)
+	v.Keys("x")
+	ss.waitRecords(t, "hide", 2)
 	v.WaitBottom("隠した行 2")
 
 	t.Run("H shows hidden lines faint with ⌀; x there unhides", func(t *testing.T) {
@@ -483,6 +477,31 @@ func TestHide(t *testing.T) {
 		ss.write(strings.Replace(listReport, hidden, hidden+" (改)", 1))
 		v.WaitFor(hidden + " (改)")
 	})
+}
+
+// FIX22: x x x pressed in one go hides three lines in a row; u brings
+// back the last only.
+func TestHideRowsInARow(t *testing.T) {
+	t.Parallel()
+	v, ss := open(t, listReport, 120, 30, "最初の項目")
+	v.MoveTo("hook を入れるか決める")
+	v.MoveTo("最初の項目")
+	v.WaitBottom("x 隠す")
+	v.Keys("x", "x", "x")
+	rs := ss.waitRecords(t, "hide", 3)
+	for i, want := range []string{"最初の項目", "hook を入れるか決める", "土台を選ぶ"} {
+		if rs[i].str("title") != want {
+			t.Errorf("hide %d: %v, want %q", i+1, rs[i], want)
+		}
+	}
+	v.WaitBottom("隠した行 3")
+	v.WaitCursorOn("最後の項目")
+	v.Keys("u")
+	v.WaitFor("土台を選ぶ")
+	v.WaitBottom("隠した行 2")
+	if s := v.Screen(); strings.Contains(s, "最初の項目") || strings.Contains(s, "hook を入れるか決める") {
+		t.Errorf("u brought back more than the last:\n%s", v.dump())
+	}
 }
 
 // SPEC.md "行を隠す": every section's lines hidden: no heading.

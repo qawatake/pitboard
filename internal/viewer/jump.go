@@ -78,7 +78,7 @@ func (a *app) followLink(pv *view, l page.Link) {
 		pv.open[k] = true
 	}
 	pv.cur, pv.lock, pv.placed = f.Key, false, false
-	pv.auto, pv.autoAt = f.Key, time.Time{}
+	pv.auto, pv.autoAt, pv.hidTo = f.Key, time.Time{}, ""
 	pv.follow = true
 }
 
@@ -94,7 +94,7 @@ func (a *app) goBack(pv *view) {
 		return
 	}
 	pv.cur, pv.top, pv.lock, pv.placed = p.cur, p.top, false, false
-	pv.auto, pv.autoAt = p.cur, time.Time{}
+	pv.auto, pv.autoAt, pv.hidTo = p.cur, time.Time{}, ""
 }
 
 // markJumps puts the letters at the head of the rows they go to.
@@ -236,7 +236,7 @@ func (a *app) goTo(pv *view, n *report.Node) {
 	}
 	if key != "" {
 		pv.cur, pv.lock, pv.placed = key, false, false
-		pv.auto, pv.autoAt = key, time.Time{}
+		pv.auto, pv.autoAt, pv.hidTo = key, time.Time{}, ""
 	}
 	pv.follow = n.Kind == report.KindNotice
 	if n.Kind == report.KindNotice {

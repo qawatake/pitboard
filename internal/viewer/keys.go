@@ -210,7 +210,11 @@ func (a *app) hide(pv *view, n *report.Node) {
 		a.failed(pv, err)
 		return
 	}
+	old := pv.cur
 	pv.moveFrom(before, i)
+	if pv.cur != old {
+		pv.hidTo = pv.cur // hiding on down the page: x works here at once
+	}
 	a.msg = msg
 }
 

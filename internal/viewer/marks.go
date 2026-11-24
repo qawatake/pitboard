@@ -89,7 +89,7 @@ func (a *app) jump(pv *view) {
 			pv.open[f.Key] = true
 		}
 		pv.cur, pv.follow, pv.lock, pv.placed = l.Node.Key, true, false, false
-		pv.auto, pv.autoAt = l.Node.Key, time.Time{}
+		pv.auto, pv.autoAt, pv.hidTo = l.Node.Key, time.Time{}, ""
 		return
 	}
 	a.msg = "印のある行はありません"

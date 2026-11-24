@@ -50,6 +50,9 @@ type view struct {
 	// the new line, must not act on a line the person has not seen.
 	auto   string
 	autoAt time.Time
+	// hidTo is auto when x moved the cursor there by hiding the person's
+	// line: x works on it at once (page.Touch.Hid).
+	hidTo string
 	// again is the line and key of a press dropped while settling: the
 	// same key pressed again there works (page.Touch.Again).
 	again string

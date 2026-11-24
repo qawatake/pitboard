@@ -1,0 +1,7 @@
+# FIX22 result
+
+- Cause (terminal): after `x` the viewer moves the cursor and marks the line settling; `page.Board.Allow` dropped the next `x` there for 0.4 s (`internal/page/guard.go:129`, `drop()`), so `x x` hid one line and said 「いま移った行です…」.
+- Cause (web): `press` read `ui.cur` before the first `x`'s refresh came back (`internal/web/static/main.js:342`, `pressOnce`), so the second `x` went to the line just hidden and `Board.Hide` toggled it back (`internal/page/ops.go:141`): `x x` = hide + unhide.
+- Fix: `page.Touch.Hid` (the screen moved the cursor because `x` hid the line): `x` is not dropped and is offered there; options still settle. Terminal sets it via `view.hidTo` (keys.go `hide`), web via `Cur.How = "hid"` (state.js `placed`, `hiding`). Web presses run one after another (main.js `press` queue). `Board.Hide` refuses to show again a hidden line when hidden lines are not shown (`ErrChanged`). SPEC.md lines 31 and 101 updated.
+- Tests: `internal/viewer/fix22_test.go` (3 rows, 3 presses, `u` brings back the last only), `internal/web/fix22_test.go` (same over /api/act, plus a stale second press does not unhide), `e2e/react_test.go` `TestHideRowsInARow` (pty, `x x x` in one go). Guard table: `hid` cases. `TestHide`, `TestHideAndUnhide`, `TestSettlingSaysWhy` updated to the new contract.
+- `scripts/check.sh`: go vet and go test (e2e included) pass; the gallery step did not run: `playwright-cli` is not on PATH on this machine.

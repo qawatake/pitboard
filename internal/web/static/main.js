@@ -330,7 +330,16 @@ function goToComment(n) {
 
 // ---- actions ----
 
-async function press(k) {
+// press sends a key for the cursor's line. Presses go one after another:
+// x pressed again before the page came back from the last one acts on the
+// line the cursor moved to, not on the line just hidden.
+let pressing = Promise.resolve();
+function press(k) {
+  pressing = pressing.then(() => pressOnce(k)).catch(() => {});
+  return pressing;
+}
+
+async function pressOnce(k) {
   const t = S.index(page).things.get(ui.cur);
   if (!t) return;
   const r = await act('key', { Key: k, Target: t.Key, Seen: t.Token, Cur: S.facts(ui, t, now()) });
@@ -338,7 +347,7 @@ async function press(k) {
   switch (r.Do) {
     case 'open': set(S.setOpen(ui, [t.Key])); requestHint(); return;
     case 'comment': openEditor({ kind: 'comment', key: t.Key, token: t.Token, at: t.Key, label: '「' + plain(t.Title) + '」にコメント' }); return;
-    case 'hide': if (r.OK) ui = { ...ui, going: t.Key }; break;
+    case 'hide': if (r.OK) ui = { ...ui, going: t.Key, hiding: true }; break;
   }
   if (r.OK || r.Changed) await refresh();
   else requestHint();
