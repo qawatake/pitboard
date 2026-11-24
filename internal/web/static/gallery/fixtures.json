@@ -7000,8 +7000,8 @@
     "Next": null,
     "Summary": [
      {
-      "Text": "あなたの番",
-      "Tone": "normal"
+      "Text": "AI の番",
+      "Tone": "quiet"
      }
     ],
     "Comments": null,
@@ -7327,8 +7327,8 @@
     "Next": null,
     "Summary": [
      {
-      "Text": "あなたの番",
-      "Tone": "normal"
+      "Text": "AI の番",
+      "Tone": "quiet"
      }
     ],
     "Comments": null,
@@ -7572,8 +7572,8 @@
      "Title": "",
      "Summary": [
       {
-       "Text": "あなたの番",
-       "Tone": "normal"
+       "Text": "AI の番",
+       "Tone": "quiet"
       }
      ],
      "Message": "AI はまだ報告を書いていません"

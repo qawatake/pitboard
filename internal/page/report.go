@@ -11,13 +11,8 @@ import (
 
 // Report is the report as last read.
 type Report struct {
-	Path  string // "" when there is no session
-	Mtime time.Time
-	// Shown is the mtime of the last version read that passes check (or
-	// of the missing file): a version with problems never moves it, whether
-	// it is shown (no good version before) or not (Fixing), so every screen
-	// opened at any time counts the same rewrites (Board.AITurn).
-	Shown   time.Time
+	Path    string // "" when there is no session
+	Mtime   time.Time
 	Err     string // it could not be read (not a format problem)
 	Missing bool   // it does not exist yet
 	Nodes   []*report.Node
@@ -48,15 +43,12 @@ func (r *Report) Load() {
 		r.Missing = true
 		return
 	}
-	// r.Shown moves only when a version without problems is read (or the
-	// file is gone): one that could not be read, or one with problems,
-	// keeps it.
 	r.Mtime = ModTime(r.Path)
 	b, err := os.ReadFile(r.Path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			r.Missing, r.Err, r.Nodes, r.Probs = true, "", nil, nil
-			r.Fixing, r.good, r.Shown = false, false, r.Mtime
+			r.Fixing, r.good = false, false
 			return
 		}
 		r.Err = err.Error()
@@ -76,15 +68,18 @@ func (r *Report) Load() {
 		}
 		r.Nodes, r.Probs = nodes, probs
 		r.good, r.Fixing = len(probs) == 0 && len(nodes) > 0, false
-		if len(probs) == 0 {
-			r.Shown = r.Mtime
-		}
 		return nil
 	})
 	r.ReadErr = ""
 	if err != nil {
 		r.ReadErr = "報告を読めませんでした (前の画面を出しています): " + err.Error()
 	}
+}
+
+// Broken says whether the file, as last read, fails check (shown as
+// Fixing or with its problems) or is missing (Board.AITurn).
+func (r *Report) Broken() bool {
+	return r.Path != "" && (r.Missing || r.Fixing || len(r.Probs) > 0)
 }
 
 // Stale says whether the file changed since it was read.

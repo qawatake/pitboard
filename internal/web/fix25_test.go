@@ -14,17 +14,18 @@ func TestTurnWithoutReportWeb(t *testing.T) {
 	for _, c := range []struct {
 		name string
 		do   func()
+		turn string
 	}{
-		{"empty", func() { os.WriteFile(f.st.ReportPath(), nil, 0o644) }},
-		{"missing", func() { os.Remove(f.st.ReportPath()) }},
+		{"empty", func() { os.WriteFile(f.st.ReportPath(), nil, 0o644) }, page.WordYourTurn},
+		{"missing", func() { os.Remove(f.st.ReportPath()) }, page.WordAITurn},
 	} {
 		c.do()
 		p := f.page("tab1")
-		if p.Message == "" || len(p.Summary) == 0 || p.Summary[0].Text != page.WordYourTurn {
+		if p.Message == "" || len(p.Summary) == 0 || p.Summary[0].Text != c.turn {
 			t.Errorf("%s page: message %q summary %+v", c.name, p.Message, p.Summary)
 		}
 		ix := f.s.index()
-		if len(ix.Boards) != 1 || len(ix.Boards[0].Summary) == 0 || ix.Boards[0].Summary[0].Text != page.WordYourTurn {
+		if len(ix.Boards) != 1 || len(ix.Boards[0].Summary) == 0 || ix.Boards[0].Summary[0].Text != c.turn {
 			t.Errorf("%s list: %+v", c.name, ix.Boards)
 		}
 	}

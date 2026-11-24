@@ -405,7 +405,8 @@ Thoughts:
   The board shows the person "AI の番" (your turn) from their send until
   you rewrite the report or settle (--done or --hold) every thought it
   carried, and while a thought is --doing; so settle --doing at once when
-  work takes long, and --done when it is finished.
+  work takes long, and --done when it is finished. It is also "AI の番"
+  whenever report.md fails 'pitboard check' or is missing: fix it.
   What you put --doing, settle --done when it is done, saying what
   happened; if you wrote an answer line for it, rewrite that too. What is
   left is shown by 'changes' every time: what 'changes' and 'wait' print

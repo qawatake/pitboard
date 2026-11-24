@@ -106,23 +106,26 @@ func sentThoughts(evs []board.Event, prev, last int) []int {
 	return out
 }
 
-// AITurn says whether it is the AI's turn (AI の番): the person sent, the
-// report was not rewritten since, and a thought that send carried is not
-// settled yet (a send that carried no thought waits for the rewrite
+// AITurn says whether it is the AI's turn (AI の番): report.md fails check
+// or is missing (the AI owes a fix, whatever else holds); the person sent,
+// the report was not rewritten since, and a thought that send carried is
+// not settled yet (a send that carried no thought waits for the rewrite
 // alone); or a comment the AI settled as doing is still doing. Otherwise
-// it is the person's turn (あなたの番). The report counts as rewritten when
-// a version that passes check is newer (Report.Shown): a rewrite with
-// problems never is, so a screen opened later agrees with one open before.
+// it is the person's turn (あなたの番). Every screen reads the file as it
+// is now, so an open screen and one opened later agree.
 func (b *Board) AITurn() bool {
 	if b.State == nil {
 		return false
+	}
+	if b.Report.Broken() && !b.NoSession {
+		return true
 	}
 	for _, t := range b.State.Thoughts {
 		if t.SettledState == "doing" {
 			return true
 		}
 	}
-	if b.SentAt.IsZero() || b.Report.Shown.After(b.SentAt) {
+	if b.SentAt.IsZero() || b.Report.Mtime.After(b.SentAt) {
 		return false
 	}
 	carried := false
