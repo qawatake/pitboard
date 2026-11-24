@@ -746,12 +746,12 @@
     ],
     "Summary": [
      {
-      "Text": "反応待ち 1",
-      "Tone": "need"
+      "Text": "AI の番",
+      "Tone": "quiet"
      },
      {
-      "Text": "送信済 1",
-      "Tone": "quiet"
+      "Text": "反応待ち 1",
+      "Tone": "need"
      },
      {
       "Text": "未送信 6",
@@ -2671,6 +2671,10 @@
      }
     ],
     "Summary": [
+     {
+      "Text": "あなたの番",
+      "Tone": "need"
+     },
      {
       "Text": "反応待ち 1",
       "Tone": "need"
@@ -5134,6 +5138,10 @@
     "Next": null,
     "Summary": [
      {
+      "Text": "あなたの番",
+      "Tone": "need"
+     },
+     {
       "Text": "未送信 6",
       "Tone": "need"
      }
@@ -5955,7 +5963,12 @@
      "tight"
     ],
     "Next": null,
-    "Summary": null,
+    "Summary": [
+     {
+      "Text": "あなたの番",
+      "Tone": "need"
+     }
+    ],
     "Comments": null,
     "Session": "gallery1",
     "Dir": "~/dev/sample",
@@ -6542,6 +6555,10 @@
      }
     ],
     "Summary": [
+     {
+      "Text": "あなたの番",
+      "Tone": "need"
+     },
      {
       "Text": "反応待ち 1",
       "Tone": "need"
@@ -7262,7 +7279,12 @@
      "ok"
     ],
     "Next": null,
-    "Summary": null,
+    "Summary": [
+     {
+      "Text": "あなたの番",
+      "Tone": "need"
+     }
+    ],
     "Comments": null,
     "Session": "gallery1",
     "Dir": "~/dev/sample",
@@ -7429,6 +7451,10 @@
      "Title": "pitboard を作る",
      "Summary": [
       {
+       "Text": "あなたの番",
+       "Tone": "need"
+      },
+      {
        "Text": "反応待ち 2",
        "Tone": "need"
       },
@@ -7475,6 +7501,10 @@
      "Title": "pitboard を作る",
      "Summary": [
       {
+       "Text": "あなたの番",
+       "Tone": "need"
+      },
+      {
        "Text": "反応待ち 2",
        "Tone": "need"
       },
@@ -7504,6 +7534,10 @@
      "Where": "~/dev/a-project-with-a-rather-long-directory-name-that-wraps",
      "Title": "長い場所",
      "Summary": [
+      {
+       "Text": "あなたの番",
+       "Tone": "need"
+      },
       {
        "Text": "未読 1",
        "Tone": "move"

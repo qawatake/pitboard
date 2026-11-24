@@ -30,7 +30,9 @@ func (b *Board) Send(progress func(msg string)) (string, error) {
 	}
 	// The mark comes first: what is above it is what the AI gets from
 	// 'changes', whether or not it can be woken now.
-	if _, err := b.Store.Append(board.Event{Op: "send"}); err != nil {
+	// Its time to the nanosecond: whose turn it is compares it with when
+	// the report was last written.
+	if _, err := b.Store.Append(board.Event{Op: "send", T: time.Now().Format(time.RFC3339Nano)}); err != nil {
 		return "", fmt.Errorf("送れませんでした: %w", err)
 	}
 	b.Load()

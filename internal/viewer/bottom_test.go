@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/qawatake/pitboard/internal/board"
 	"github.com/qawatake/pitboard/internal/report"
@@ -80,7 +81,7 @@ func TestUnsentMark(t *testing.T) {
 	// and the title is not cut.
 	a.top().top = 1
 	ls, _ = screen(t, a)
-	if !strings.HasSuffix(ls[0], "未送信 3") || strings.TrimSpace(strings.TrimSuffix(ls[0], "未送信 3")) != "" || !strings.Contains(ls[1], "とても長い題") || strings.Contains(ls[1], "…") || visibleWidth(ls[0]) > lgutter+a.textWidth() {
+	if !strings.HasSuffix(ls[0], "未送信 3") || strings.TrimSpace(strings.TrimSuffix(ls[0], "あなたの番  未送信 3")) != "" || !strings.Contains(ls[1], "とても長い題") || strings.Contains(ls[1], "…") || visibleWidth(ls[0]) > lgutter+a.textWidth() {
 		t.Errorf("title line %q / %q", ls[0], ls[1])
 	}
 	// Scrolled further: still on the top line.
@@ -97,23 +98,39 @@ func TestUnsentMark(t *testing.T) {
 		t.Errorf("list: %q", ls[0])
 	}
 	a.in, a.list = nil, false
-	// s clears it: what was sent waits, faint, until the AI reads it.
+	// s clears it, and it is the AI's turn: no count of what was sent.
 	t.Setenv("PITBOARD_SEND", "true")
 	a.handle(key{r: 's'})
 	ls, _ = screen(t, a)
-	if strings.Contains(ls[0], "未送信") || !strings.HasSuffix(ls[0], "送信済 3") {
+	if strings.Contains(ls[0], "未送信") || strings.Contains(ls[0], "送信済") || !strings.HasSuffix(ls[0], "AI の番") {
 		t.Errorf("after s: %q", ls[0])
 	}
 	// Something new after the send: both.
 	st.Append(board.Event{Op: "thought", Text: "b"})
 	a.loadEvents()
-	if ls, _ := screen(t, a); !strings.HasSuffix(ls[0], "送信済 3  未送信 1") {
+	if ls, _ := screen(t, a); !strings.HasSuffix(ls[0], "AI の番  未送信 1") {
 		t.Errorf("sent and unsent: %q", ls[0])
 	}
+	// The AI reading it is not the AI answering: still its turn.
 	st.Changes()
 	a.loadEvents()
-	if ls, _ := screen(t, a); strings.Contains(ls[0], "送信済") || !strings.HasSuffix(ls[0], "未送信 1") {
+	if ls, _ := screen(t, a); !strings.HasSuffix(ls[0], "AI の番  未送信 1") {
 		t.Errorf("after changes: %q", ls[0])
+	}
+	// The AI rewrites the report: the person's turn, as the tick sees it.
+	now := time.Now()
+	os.Chtimes(st.ReportPath(), now, now)
+	a.tickReload()
+	a.b.Poll()
+	if ls, _ := screen(t, a); !strings.HasSuffix(ls[0], "あなたの番  未送信 1") {
+		t.Errorf("after the rewrite: %q", ls[0])
+	}
+	// A comment settled as doing: the AI's turn again.
+	st.Append(board.Event{Op: "settle", Thought: 1, Text: "やります", State: "doing", By: "ai"})
+	a.tickReload()
+	a.b.Poll()
+	if ls, _ := screen(t, a); !strings.HasSuffix(ls[0], "AI の番  未送信 1") {
+		t.Errorf("doing: %q", ls[0])
 	}
 }
 

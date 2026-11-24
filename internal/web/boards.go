@@ -363,7 +363,7 @@ type BoardRow struct {
 	ID, Dir, Session string
 	Where            string // Dir, the home directory as ~
 	Title            string
-	Summary          []page.Word // 反応待ち 未読 AI 待機中 送信済 未送信, as the board's top right
+	Summary          []page.Word // whose turn, 反応待ち 未読 AI 待機中 未送信, as the board's top right
 	Message          string      `json:",omitempty"` // no report yet, …
 	Gone             bool        `json:",omitempty"` // its directory is missing
 }

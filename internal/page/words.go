@@ -25,6 +25,12 @@ const (
 	MsgNone    = "なし" // under the heading of a Section that holds nothing (faint)
 )
 
+// Whose turn it is, first at the top right (Board.AITurn).
+const (
+	WordAITurn   = "AI の番"
+	WordYourTurn = "あなたの番"
+)
+
 // MsgNoSuchSession is what is shown for a session that has no board yet.
 func MsgNoSuchSession(session string) string {
 	return fmt.Sprintf("セッション %s の報告はまだありません", session)

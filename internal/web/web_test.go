@@ -285,7 +285,7 @@ func TestPageJSON(t *testing.T) {
 	s := string(b)
 	for _, w := range []string{`"Kind":"notice"`, `"Kind":"ask"`, `"Kind":"item"`, `"Kind":"option"`, `"Kind":"section"`,
 		`"Mark":"waiting"`, `"Mark":"new"`, `"Tone":"move"`, `"Style":"plain"`, `"Token":"`, `"Sign":"?"`, `"Words":{`,
-		`"AtText":"`, `"反応待ち 1"`, `"未読 1"`, `"JumpTo":["note","unit"]`, `"Session":"sess1234"`, `"Next":[`} {
+		`"AtText":"`, `"Summary":[{"Text":"あなたの番","Tone":"need"},{"Text":"反応待ち 1"`, `"反応待ち 1"`, `"未読 1"`, `"JumpTo":["note","unit"]`, `"Session":"sess1234"`, `"Next":[`} {
 		if !strings.Contains(s, w) {
 			t.Errorf("page lacks %s", w)
 		}
@@ -372,6 +372,10 @@ func TestActRoundTrips(t *testing.T) {
 	}
 	if p = f.page("tab1"); p.Unsent != 0 {
 		t.Errorf("unsent %d after send", p.Unsent)
+	}
+	// Sent: the AI's turn, first at the top right.
+	if len(p.Summary) == 0 || p.Summary[0] != (page.Word{Text: page.WordAITurn, Tone: page.ToneQuiet}) {
+		t.Errorf("summary after send %+v", p.Summary)
 	}
 	if r := f.act("tab1", Act{Action: "nope"}); r.OK {
 		t.Error("unknown action done")

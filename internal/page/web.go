@@ -83,11 +83,16 @@ func (s Seen) Token() string {
 // when the person opens it.
 func StartsOpen(n *report.Node) bool { return false }
 
-// Summary is the counts at the top right of the page, in order: 反応待ち N
-// (need), 未読 N (move), AI 待機中, 送信済 N (quiet), 未送信 N (need).
-// Only what is there is listed.
+// Summary is the words at the top right of the page, in order: whose turn
+// it is (AI の番 quiet, as waiting on the AI; or あなたの番 need, as
+// needing the person; always one of them), then the counts 反応待ち N
+// (need), 未読 N (move), AI 待機中 (quiet), 未送信 N (need), each only
+// when there is one.
 func (b *Board) Summary(showHidden bool) []Word {
-	var out []Word
+	out := []Word{{WordYourTurn, ToneNeed}}
+	if b.AITurn() {
+		out[0] = Word{WordAITurn, ToneQuiet}
+	}
 	w, f := b.Counts(showHidden)
 	if w > 0 {
 		out = append(out, Word{fmt.Sprintf("反応待ち %d", w), ToneNeed})
@@ -97,9 +102,6 @@ func (b *Board) Summary(showHidden bool) []Word {
 	}
 	if b.Waiter {
 		out = append(out, Word{"AI 待機中", ToneQuiet})
-	}
-	if b.Unread > 0 {
-		out = append(out, Word{fmt.Sprintf("送信済 %d", b.Unread), ToneQuiet})
 	}
 	if b.Unsent > 0 {
 		out = append(out, Word{fmt.Sprintf("未送信 %d", b.Unsent), ToneNeed})

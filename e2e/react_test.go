@@ -631,6 +631,8 @@ func TestSend(t *testing.T) {
 	t.Run("nothing unsent", func(t *testing.T) {
 		t.Parallel()
 		v, ss := open(t, reactReport, 120, 24, "最初の項目")
+		v.WaitFor("あなたの番") // never sent
+		wantColor(t, v, "あなたの番", "yellow")
 		v.Keys("s")
 		v.WaitFor("未送信のものはありません")
 		ss.noRecords(t, "send")
@@ -649,8 +651,8 @@ func TestSend(t *testing.T) {
 		v.WaitFor("PITBOARD_SEND")
 		ss.waitRecords(t, "send", 1)
 		v.WaitGone("未送信")
-		v.WaitFor("送信済 1")
-		wantColor(t, v, "送信済 1", "dim")
+		v.WaitFor("AI の番")
+		wantColor(t, v, "AI の番", "dim")
 	})
 
 	t.Run("to a waiting wait", func(t *testing.T) {

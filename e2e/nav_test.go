@@ -161,8 +161,9 @@ func TestJump(t *testing.T) {
 	v.WaitCursorOn("節の項目2")
 	v.Keys("g", "c")
 	v.WaitCursorOn("項目C")
-	// The heading comes to the top (under the counts row).
-	if r := rowOf(t, v, "進行中"); r > 2 {
+	// The heading comes to the top (under the notice and the row of whose
+	// turn it is).
+	if r := rowOf(t, v, "進行中"); r > 3 {
 		t.Errorf("heading not at the top (row %d):\n%s", r, v.dump())
 	}
 	// Moved by the viewer: 0.4 s without x.

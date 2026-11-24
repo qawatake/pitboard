@@ -202,9 +202,8 @@ func (a *app) draw() {
 	a.t.draw(append(append(banner, lines...), bottom...), at)
 }
 
-// sendMark is the top right: "送信済 N" (sent, not read by the AI yet;
-// faint) and "未送信 N" (not sent; yellow), after the counts of marks.
-// What does not fit in the width goes, from the right.
+// sendMark is the top right: whose turn it is, then the counts
+// (Board.Summary). What does not fit in the width goes, from the right.
 func (a *app) sendMark() text {
 	var t text
 	room := a.textWidth() - 2

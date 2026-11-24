@@ -22,6 +22,8 @@ type Board struct {
 	Unsent int  // what the person has not sent yet, as they see it (PendingCount)
 	Unread int  // what was sent and the AI has not read yet
 	Waiter bool // a 'pitboard wait' is waiting: sending reaches the AI
+	// SentAt is when the person last sent (zero: never).
+	SentAt time.Time
 	// Hist is what the person did since the screen opened, oldest first:
 	// what Undo takes back, newest first.
 	Hist []Done
@@ -47,7 +49,7 @@ func Open(st *board.Store) *Board {
 // Load reads the record again.
 func (b *Board) Load() {
 	if b.Store == nil {
-		b.State, b.Unsent, b.Unread = board.Replay(nil, 0), 0, 0
+		b.State, b.Unsent, b.Unread, b.SentAt = board.Replay(nil, 0), 0, 0, time.Time{}
 		b.Viewed = map[string]bool{}
 		return
 	}
@@ -57,6 +59,27 @@ func (b *Board) Load() {
 	evs, seen := b.Store.Events(), b.Store.Seen()
 	b.State = board.Replay(evs, seen)
 	b.Unsent, b.Unread = PendingCount(board.UnsentEvents(evs)), board.SentUnread(evs, seen)
+	b.SentAt = time.Time{}
+	for _, e := range evs {
+		if e.N == b.State.Sent && e.Op == "send" {
+			b.SentAt, _ = time.Parse(time.RFC3339Nano, e.T)
+		}
+	}
+}
+
+// AITurn says whether it is the AI's turn (AI の番): the person sent and
+// the report was not rewritten since, or a comment the AI settled as doing
+// is still doing. Otherwise it is the person's turn (あなたの番).
+func (b *Board) AITurn() bool {
+	if b.State == nil {
+		return false
+	}
+	for _, t := range b.State.Thoughts {
+		if t.SettledState == "doing" {
+			return true
+		}
+	}
+	return !b.SentAt.IsZero() && !b.Report.Mtime.After(b.SentAt)
 }
 
 // LoadViewed reads again what the person has looked at (another screen of

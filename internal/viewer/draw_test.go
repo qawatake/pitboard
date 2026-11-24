@@ -267,12 +267,16 @@ func TestNothingPastTheWidth(t *testing.T) {
 	}
 	// The counts at the top right go from the right when they do not fit.
 	a := testApp(t, st)
+	a.t.w = 40
+	if m := a.sendMark().plain(); m != "あなたの番  反応待ち 1  未読 5" {
+		t.Errorf("mark at 40: %q", m)
+	}
 	a.t.w = 30
-	if m := a.sendMark().plain(); m != "反応待ち 1  未読 5" {
+	if m := a.sendMark().plain(); m != "あなたの番  反応待ち 1" {
 		t.Errorf("mark at 30: %q", m)
 	}
 	a.t.w = 20
-	if m := a.sendMark().plain(); m != "反応待ち 1" {
+	if m := a.sendMark().plain(); m != "あなたの番" {
 		t.Errorf("mark at 20: %q", m)
 	}
 }
