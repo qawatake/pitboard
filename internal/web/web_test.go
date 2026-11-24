@@ -285,7 +285,7 @@ func TestPageJSON(t *testing.T) {
 	s := string(b)
 	for _, w := range []string{`"Kind":"notice"`, `"Kind":"ask"`, `"Kind":"item"`, `"Kind":"option"`, `"Kind":"section"`,
 		`"Mark":"waiting"`, `"Mark":"new"`, `"Tone":"move"`, `"Style":"plain"`, `"Token":"`, `"Sign":"?"`, `"Words":{`,
-		`"AtText":"`, `"Summary":[{"Text":"あなたの番","Tone":"need"},{"Text":"反応待ち 1"`, `"反応待ち 1"`, `"未読 1"`, `"JumpTo":["note","unit"]`, `"Session":"sess1234"`, `"Next":[`} {
+		`"AtText":"`, `"Summary":[{"Text":"あなたの番","Tone":"normal"},{"Text":"反応待ち 1"`, `"反応待ち 1"`, `"未読 1"`, `"JumpTo":["note","unit"]`, `"Session":"sess1234"`, `"Next":[`} {
 		if !strings.Contains(s, w) {
 			t.Errorf("page lacks %s", w)
 		}

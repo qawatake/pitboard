@@ -9,9 +9,10 @@ import (
 // The palette: the colors a screen may use, each with one meaning. A
 // screen maps each name to a color of its own (the browser: a CSS token
 // of the same name; the terminal: an escape) and uses a color only for
-// its meaning. Everything else is the normal text color, and hierarchy
-// is spacing and weight.
+// its meaning. Everything else is the normal text color (ColorNormal, no
+// name of its own on either screen), and hierarchy is spacing and weight.
 const (
+	ColorNormal    = ""          // the normal text color: no meaning (あなたの番, a message, code)
 	ColorNeed      = "need"      // yellow: needs the person (waiting ●, 反応待ち, 未送信, a refusal)
 	ColorMove      = "move"      // green: moving (作業中, 対応中), the unread ●, an added diff line
 	ColorQuiet     = "quiet"     // faint: done, waiting on the AI, secondary notes, a diff's @@
@@ -39,6 +40,8 @@ func ToneColor(t Tone) string {
 		return ColorNeed
 	case ToneMove:
 		return ColorMove
+	case ToneNormal:
+		return ColorNormal
 	}
 	return ColorQuiet
 }

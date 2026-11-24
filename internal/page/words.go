@@ -43,9 +43,10 @@ func ProblemLine(p report.Problem) string { return fmt.Sprintf("%d 行目: %s", 
 type Tone int
 
 const (
-	ToneQuiet Tone = iota // faint: waits, or is done
-	ToneNeed              // yellow: needs the person
-	ToneMove              // green: moves (a doing Item)
+	ToneQuiet  Tone = iota // faint: waits, or is done
+	ToneNeed               // yellow: needs the person
+	ToneMove               // green: moves (a doing Item)
+	ToneNormal             // the normal text color: no meaning (あなたの番)
 )
 
 // Word is a word at the right end of a line, and what its color means.

@@ -26,7 +26,7 @@ func TestTurn(t *testing.T) {
 	b := open(t, src)
 	rewrite(t, b, time.Now().Add(-time.Hour))
 	b.Changed()
-	if w := turn(b); w != (Word{WordYourTurn, ToneNeed}) {
+	if w := turn(b); w != (Word{WordYourTurn, ToneNormal}) {
 		t.Fatalf("never sent: %+v", w)
 	}
 	for _, w := range b.Summary(false) {

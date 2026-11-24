@@ -245,7 +245,7 @@ function facts(app) {
   for (const e of all(app, '.board .title, .board .para, .notices .title')) {
     if ([...e.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())) add('style', 'plain');
   }
-  for (const w of all(app, '.board .word, .notices .word, .cpanel .word')) for (const t of ['quiet', 'need', 'move']) if (w.classList.contains(t)) add('tone', t);
+  for (const w of all(app, '.board .word, .notices .word, .cpanel .word, .summary .word, .boardrow .right .word')) for (const t of ['quiet', 'need', 'move', 'normal']) if (w.classList.contains(t)) add('tone', t);
   for (const w of all(app, '.cstate, .crow .right .word')) add('status', w.textContent);
   for (const h of all(app, '.creply > .quiet:first-child')) add('settle', settleOf[h.textContent]);
   const bar = all(app, '.foot .bar [data-act]').map((b) => b.dataset.act);

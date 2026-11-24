@@ -98,7 +98,8 @@
   "tone": [
    "quiet",
    "need",
-   "move"
+   "move",
+   "normal"
   ]
  },
  "Situations": {
@@ -2673,7 +2674,7 @@
     "Summary": [
      {
       "Text": "あなたの番",
-      "Tone": "need"
+      "Tone": "normal"
      },
      {
       "Text": "反応待ち 1",
@@ -5139,7 +5140,7 @@
     "Summary": [
      {
       "Text": "あなたの番",
-      "Tone": "need"
+      "Tone": "normal"
      },
      {
       "Text": "未送信 6",
@@ -5966,7 +5967,7 @@
     "Summary": [
      {
       "Text": "あなたの番",
-      "Tone": "need"
+      "Tone": "normal"
      }
     ],
     "Comments": null,
@@ -6557,7 +6558,7 @@
     "Summary": [
      {
       "Text": "あなたの番",
-      "Tone": "need"
+      "Tone": "normal"
      },
      {
       "Text": "反応待ち 1",
@@ -7282,7 +7283,7 @@
     "Summary": [
      {
       "Text": "あなたの番",
-      "Tone": "need"
+      "Tone": "normal"
      }
     ],
     "Comments": null,
@@ -7452,7 +7453,7 @@
      "Summary": [
       {
        "Text": "あなたの番",
-       "Tone": "need"
+       "Tone": "normal"
       },
       {
        "Text": "反応待ち 2",
@@ -7502,7 +7503,7 @@
      "Summary": [
       {
        "Text": "あなたの番",
-       "Tone": "need"
+       "Tone": "normal"
       },
       {
        "Text": "反応待ち 2",
@@ -7536,7 +7537,7 @@
      "Summary": [
       {
        "Text": "あなたの番",
-       "Tone": "need"
+       "Tone": "normal"
       },
       {
        "Text": "未読 1",

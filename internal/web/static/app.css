@@ -7,7 +7,8 @@
      structure  blue: headings, links, the cursor and the focus
      yours      teal: what the person entered (an answer's key, the chosen option)
      bad        red: errors, n, a removed diff line
-   The rest is the text color (--fg) on the page's (--bg), with --line for
+   The rest is the text color (--fg; .normal for a word of that tone, as
+   あなたの番) on the page's (--bg), with --line for
    the hairlines. The page's content has no borders, cards, fills or
    stripes. What floats over it (the m editor, the comment panel, ?, an
    image shown whole), the editor's field and images (foreign content)
@@ -147,6 +148,7 @@ a { color: var(--structure); }
 .need { color: var(--need); }
 .move { color: var(--move); }
 .quiet { color: var(--quiet); }
+.normal { color: var(--fg); }
 .structure { color: var(--structure); }
 .yours { color: var(--yours); }
 .bad { color: var(--bad); }

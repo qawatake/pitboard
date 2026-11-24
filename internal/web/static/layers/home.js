@@ -55,7 +55,7 @@ export function draw(app, data, cur, offline) {
   app.querySelector('.boards').replaceChildren(...rows);
 }
 
-export const covers = {};
+export const covers = {"tone": {"normal": ["several boards"]}};
 
 export const differences = {"index-none": ["no boards"], "index-several": ["several boards"], "text-edge": ["several boards"], "index-gone": ["one board gone"]};
 

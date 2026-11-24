@@ -19,7 +19,7 @@ import (
 var (
 	kindNames  = []string{"notice", "title", "section", "item", "ask", "option", "link", "fold", "para", "list", "code"}
 	styleNames = []string{"plain", "bold", "code", "link"}
-	toneNames  = []string{"quiet", "need", "move"}
+	toneNames  = []string{"quiet", "need", "move", "normal"}
 	markNames  = []string{"none", "new", "waiting"}
 )
 
@@ -84,12 +84,13 @@ func (s Seen) Token() string {
 func StartsOpen(n *report.Node) bool { return false }
 
 // Summary is the words at the top right of the page, in order: whose turn
-// it is (AI の番 quiet, as waiting on the AI; or あなたの番 need, as
-// needing the person; always one of them), then the counts 反応待ち N
+// it is (AI の番 quiet, as waiting on the AI; or あなたの番 normal, the
+// text color, leaving yellow to the counts that need the person; always
+// one of them), then the counts 反応待ち N
 // (need), 未読 N (move), AI 待機中 (quiet), 未送信 N (need), each only
 // when there is one.
 func (b *Board) Summary(showHidden bool) []Word {
-	out := []Word{{WordYourTurn, ToneNeed}}
+	out := []Word{{WordYourTurn, ToneNormal}}
 	if b.AITurn() {
 		out[0] = Word{WordAITurn, ToneQuiet}
 	}
