@@ -1,4 +1,6 @@
-// An image shown large, over everything (from a comment's thumbnail).
+// An image shown large, over everything (from a comment's thumbnail): on
+// the scrim, with an edge and the page's color behind it, so a white
+// screenshot does not melt into the page.
 
 export function draw(cx, viewer) {
   const on = cx.ui.mode === 'image' && cx.ui.image > 0;
@@ -15,9 +17,10 @@ export function draw(cx, viewer) {
 
 export const covers = {"mode": {"image": ["a small image"]}};
 
-export const differences = {"image-large": ["a large image, scaled to the screen"]};
+export const differences = {"image-large": ["a large image, scaled to the screen"], "float-edge": ["a small image", "a white image"]};
 
 export const variants = [
   { name: 'a small image', fixture: 'comments', ui: { cur: 'c1', open: { c1: true }, mode: 'image', image: 1 } },
   { name: 'a large image, scaled to the screen', fixture: 'comments', ui: { cur: 'c1', open: { c1: true }, mode: 'image', image: 2 } },
+  { name: 'a white image', fixture: 'comments', ui: { cur: 'c1', open: { c1: true }, mode: 'image', image: 4 }, responsive: true },
 ];

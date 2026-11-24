@@ -15,7 +15,7 @@ func TestPaletteCSS(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	neutral := []string{"bg", "fg", "line", "shadow", "scrim", "on-scrim", "veil"}
+	neutral := []string{"bg", "fg", "line", "surface", "shadow", "scrim", "on-scrim", "veil"}
 	var names []string
 	for _, c := range page.Palette {
 		names = append(names, c.Name)

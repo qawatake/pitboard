@@ -40,8 +40,10 @@ export function intentOf(e, ui, page) {
   const onButton = tg.tagName === 'BUTTON' && !(tg.dataset && tg.dataset.nav);
   if (ui.mode === 'goto') return { do: 'goto', key: k };
   switch (k) {
-    case 'j': case 'ArrowDown': return { do: 'move', d: 1 };
-    case 'k': case 'ArrowUp': return { do: 'move', d: -1 };
+    // j k move the cursor's line; ↑ ↓ are the browser's (the page
+    // scrolls), as on the terminal.
+    case 'j': return { do: 'move', d: 1 };
+    case 'k': return { do: 'move', d: -1 };
     case 'Enter':
       if (onButton || (tg.dataset && tg.dataset.nav)) return null; // the button's own
       return ui.cur ? { do: 'toggle' } : null;

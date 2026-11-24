@@ -1,6 +1,7 @@
 package viewer
 
 import (
+	"fmt"
 	"os"
 	"syscall"
 	"time"
@@ -100,6 +101,27 @@ type input struct {
 	showLabel bool
 }
 
+// draftKey is what the draft of in is kept by: the line a comment is
+// written on (c), a comment on no line (m), the comment being rewritten.
+func (in *input) draftKey() string {
+	switch {
+	case in.edit != 0:
+		return fmt.Sprintf("e:%d", in.edit)
+	case in.id != "":
+		return "c:" + in.id
+	}
+	return "m:"
+}
+
+// openInput opens the editor in, with the draft left for the same target
+// (esc keeps what was written for as long as the viewer runs).
+func (a *app) openInput(in *input) {
+	if d, ok := a.drafts[in.draftKey()]; ok {
+		in.ed = newEdit(d)
+	}
+	a.in = in
+}
+
 func newInput(id, title, label string) *input {
 	return &input{id: id, title: title, label: label, ed: newEdit(""), paste: -1}
 }
@@ -119,6 +141,9 @@ type app struct {
 	b *page.Board
 
 	in *input // the editor at the bottom, while writing
+	// drafts is what esc left in the editor, by input.draftKey: opening the
+	// editor for the same target again brings it back.
+	drafts map[string]string
 	// inAt is where the editor's input position is among the bottom lines
 	// (line, column; 0-based), set when they are laid out.
 	inAt [2]int
@@ -195,6 +220,16 @@ func (a *app) setStore(st *board.Store) {
 	a.st = st
 	a.b = page.Open(st)
 	a.rep = &view{Report: a.b.Report, b: a.b, open: map[string]bool{}}
+	a.rememberShown()
+}
+
+// rememberShown records the report's rows as shown to the person (see
+// board.Store.RememberShown): a row the AI removes before it runs any
+// command is still warned of.
+func (a *app) rememberShown() {
+	if a.st != nil && !a.b.NoSession {
+		a.st.RememberShown()
+	}
 }
 
 func isDir(p string) bool {
@@ -288,6 +323,7 @@ func (a *app) reload(pv *view) {
 	old := pv.nodeAt(pv.cur)
 	hidden := a.b.HiddenKeys()
 	pv.Load()
+	a.rememberShown()
 	// A line the person hid comes back when the AI rewrites it: say so, or
 	// it looks as if x did nothing. This is newer than any message still
 	// shown.

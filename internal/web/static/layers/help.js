@@ -7,7 +7,8 @@
 import { el } from '../dom.js';
 
 const HELP = [
-  ['j k ↑↓', '上下の行へ (日本語入力のままでも全角の ｊ ｋ が効く)。Tab やクリックで行に移っても同じ'],
+  ['j k', '上下の行へ (日本語入力のままでも全角の ｊ ｋ が効く)。Tab やクリックで行に移っても同じ'],
+  ['↑ ↓', 'ページだけを動かす (カーソルは動かない。端末と同じ。ホイール・トラックパッド・pgup pgdn も)'],
   ['enter', '開く・閉じる (行をクリックしても同じ)'],
   ['space', 'カーソルより下で、いちばん近い印のある行 ({need}・人待ちの項目・{move}) へ。下に無ければ上から。折りたたみは開く'],
   ['g', '節へ飛ぶ: お知らせ・節・いちばん外の折りたたみに a b c … が付く。その字でそこへ。esc でやめる'],
@@ -30,7 +31,7 @@ const HELP = [
   ['shift+enter', '改行'],
   ['esc', 'やめる (書いたものはこのタブに残り、次に開くと戻る)'],
   ['alt+↑ ↓', '書きながらページを半画面ずつ上 / 下へ (入力欄から出ずに、欄の下に隠れた行を読む)'],
-  ['画像', '貼り付け・ドロップで [Image #N] が入る'],
+  ['画像', '貼り付け・ドロップで [Image #N] が入る。文の下の見本の × で文から外す'],
 ];
 
 // desc is a description, its ● samples in their own colors.
@@ -71,7 +72,7 @@ export function draw(cx, help) {
 
 export const covers = {"mode": {"help": ["the keys, over the pinned band and the bar"]}};
 
-export const differences = {"help-scrolled": ["scrolled to its end"]};
+export const differences = {"help-scrolled": ["scrolled to its end"], "float-edge": ["the keys, over the pinned band and the bar"]};
 
 export const variants = [
   { name: 'the keys, over the pinned band and the bar', ui: { cur: 'restart', mode: 'help' }, responsive: true },

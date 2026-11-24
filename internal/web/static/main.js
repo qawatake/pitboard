@@ -169,6 +169,7 @@ async function refresh(retry) {
   else if (stream) stream.revive();
   page = d;
   if (first) fromURL();
+  else if (urlCur && S.index(page).things.has(urlCur)) { ui = { ...ui, cur: urlCur, sel: S.index(page).things.get(urlCur).Token }; urlCur = ''; }
   ui = S.placed(ui, page, now());
   ui = S.setConn(ui, 'live');
   clearInterval(retryTimer);
@@ -221,8 +222,10 @@ function fromURL() {
   try { v = JSON.parse(q); } catch { return; }
   ui = { ...ui, ...v, conn: 'live' };
   document.body.dataset.ui = 'set';
-  if (ui.showHidden) { etag = ''; setTimeout(refresh, 0); }
+  // A hidden line is the cursor's only once the page with them comes.
+  if (ui.showHidden) { urlCur = ui.cur; etag = ''; setTimeout(refresh, 0); }
 }
+let urlCur = '';
 
 // ---- the cursor ----
 
@@ -445,6 +448,17 @@ function edited() {
   editorLayer.box({ page, ui, memo, env, words: (k) => S.words(page, k) });
 }
 
+// unimage takes image n out of the text being written (each
+// [Image #n], with the space before it), and goes back to the text.
+function unimage(n) {
+  const ta = textarea();
+  if (!ta) return;
+  ta.value = ta.value.replace(new RegExp(` ?\\[Image #${n}\\]`, 'g'), '');
+  edited();
+  ta.focus({ preventScroll: true });
+  ta.setSelectionRange(ta.value.length, ta.value.length);
+}
+
 function upload(file) {
   if (file.size > page.ImageMax) { say(S.words(page, 'imageTooLarge')); return; }
   const rd = new FileReader();
@@ -574,6 +588,12 @@ function onKey(e) {
   // what is typed into the editor.
   if (page && !/^(Shift|Control|Alt|Meta|CapsLock)$/.test(e.key) && !(e.target && e.target.tagName === 'TEXTAREA') && !e.isComposing) clear('key');
   if (e.target && e.target.tagName === 'TEXTAREA') { editorKey(e); if (e.defaultPrevented) return; }
+  // On an image's buttons in the editor: esc stops writing; enter, space
+  // and Tab are the buttons' (and the panel's trap); letters do nothing.
+  else if (e.target && e.target.closest && e.target.closest('.editor')) {
+    if (e.key === 'Escape') { e.preventDefault(); closeEditor(); return; }
+    if (e.key !== 'Tab') return;
+  }
   const it = intentOf(e, ui, page);
   if (!it) {
     // Any other key the person presses on the page is still the next key.
@@ -621,6 +641,8 @@ function start() {
   app.addEventListener('click', (e) => {
     const tg = e.target;
     if (!tg.closest) return;
+    const un = tg.closest('[data-unimage]');
+    if (un) { e.stopPropagation(); unimage(Number(un.dataset.unimage)); return; }
     const img = tg.closest('[data-image]');
     if (img) { e.stopPropagation(); openImage(Number(img.dataset.image), img); return; }
     const go = tg.closest('[data-go]');

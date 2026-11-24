@@ -51,6 +51,6 @@ export const covers = {"kind": {"code": ["plain"]}};
 
 export const variants = [
   { name: 'plain', pick: (p) => p.Things.flatMap((t) => t.Kids || []).find((t) => t.Kind === 'code') },
-  { name: 'diff', pick: bodyCode('olddiff', 'diff') },
-  { name: 'longer than its box: wraps under its indent', fixture: 'long', pick: bodyCode('url') },
+  { name: 'diff', pick: bodyCode('olddiff', 'diff'), openAlso: ['olddiff'] },
+  { name: 'longer than its box: wraps under its indent', fixture: 'long', pick: bodyCode('url'), openAlso: ['url'] },
 ];

@@ -10,7 +10,7 @@
 - 各モジュールは描く関数の隣に、静的なデータとして書く:
   - `export const variants = [{name: '…', fixture, pick, open, ui, w, h, …}]`。`name` は文字列そのまま (`go test` が読む)
   - `export const covers = {軸: {値: [変種の name]}}`: データの型のどの値を、どの変種が見せるか
-  - `export const differences = {名前: [変種の name]}`: enum でない見た目の違い (`rights-below` `unpinned` `under-band` `under-bar` `at-bottom` `focus-bar` `loose-editor` `editor-empty` `edit-comment` `content-above-float` `link-digits` `panel-scrolled` `help-scrolled` `image-large` `message` `sent` `index-none` `index-several` `index-gone`)
+  - `export const differences = {名前: [変種の name]}`: enum でない見た目の違い (`rights-below` `unpinned` `under-band` `under-band-bare` `under-bar` `at-bottom` `focus-bar` `loose-editor` `editor-empty` `edit-comment` `content-above-float` `link-digits` `panel-scrolled` `help-scrolled` `image-large` `float-edge` `image-edge` `message` `sent` `index-none` `index-several` `index-gone` `list-tight` `list-loose` `head-runin` `head-def` `text-edge`)。ふつうは幅 1280 で確かめる。`text-edge` (行の題の左端が見出し・段落・バーの字の左端と 1px 以内) は 390 でも確かめる
 - 部品に固有でない軸 (カーソルが乗っている・幅 1280 / 390・明暗) は一覧に書かない。ギャラリーがすべての変種にかける。変種が自分の幅や高さを決めるときは `w` `h`
 - データは手で書かない: `internal/web/gallery_test.go` が小さな報告と操作の列から `page` の JSON を作り、`static/gallery/fixtures.json` に置く (dense・comments・hidden・long・problems・empty・noreport・nosession、一覧のページの none・several・gone、断りの文、送ったあとの文)。ページは新しいタブが見るとおり (`u` は無い)。操作したタブのバーは `UndoMore`。コードが変われば `TestGalleryFixtures` が落ちる。作り直しは `go test ./internal/web -run TestGalleryFixtures -update`
 - 漏れは 2 段で見つける:
@@ -20,7 +20,7 @@
 
 ## 生きたページと同じか (fidelity)
 
-`scripts/web-gallery.sh` は、fixture を作った報告と操作の列を本物のボードとして置き (`go test … -boards DIR`)、`pitboard serve --foreground --gallery` で出す。`--gallery` のサーバーでだけ、ページは `?ui=<JSON>` で状態に入り、時計は fixture と同じ (`web.GalleryNow`)。ふつうの `serve` は `?ui=` を読まない。すべてのページ全体 (`pages/*`) といくつかの変種を、生きたページを同じ状態にして DOM を比べる (id・キー・トークン・画像の場所・カーソルは除く)。部品は、その行の並びが生きたページの中に順に見つかること。違えば失敗。
+`scripts/web-gallery.sh` は、fixture を作った報告と操作の列を本物のボードとして置き (`go test … -boards DIR`)、`pitboard serve --foreground --gallery` で出す。`--gallery` のサーバーでだけ、ページは `?ui=<JSON>` で状態に入り、時計は fixture と同じ (`web.GalleryNow`)。ふつうの `serve` は `?ui=` を読まない。すべての変種 (部品・層・ページ全体・一覧のページ) を、生きたページを同じ状態にして DOM を比べる (id・キー・トークン・画像の場所・カーソルは除く)。部品は、その行の並びが生きたページの中に順に見つかること (開いた行の中身も見る)。部品を囲む行は開いておく。一覧のページは、生きた `/` の `/api/boards` に fixture の一覧を返して描かせる。違えば失敗。生きたページで作れない状態だけを `web-gallery.sh` の `NOT_LIVE` に理由と一緒に挙げて外す (`u` の履歴、ページが置いたカーソル・書き換わった行のキー (サーバーの答え)、つながらない・外されたボード、セッションの無いボード、`Item` の中身だけを仮の見出しの下に描く text の変種)。`Code` にだけクラスを足すような違いでも落ちる。
 
 ## 見る・撮る・確かめる
 

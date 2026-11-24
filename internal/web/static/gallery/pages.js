@@ -5,7 +5,7 @@
 
 export const covers = {};
 
-export const differences = {"unpinned": ["long notice open: unpinned (1280)", "long notice open: unpinned (390)"], "under-band": ["scrolled: lines under the pinned band"], "under-bar": ["scrolled: lines under the bar"], "at-bottom": ["scrolled to the bottom"], "focus-bar": ["Tab on a bar button: its focus ring"]};
+export const differences = {"unpinned": ["long notice open: unpinned (1280)", "long notice open: unpinned (390)"], "under-band": ["scrolled: lines under the pinned band"], "under-band-bare": ["scrolled: lines under the band without notices"], "text-edge": ["dense, all closed", "long strings, open", "comments, open"], "under-bar": ["scrolled: lines under the bar"], "at-bottom": ["scrolled to the bottom"], "focus-bar": ["Tab on a bar button: its focus ring"]};
 
 export const variants = [
   { name: 'dense, all closed', ui: { cur: 'hook' }, responsive: true },
@@ -19,4 +19,5 @@ export const variants = [
   { name: 'scrolled: lines under the bar', ui: { cur: 'hook' }, open: ['hook', 'web', 'olddiff'], scroll: 'under-bar' },
   { name: 'scrolled to the bottom', ui: { cur: 'deep' }, open: ['web', 'olddiff', '決まったこと (3)', '中の折りたたみ'], scroll: 'bottom' },
   { name: 'Tab on a bar button: its focus ring', ui: { cur: 'hook' }, focus: '.bar [data-act="jump"]' },
+  { name: 'scrolled: lines under the band without notices', fixture: 'comments', ui: { cur: 'c1' }, open: ['c1', 'c4', 'c6', 'f1'], scroll: 'under-band-bare', responsive: true },
 ];

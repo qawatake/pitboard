@@ -23,6 +23,9 @@ const (
 	WordPlace   = "置く"
 	WordStop    = "やめる"
 	WordNewline = "改行"
+	// MsgWritingAway is what a screen's bottom line says while the editor
+	// is open but scrolled off the screen.
+	MsgWritingAway = "書いている途中 — 何か打つと戻る"
 )
 
 // CommentHints is the keys on a comment (in a list of comments): e to

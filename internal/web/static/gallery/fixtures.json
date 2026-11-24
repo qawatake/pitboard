@@ -5629,7 +5629,8 @@
      "Key": "g",
      "Word": "飛ぶ"
     }
-   ]
+   ],
+   "ShowHidden": true
   },
   "lists": {
    "Note": "lists that wrap and do not, head words that fit one line and do not",

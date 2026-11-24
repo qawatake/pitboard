@@ -38,5 +38,5 @@ export const variants = [
   { name: 'empty report', fixture: 'empty' },
   { name: 'no report yet', fixture: 'noreport' },
   { name: 'no session yet', fixture: 'nosession' },
-  { name: 'format errors', fixture: 'problems' },
+  { name: 'format errors', fixture: 'problems', ui: { cur: 'ok' } },
 ];

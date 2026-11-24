@@ -12,11 +12,14 @@
 # system's Chrome). Nothing is clicked through: the gallery draws each
 # state from fixtures. Everything it starts is stopped at the end.
 #
-# Fidelity: every whole page (pages/*) and a few variants are also drawn
-# LIVE: the same board, served for real, put in the same state by ?ui=
-# (only a --gallery server takes it). The DOM of the two (without ids,
-# keys, tokens, image sources and the cursor) must be the same: for a
-# part, its lines must be found, in order, among the live page's.
+# Fidelity: every variant (parts, layers, whole pages, the index) is also
+# drawn LIVE: the same board, served for real, put in the same state by
+# ?ui= (only a --gallery server takes it); the index on the fixture's
+# boards (its /api/boards answered with them). The DOM of the two
+# (without ids, keys, tokens, image sources and the cursor) must be the
+# same: for a part, its lines must be found, in order, among the live
+# page's. NOT_LIVE lists, each with its reason, the few states a live page
+# cannot be put in.
 #
 # Its scratch files go in $GALLERY_TMP (default $TMPDIR, else /tmp).
 # Playwright keeps a Unix socket under $TMPDIR, whose path may be at most
@@ -148,21 +151,41 @@ async (page) => {
       return '<' + n.tagName.toLowerCase() + (cls ? '.' + cls : '') + (at ? '[' + at + ']' : '') + '>' + [...n.childNodes].map(ser).join('') + '</>';
     };
     const root = sel();
-    if (part) return { lists: [...root.querySelectorAll('.board, .notices, .kids')].map((l) => [...l.children].map(ser)) };
+    if (part) return { lists: [...root.querySelectorAll('.board, .notices, .kids, .body')].map((l) => [...l.children].map(ser)) };
     return ['.scroller', '.foot', '.cpanel', '.help', '.viewer', '.editor.loose'].map((s) => { const e = root.querySelector(s); return s + ':' + (e ? ser(e) : '-'); });
   };
-  const FID = new Set(['section-02', 'fold-01', 'fold-02', 'item-02', 'item-04', 'ask-02', 'notice-02', 'comment-04', 'link-02', 'editor-01', 'editor-05', 'editor-06', 'editor-11', 'comments-01', 'bar-03', 'banners-01', 'goto-01', 'help-01']);
-  const fid = g.stories.filter((s) => s.ui && (s.module === 'pages' || FID.has(s.id)));
+  // Every story is compared, but these: a live page cannot be put in
+  // their state (?ui= takes the page's own state, not the server's or the
+  // connection's).
+  const NOT_LIVE = {
+    'bar-02': 'u 元に戻す: the history of acts of the tab (CanUndo), kept by the server per tab',
+    'bar-09': 'the offer on a line the page placed the cursor on: the server answers how the cursor came there, and ?ui= always says the person moved it',
+    'bar-10': 'a line rewritten under the cursor: the server locks the offer for a token it no longer has',
+    'banners-02': 'offline: the state of the connection (?ui= keeps the page live, else it would never draw)',
+    'banners-03': 'gone: what the server says of a board it dropped',
+    'banners-06': 'no session yet: there is no board to serve (serve needs a session)',
+    'text-05': 'an Item body drawn alone under a made-up heading; the same lines are compared live in item-04 (web, open)',
+  };
+  const fx = await page.evaluate(() => fetch('/gallery/fixtures.json').then((r) => r.json()));
+  const fid = g.stories.filter((s) => (s.ui || s.kind === 'home') && !NOT_LIVE[s.id]);
   for (const s of fid) {
     await page.goto(base + '/_gallery?w=1280&theme=light&only=' + s.module + '/' + s.nn);
     await page.waitForFunction(() => window.__gallery && window.__gallery.ready, null, { timeout: 30000 });
     const part = s.kind === 'part';
     const want = await page.evaluate(([id, part, f]) => (0, eval)(f)(() => document.querySelector('#story-' + id + ' .app'), part), [s.id, part, '(' + serialize.toString() + ')']);
-    if (!boards[s.fixture]) { problems.push({ id: s.id, what: 'fidelity: no live board for ' + s.fixture, at: 'live' }); continue; }
     await page.setViewportSize({ width: s.w, height: s.h });
-    await page.goto(boards[s.fixture] + '?ui=' + encodeURIComponent(JSON.stringify(s.ui)));
-    await page.waitForFunction(() => document.body.dataset.ui === 'set' && document.querySelector('.board') && document.querySelector('.board').childElementCount > 0, null, { timeout: 15000 }).catch(() => {});
+    if (s.kind === 'home') {
+      // The index, live, on the fixture's boards (its JSON, as the server's).
+      await page.route('**/api/boards', (r) => r.fulfill({ contentType: 'application/json', body: JSON.stringify(fx.Index[s.index]) }));
+      await page.goto(base + '/');
+      await page.waitForFunction(() => document.querySelector('.boards') && document.querySelector('.boards').childElementCount > 0, null, { timeout: 15000 }).catch(() => {});
+    } else {
+      if (!boards[s.fixture]) { problems.push({ id: s.id, what: 'fidelity: no live board for ' + s.fixture, at: 'live' }); continue; }
+      await page.goto(boards[s.fixture] + '?ui=' + encodeURIComponent(JSON.stringify(s.ui)));
+      await page.waitForFunction(() => document.body.dataset.ui === 'set' && document.querySelector('.board') && document.querySelector('.board').childElementCount > 0, null, { timeout: 15000 }).catch(() => {});
+    }
     await page.waitForTimeout(700);
+    if (s.kind === 'home') await page.unroute('**/api/boards');
     const got = await page.evaluate(([part, f]) => (0, eval)(f)(() => document.querySelector('.app'), part), [part, '(' + serialize.toString() + ')']);
     let ok;
     if (part) {

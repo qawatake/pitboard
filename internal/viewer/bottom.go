@@ -143,6 +143,9 @@ type hint struct {
 	k, d  string
 	alt   string // a shorter label tried before hints are left out
 	short string // the short form: these keys alone, without the label
+	// shortK is a shorter way to write the key itself (S-enter), tried
+	// last.
+	shortK string
 	// shortD is a word the short form keeps while it fits (then it goes
 	// too).
 	shortD string

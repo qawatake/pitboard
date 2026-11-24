@@ -39,7 +39,7 @@ function render() {
 
 // mark shows the cursor on its row only.
 function mark() {
-  for (const a of document.querySelectorAll('#boards .rowbtn')) {
+  for (const a of document.querySelectorAll('.boards .rowbtn')) {
     const on = a.dataset.nav === cur;
     a.parentElement.classList.toggle('cur', on);
     if (on) a.setAttribute('aria-current', 'true'); else a.removeAttribute('aria-current');
@@ -66,8 +66,8 @@ function onKey(e) {
   let k = e.key;
   if (k.length === 1 && k.charCodeAt(0) >= 0xff01 && k.charCodeAt(0) <= 0xff5e) k = String.fromCharCode(k.charCodeAt(0) - 0xfee0);
   switch (k) {
-    case 'j': case 'ArrowDown': e.preventDefault(); move(1); return;
-    case 'k': case 'ArrowUp': e.preventDefault(); move(-1); return;
+    case 'j': e.preventDefault(); move(1); return; // ↑ ↓ scroll (the browser's)
+    case 'k': e.preventDefault(); move(-1); return;
     case 'Enter': {
       if (document.activeElement && document.activeElement.dataset && document.activeElement.dataset.nav) return; // the link's own
       const a = document.querySelector(`[data-nav="${CSS.escape(cur)}"]`);

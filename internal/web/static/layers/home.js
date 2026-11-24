@@ -57,7 +57,7 @@ export function draw(app, data, cur, offline) {
 
 export const covers = {};
 
-export const differences = {"index-none": ["no boards"], "index-several": ["several boards"], "index-gone": ["one board gone"]};
+export const differences = {"index-none": ["no boards"], "index-several": ["several boards"], "text-edge": ["several boards"], "index-gone": ["one board gone"]};
 
 export const variants = [
   { name: 'no boards', index: 'none' },

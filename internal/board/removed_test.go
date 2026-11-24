@@ -250,3 +250,30 @@ func TestRemovedTitleFromValidParse(t *testing.T) {
 		t.Errorf("warnings %q", w)
 	}
 }
+
+// FIX21: a row the person's screen showed is remembered (RememberShown),
+// so removing it before the AI runs any command is still warned of; and
+// an answer given to what an Ask said before does not answer it.
+func TestRemovedShownAndStaleAnswer(t *testing.T) {
+	st := testStore(t)
+	writeReport(t, st, "<Ask id=\"q\">どちら\n<Option key=\"a\">A</Option>\n<Option key=\"b\">B</Option>\n</Ask>\n")
+	st.RememberShown() // the viewer showed it; no AI command yet
+	writeReport(t, st, "<Item id=\"other\">別の行</Item>\n")
+	if w := st.Removed(); len(w) != 1 || !strings.Contains(w[0], `row "q"`) {
+		t.Fatalf("shown, then removed: %q", w)
+	}
+
+	st2 := testStore(t)
+	v1 := "<Ask id=\"q\">どちら\n<Option key=\"a\">A</Option>\n<Option key=\"b\">B</Option>\n</Ask>\n"
+	writeReport(t, st2, v1)
+	nodes, _, _ := report.Parse(v1)
+	st2.Append(Event{Op: "react", ID: "q", Value: "a", Option: "A", Line: report.ByID(nodes, "q").Sig()})
+	st2.Removed()
+	// Rewritten: the board shows q waiting again; then removed.
+	writeReport(t, st2, "<Ask id=\"q\">どちらにする (書き直した)\n<Option key=\"a\">A</Option>\n<Option key=\"b\">B</Option>\n</Ask>\n")
+	st2.Removed()
+	writeReport(t, st2, "<Item id=\"other\">別の行</Item>\n")
+	if w := st2.Removed(); len(w) != 1 || !strings.Contains(w[0], "has not hidden or answered") {
+		t.Errorf("answered an older version, then removed: %q", w)
+	}
+}

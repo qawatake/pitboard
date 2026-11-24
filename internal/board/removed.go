@@ -37,7 +37,10 @@ type seenRow struct {
 	Wait    bool   `json:",omitempty"` // wait="you": a reaction, hiding or a sent comment
 	Look    bool   `json:",omitempty"` // look="y": reading it is enough
 	HideKey string `json:",omitempty"`
-	View    string `json:",omitempty"` // the hash of its ViewKey (read = the person viewed it)
+	// Sig is what the row said (report.Node.Sig): an answer given to what
+	// it said before does not answer it (as its mark: page.Board.Waiting).
+	Sig  string `json:",omitempty"`
+	View string `json:",omitempty"` // the hash of its ViewKey (read = the person viewed it)
 }
 
 func (s *Store) readRows() map[string]seenRow {
@@ -80,6 +83,34 @@ func (s *Store) reportRows() (now map[string]*report.Node, ok, valid bool) {
 	return now, true, len(probs) == 0
 }
 
+// addRows remembers the rows of now (as they are now) in rows.
+func addRows(rows map[string]seenRow, now map[string]*report.Node) {
+	for k, n := range now {
+		rows[k] = seenRow{Title: n.Title(), HideKey: report.HideKey(n), View: viewHash(n), Sig: n.Sig(),
+			Ask:  n.Kind == report.KindQuestion,
+			Wait: n.Wait == "you",
+			Look: n.Look == "y"}
+	}
+}
+
+// RememberShown remembers the rows of the report as a screen (the
+// viewer, a browser page) has just shown them to the person, so that one
+// the AI removes before it runs a command is still warned of. Only a
+// report without problems; rows.json is written only when it changes.
+func (s *Store) RememberShown() {
+	defer func() { recover() }()
+	now, ok, valid := s.reportRows()
+	if !ok || !valid || len(now) == 0 {
+		return
+	}
+	rows := s.readRows()
+	before, _ := json.Marshal(rows)
+	addRows(rows, now)
+	if after, _ := json.Marshal(rows); string(after) != string(before) {
+		s.writeRows(rows)
+	}
+}
+
 // Removed is the warnings about rows the report no longer has, one line
 // each, in key order ('check' prints them; they stay until said once by
 // TakeRemoved). Nothing when the report cannot be read (it is not the time
@@ -109,12 +140,7 @@ func (s *Store) removed(take bool) (warnings []string) {
 	// may be what a broken edit left, and the warnings keep the last good
 	// ones.
 	if valid {
-		for k, n := range now {
-			rows[k] = seenRow{Title: n.Title(), HideKey: report.HideKey(n), View: viewHash(n),
-				Ask:  n.Kind == report.KindQuestion,
-				Wait: n.Wait == "you",
-				Look: n.Look == "y"}
-		}
+		addRows(rows, now)
 	}
 	st := Replay(s.Events(), s.Seen())
 	viewed := s.Viewed()
@@ -156,7 +182,9 @@ func removedWarnings(key string, r seenRow, st *State, viewed map[string]bool) [
 		head = fmt.Sprintf("warning: Fold %q was removed", cutTitle(title))
 	}
 	// What is in effect now: Replay leaves out what was taken back.
-	_, reacted := st.React[key]
+	// An answer counts only on what the row said when it was answered.
+	e, reacted := st.React[key]
+	reacted = reacted && (r.Sig == "" || e.Line == "" || e.Line == r.Sig)
 	hidden := r.HideKey != "" && st.Hidden[r.HideKey]
 	var sent, open []string
 	for _, t := range st.On(key) {

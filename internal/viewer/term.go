@@ -20,16 +20,16 @@ import (
 // dependency; everything else is plain ANSI escape sequences.
 
 const (
-	rst     = "\x1b[0m"
-	bold    = "\x1b[1m"
-	dim     = "\x1b[2m"
-	rev     = "\x1b[7m"
-	ul      = "\x1b[4m"
-	red     = "\x1b[31m"
-	green   = "\x1b[32m"
-	yellow  = "\x1b[33m"
-	cyan    = "\x1b[36m"
-	blue    = "\x1b[94m"
+	rst    = "\x1b[0m"
+	bold   = "\x1b[1m"
+	dim    = "\x1b[2m"
+	rev    = "\x1b[7m"
+	ul     = "\x1b[4m"
+	red    = "\x1b[31m"
+	green  = "\x1b[32m"
+	yellow = "\x1b[33m"
+	cyan   = "\x1b[36m"
+	blue   = "\x1b[94m"
 )
 
 // The palette (page.Palette) on a terminal: each name's color. A color is

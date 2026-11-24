@@ -8,8 +8,10 @@
      yours      teal: what the person entered (an answer's key, the chosen option)
      bad        red: errors, n, a removed diff line
    The rest is the text color (--fg) on the page's (--bg), with --line for
-   the hairlines of what floats. No borders for decoration, no cards, no
-   fills, no stripes.
+   the hairlines. The page's content has no borders, cards, fills or
+   stripes. What floats over it (the m editor, the comment panel, ?, an
+   image shown whole), the editor's field and images (foreign content)
+   have an edge: a 1px --line border.
 
    The page is an .app: a box the size of the screen (the gallery draws
    many, each the size of its frame) that the page scrolls inside. Sizes
@@ -19,15 +21,16 @@
 /* ---- tokens ---- */
 
 .app {
-  --bg: #ffffff; --fg: #1d1d1f; --line: #c9c9cf;
+  --bg: #ffffff; --fg: #1d1d1f; --line: #c2c2c8;
   --need: #8a5300; --move: #18733a; --quiet: #5f6368;
   --structure: #1a5fb4; --yours: #0b6e85; --bad: #b3261e;
   --scrim: rgb(0 0 0 / .55); --on-scrim: #ffffff; --veil: rgb(0 0 0 / .12);
-  /* What floats (the comment panel, the m editor) has one edge: on light,
-     a soft shadow alone (a tight contact shadow and a wide ambient one);
-     on dark, where a shadow vanishes, a hairline and a faint shadow. */
-  --edge: transparent;
-  --shadow: 0 1px 3px rgb(0 0 0 / .07), 0 10px 30px -6px rgb(0 0 0 / .12);
+  /* A surface (what floats, the editor's field): --surface (on light the
+     page's white; on dark a step lighter than the page), a 1px --line
+     border, rounded (--r-surface), and on what floats a two-layer soft
+     shadow (a tight contact shadow and a wide ambient one). */
+  --surface: #ffffff;
+  --shadow: 0 1px 3px rgb(0 0 0 / .10), 0 12px 32px -6px rgb(0 0 0 / .22);
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -36,7 +39,7 @@
     --need: #f0c05a; --move: #63d68a; --quiet: #a3a3aa;
     --structure: #8fb8f2; --yours: #6fd3eb; --bad: #ff8a80;
     --scrim: rgb(0 0 0 / .7); --veil: rgb(0 0 0 / .4);
-    --edge: var(--line); --shadow: 0 1px 2px rgb(0 0 0 / .25), 0 10px 30px -6px rgb(0 0 0 / .35);
+    --surface: #252528; --shadow: 0 1px 2px rgb(0 0 0 / .3), 0 12px 32px -6px rgb(0 0 0 / .5);
     color-scheme: dark;
   }
 }
@@ -45,7 +48,7 @@
   --need: #f0c05a; --move: #63d68a; --quiet: #a3a3aa;
   --structure: #8fb8f2; --yours: #6fd3eb; --bad: #ff8a80;
   --scrim: rgb(0 0 0 / .7); --veil: rgb(0 0 0 / .4);
-  --edge: var(--line); --shadow: 0 1px 2px rgb(0 0 0 / .25), 0 10px 30px -6px rgb(0 0 0 / .35);
+  --surface: #252528; --shadow: 0 1px 2px rgb(0 0 0 / .3), 0 12px 32px -6px rgb(0 0 0 / .5);
   color-scheme: dark;
 }
 
@@ -67,6 +70,10 @@
   --gap-under-head: .4rem;  /* under a heading */
   --gap-para: .3rem;        /* between paragraphs */
   --gap-blank: .9rem;       /* where the report had a blank line */
+  --gap-image: .75rem;      /* between images, and from the text */
+
+  --r-surface: 14px;        /* the corners of a surface */
+  --r-image: 8px;           /* the corners of an image */
 
   /* Where a floating layer (the comment panel, the m editor) sits: low and
      centered, on the text column's edges (the page's own --gw, resolved
@@ -86,8 +93,13 @@
   --z-dialog: 110;   /* the keys */
   --z-image: 120;    /* an image, over everything */
 }
+/* Narrow: the gutter's columns are narrower, and --gw is summed again
+   from them where they change (a custom property is resolved where it is
+   declared: else the band, the report and the bar would keep the wide
+   gutter while a row's columns take the narrow one, and titles would
+   start left of the text edge). */
 @container app (max-width: 30em) {
-  .scroller, .foot, .cpanel { --cw: .8rem; --mw: .9rem; --sw: 1.2rem; }
+  .scroller, .foot, .cpanel { --cw: .8rem; --mw: .9rem; --sw: 1.2rem; --gw: calc(var(--cw) + var(--mw) + var(--sw)); }
 }
 
 /* ---- the frame ---- */
@@ -118,6 +130,7 @@ body.live .app { height: 100dvh; }
 .app.part { container-type: inline-size; height: auto; }
 .app.part .scroller { position: static; overflow: visible; padding: .5rem 0; }
 .app.part .foot { display: none; }
+.app.part .top:not(:has(.notices > .row)) { display: none; }
 
 /* The text edge: the band, the banner, the report, the message, the keys. */
 .top, .banner, .board, .status, .bar {
@@ -153,7 +166,9 @@ a { color: var(--structure); }
    page's color with a hairline under it and a little room, so what
    scrolls under it never reads as a notice's. */
 .top { position: sticky; top: 0; z-index: var(--z-band); background: var(--bg); }
-.top:has(.notices > .row) { border-bottom: 1px solid var(--line); padding-bottom: .3rem; margin-bottom: .5rem; }
+/* Its edge always, with or without notices: whatever scrolls under the
+   band (the counts alone too) is cut by a line, never mid-glyph. */
+.top { border-bottom: 1px solid var(--line); padding-bottom: .3rem; margin-bottom: .5rem; }
 /* The band spans the page; its text keeps the edge. */
 .top, .banner { max-width: none; padding-inline: max(calc(1rem + var(--gw)), calc((100% - var(--measure)) / 2 + 1rem + var(--gw))) max(1rem, calc((100% - var(--measure)) / 2 + 1rem)); }
 .notices { padding-top: .3rem; }
@@ -184,6 +199,8 @@ h2.section { position: relative; font-size: 1.1em; line-height: 1.4; color: var(
 .hasHead.def > .hw { display: block; }
 .hasHead.def > .hsep { display: none; }
 .hasHead.def > .hb { display: block; padding-left: var(--step); }
+/* Narrow: the body goes back under the head (the loose gap stays). */
+@container app (max-width: 30em) { .hasHead.def > .hb { padding-left: 0; } }
 .subs { padding-left: var(--step); }
 /* Code never scrolls: a long line wraps, as on the terminal, anywhere,
    and goes on under the line's own indent (after a diff's sign): --hang
@@ -316,15 +333,39 @@ button.rowlink:focus-visible { outline: 2px solid var(--structure); outline-offs
    a comment's text), aspect kept, never larger than they are; they wrap
    in a row, so two fit side by side. The same everywhere (the editor, a
    comment under its line, the comments panel). A click opens the whole.
-   The row is a container of its own: 1cqi is 1% of the column. */
-.thumbs { display: flex; flex-wrap: wrap; gap: .5rem; margin: .3rem 0; container-type: inline-size; }
+   The row is a container of its own: 1cqi is 1% of the column. Each has
+   an edge (a 1px --line border, rounded), so a white screenshot does not
+   melt into the page, and a clear gap from the next and from the text.
+   In the editor, a small × in its corner takes its [Image #N] out of the
+   text. */
+.thumbs { display: flex; flex-wrap: wrap; gap: var(--gap-image); margin: var(--gap-image) 0; container-type: inline-size; }
 .thumbs:empty { display: none; }
-.thumbs button { all: unset; cursor: zoom-in; min-width: 0; max-width: 100%; }
-.thumbs img { display: block; width: auto; height: auto; max-width: calc(50cqi - .25rem); max-height: calc(50cqi - .25rem); }
+.thumb { position: relative; min-width: 0; max-width: 100%; }
+.thumbs button { all: unset; box-sizing: border-box; cursor: zoom-in; display: block; max-width: 100%; }
+.thumbs img {
+  display: block; width: auto; height: auto;
+  max-width: calc(50cqi - var(--gap-image) / 2); max-height: calc(50cqi - var(--gap-image) / 2);
+  border: 1px solid var(--line); border-radius: var(--r-image); background: var(--bg);
+}
+.thumbs button.unimage {
+  position: absolute; top: .3rem; right: .3rem; cursor: pointer;
+  width: 1.4rem; height: 1.4rem; border-radius: 50%; text-align: center; line-height: 1.3rem;
+  font-size: .85rem; font-weight: 700; color: var(--fg); background: var(--surface); border: 1px solid var(--line);
+}
+.thumbs button.unimage:hover { border-color: var(--fg); }
+.thumbs button:focus-visible { outline: 2px solid var(--structure); outline-offset: 2px; border-radius: var(--r-image); }
+.thumbs button.unimage:focus-visible { border-radius: 50%; }
 
 /* ---- the editor ---- */
 
-.editor { margin: .3rem 0 .5rem; }
+/* The editor is one card (a surface): the label, the text area (no edge
+   of its own: the card is the field) and the images the text refers to.
+   The focus shows on the card (its border in --structure). */
+.editor {
+  margin: .3rem 0 .5rem; padding: .5rem .8rem .3rem;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-surface);
+}
+.editor:focus-within { border-color: var(--structure); }
 /* Under a line, the editor starts where the comment will sit once placed
    (one step in, as the comments under an opened line); in the panel, on
    the comment's text. */
@@ -338,22 +379,22 @@ button.rowlink:focus-visible { outline: 2px solid var(--structure); outline-offs
   /* Never more than 55% of the screen: the text grows to its limit and
      scrolls; past that (images) the editor scrolls, its own wheel. */
   max-height: 55cqh; overflow-y: auto; overscroll-behavior: contain;
-  background: var(--bg); border: 1px solid var(--edge); box-shadow: var(--shadow);
-  padding: .6rem 1rem .8rem;
+  box-shadow: var(--shadow);
+  padding: .6rem 1rem .4rem;
 }
-.editor.loose label { font-size: 1.05em; font-weight: 700; color: var(--structure); margin-bottom: .3rem; }
+/* A sheet on a phone: edge to edge, its top edge and corners kept. */
 @container app (max-width: 30em) {
-  .editor.loose { inset: auto 0 var(--foot-h, 4rem) 0; width: auto; border-width: 1px 0 0; border-color: var(--line); box-shadow: none; }
+  .editor.loose { inset: auto 0 var(--foot-h, 4rem) 0; width: auto; border-width: 1px 0 0; border-radius: var(--r-surface) var(--r-surface) 0 0; }
 }
-.editor label { display: block; font-size: .9em; color: var(--quiet); }
-/* An input needs an edge to be seen as one. It grows with what is
-   written, up to 40% of the screen, then scrolls. */
+/* The label is quiet and small, inside the card above the text. */
+.editor label { display: block; font-size: .85em; color: var(--quiet); }
+/* It grows with what is written, up to 40% of the screen, then scrolls. */
 .editor textarea {
   display: block; width: 100%; min-height: 4.5em; max-height: 40cqh; overflow-y: auto;
-  field-sizing: content; resize: vertical;
-  font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); padding: .4rem;
+  field-sizing: content; resize: none;
+  font: inherit; color: var(--fg); background: transparent; border: 0; padding: .2rem 0;
 }
-.editor textarea:focus { outline: none; border-color: var(--structure); }
+.editor textarea:focus { outline: none; }
 
 /* ---- the bottom: message and keys ---- */
 
@@ -394,13 +435,13 @@ button.rowlink:focus-visible { outline: 2px solid var(--structure); outline-offs
 /* The comments float: a dialog low and centered on the text column
    (--float-inset, as the m editor), over the page, as tall as what it
    holds, up to 70% of the screen; only then does it scroll. A sheet the
-   size of the screen on a phone. Its edge is --edge and --shadow:
-   nothing else. */
+   size of the screen on a phone. A surface: --surface, a 1px --line
+   border, rounded, --shadow. */
 .cpanel {
   position: absolute; z-index: var(--z-panel); inset: var(--float-inset);
   max-height: 70cqh; overflow-y: auto; overscroll-behavior: contain;
-  background: var(--bg); color: var(--fg);
-  border: 1px solid var(--edge); box-shadow: var(--shadow);
+  background: var(--surface); color: var(--fg);
+  border: 1px solid var(--line); border-radius: var(--r-surface); box-shadow: var(--shadow);
   padding: .5rem 1rem .8rem calc(1rem + var(--gw));
   /* Comments have no mark or sign: the gutter is the cursor's column (its
      own --gw, so a row hangs exactly its columns). Two edges: the number
@@ -413,7 +454,7 @@ button.rowlink:focus-visible { outline: 2px solid var(--structure); outline-offs
 .cpanel h2 { font-size: 1.05em; color: var(--structure); margin: .2rem 0 .3rem; }
 .cpanel .msg { margin: .6rem 0; }
 @container app (max-width: 30em) {
-  .cpanel { inset: 0 0 var(--foot-h, 4rem) 0; width: auto; max-height: none; border: 0; box-shadow: none; }
+  .cpanel { inset: 0 0 var(--foot-h, 4rem) 0; width: auto; max-height: none; border-width: 0; border-radius: 0; box-shadow: none; }
 }
 /* While the panel is open its keys (esc 閉じる, the comments button) stay
    reachable: the bar is over the veil. */
@@ -433,7 +474,10 @@ button.rowlink:focus-visible { outline: 2px solid var(--structure); outline-offs
 .overlay { position: absolute; inset: 0; z-index: var(--z-dialog); background: var(--scrim); display: flex; align-items: center; justify-content: center; flex-direction: column; gap: .5rem; padding: 1rem; }
 .overlay[hidden] { display: none; }
 .viewer { z-index: var(--z-image); }
-.sheet { background: var(--bg); color: var(--fg); width: min(46rem, 100%); max-height: 85cqh; overflow-y: auto; overscroll-behavior: contain; padding: 1rem 1.25rem; }
+.sheet {
+  background: var(--surface); color: var(--fg); width: min(46rem, 100%); max-height: 85cqh; overflow-y: auto; overscroll-behavior: contain; padding: 1rem 1.25rem;
+  border: 1px solid var(--line); border-radius: var(--r-surface); box-shadow: var(--shadow);
+}
 .sheet h2 { margin: 0 0 .6rem; font-size: 1.1em; color: var(--structure); }
 .sheet h2:focus { outline: none; }
 .sheet dl { display: grid; grid-template-columns: 9rem minmax(0, 1fr); gap: .25rem 1rem; margin: 0 0 1rem; }
@@ -443,11 +487,13 @@ button.rowlink:focus-visible { outline: 2px solid var(--structure); outline-offs
 .sheet h3 { grid-column: 1 / -1; margin: .8rem 0 0; font-size: 1em; color: var(--structure); }
 @container app (max-width: 30em) {
   .help.overlay { padding: 0; }
-  .help .sheet { width: 100%; height: 100%; max-height: none; }
+  .help .sheet { width: 100%; height: 100%; max-height: none; border-width: 0; border-radius: 0; box-shadow: none; }
   .sheet dl { grid-template-columns: 6.5rem minmax(0, 1fr); }
 }
 .viewer button { color: var(--on-scrim); }
-.viewer img { max-width: 95cqw; max-height: 85cqh; }
+/* The image on the scrim has an edge and the page's color behind it: a
+   white screenshot (or a transparent one) stays readable. */
+.viewer img { max-width: 95cqw; max-height: 85cqh; border: 1px solid var(--line); border-radius: var(--r-image); background: var(--bg); }
 
 /* ---- the index (/) ---- */
 

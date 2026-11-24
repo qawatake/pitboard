@@ -37,8 +37,9 @@ const W = Number(params.get('w')) || 1280;
 const THEME = params.get('theme') === 'dark' ? 'dark' : 'light';
 const CUR = params.get('cur') === '1';
 const ONLY = params.get('only') || ''; // module, or module/NN
-// Image 2 is large (2400 × 1600), 3 tall (600 × 1800), any other small.
-const env = { imageURL: (n) => (n === 2 ? '/gallery/large.svg' : n === 3 ? '/gallery/tall.svg' : '/gallery/sample.svg') };
+// Image 2 is large (2400 × 1600), 3 tall (600 × 1800), 4 white (a
+// screenshot of a white page, 1200 × 760), any other small.
+const env = { imageURL: (n) => (n === 2 ? '/gallery/large.svg' : n === 3 ? '/gallery/tall.svg' : n === 4 ? '/gallery/white.svg' : '/gallery/sample.svg') };
 
 const fx = await (await fetch('/gallery/fixtures.json')).json();
 const report = { ready: false, stories: [], errors: [] };
@@ -64,7 +65,7 @@ function resolve(v, isPart) {
   if (!sit) throw new Error(`no fixture ${v.fixture}`);
   // undo: as the tab that did the acts sees it (its bar has u).
   const page = v.undo ? { ...sit.Page, CanUndo: true, More: sit.UndoMore } : sit.Page;
-  const ui = { ...S.initial(), ...(v.ui || {}), open: {}, unpinned: {} };
+  const ui = { ...S.initial(), ...(sit.ShowHidden ? { showHidden: true } : {}), ...(v.ui || {}), open: {}, unpinned: {} };
   for (const [k, on] of Object.entries((v.ui && v.ui.open) || {})) ui.open[keyOf(page, k)] = on;
   for (const n of v.open && v.open !== true ? v.open : []) ui.open[keyOf(page, n)] = true;
   for (const n of v.openAlso || []) ui.open[keyOf(page, n)] = true;
@@ -77,6 +78,9 @@ function resolve(v, isPart) {
     things = [t];
     if (v.after) things.push(v.after(page));
     if (v.open === true) ui.open[t.Key] = true;
+    // The lines that hold it open (no change to the part drawn alone): the
+    // live page it is compared with shows it so.
+    for (const k of S.index(page).parents.get(t.Key) || []) if (!(k in ui.open)) ui.open[k] = true;
     if (CUR && t.Stop) ui.cur = t.Key;
   } else {
     ui.cur = keyOf(page, ui.cur);
@@ -121,12 +125,62 @@ function floatsLow(app, el) {
   return Math.abs(r.left - left) < 1.5 && Math.abs(r.right - right) < 1.5 && gap > 0 && gap < 24;
 }
 
+// rgba is a computed color as [r, g, b, a].
+function rgba(c) {
+  const m = c.match(/rgba?\(([^)]*)\)/);
+  if (!m) return null;
+  const p = m[1].split(/[\s,/]+/).filter(Boolean).map(Number);
+  return [p[0], p[1], p[2], p.length > 3 ? p[3] : 1];
+}
+// contrast is the WCAG contrast of two opaque colors.
+function contrast(x, y) {
+  const lum = (c) => { const [r, g, b] = c.slice(0, 3).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+  const [h, l] = [lum(x), lum(y)].sort((p, q) => q - p);
+  return (h + 0.05) / (l + 0.05);
+}
+// edged: e has a visible edge: a border ≥ 1px (its top one: a sheet on a
+// phone keeps only that) of a color that is not e's background, standing
+// off the page (contrast ≥ 1.3 with the page's color).
+function edged(app, e) {
+  const cs = getComputedStyle(e);
+  const bc = rgba(cs.borderTopColor), page = rgba(getComputedStyle(app).backgroundColor);
+  return parseFloat(cs.borderTopWidth) >= 1 && cs.borderTopStyle !== 'none' && !!bc && bc[3] === 1 &&
+    cs.borderTopColor !== cs.backgroundColor && contrast(bc, page) >= 1.3;
+}
+
+// textEdges is the left edges of the text that must start on the one
+// text edge: the outermost rows' titles (the band's and the report's, the
+// lines of a top-level Fold lifted onto it, the index's boards), and the
+// headings, paragraphs and the bar's first key. {titles, others}.
+function textEdges(a) {
+  const left = (e) => e.getBoundingClientRect().left;
+  const titles = all(a, '.notices > .row > .rowbtn > .title, .board > .row > .rowbtn > .title, .board > .row.heading > .kids > .row > .rowbtn > .title, .boards > .row > .rowbtn > .title').map(left);
+  const others = all(a, '.board > h1, .board > h2.section, .board > .para').map(left);
+  const key = all(a, '.foot .bar > .hints > *')[0];
+  if (key) others.push(left(key));
+  return { titles, others };
+}
+
+// banded: the pinned band has its edge: a hairline under it, of a color
+// that stands off the page.
+function banded(a) {
+  const t = a.querySelector('.top'), cs = getComputedStyle(t);
+  const bc = rgba(cs.borderBottomColor), page = rgba(getComputedStyle(a).backgroundColor);
+  return parseFloat(cs.borderBottomWidth) >= 1 && cs.borderBottomStyle !== 'none' && !!bc && bc[3] === 1 && contrast(bc, page) >= 1.3;
+}
+
 // DIFFS says, for each visual difference a module may declare, whether a
 // drawn frame shows it.
 export const DIFFS = {
   'rights-below': (a) => all(a, '.rights-below > .row > .rowbtn > .right:not(:empty)').length > 0,
   'unpinned': (a) => all(a, '.board > .row.k-notice').length > 0,
-  'under-band': (a) => all(a, '.notices > .row').length > 0 && straddles(a, a.querySelector('.top').getBoundingClientRect().bottom),
+  'under-band': (a) => all(a, '.notices > .row').length > 0 && banded(a) && straddles(a, a.querySelector('.top').getBoundingClientRect().bottom),
+  // The band with the counts alone (no notice) over lines scrolled under
+  // it: its edge (a hairline) all the same.
+  'under-band-bare': (a) => all(a, '.notices > .row').length === 0 && banded(a) && straddles(a, a.querySelector('.top').getBoundingClientRect().bottom),
+  // Row titles start on the text edge of headings, paragraphs and the
+  // bar (within 1px), at every width: checked at 1280 and at 390.
+  'text-edge': (a) => { const { titles, others } = textEdges(a); const xs = [...titles, ...others]; return titles.length > 0 && others.length > 0 && Math.max(...xs) - Math.min(...xs) <= 1; },
   'under-bar': (a) => straddles(a, a.querySelector('.foot').getBoundingClientRect().top),
   'at-bottom': (a) => { const s = a.querySelector('.scroller'); return s.scrollTop > 0 && s.scrollTop + s.clientHeight >= s.scrollHeight - 1; },
   'focus-bar': (a) => { const f = document.activeElement; return !!f && a.contains(f) && !!f.closest('.bar') && f.matches(':focus-visible') && getComputedStyle(f).outlineStyle !== 'none'; },
@@ -145,6 +199,17 @@ export const DIFFS = {
   'edit-comment': (a) => all(a, '.cpanel .crow > .editor textarea').length > 0,
   'panel-scrolled': (a) => { const p = a.querySelector('.cpanel'); const c = p.querySelector('.row.cur'); if (!visible(p) || !c || p.scrollTop <= 0 || !floatsLow(a, p)) return false; const pr = p.getBoundingClientRect(), cr = c.getBoundingClientRect(); return cr.top >= pr.top - 1 && cr.bottom <= pr.bottom + 1; },
   'help-scrolled': (a) => { const s = a.querySelector('.help .sheet'); return visible(s) && s.scrollTop > 0 && s.scrollTop + s.clientHeight >= s.scrollHeight - 1; },
+  // What floats (the m editor, the comment panel, ?, an image shown
+  // whole): every one open has a visible edge.
+  'float-edge': (a) => { const fs = ['.editor.loose', '.cpanel', '.help .sheet', '.viewer img'].map((s) => a.querySelector(s)).filter(visible); return fs.length > 0 && fs.every((f) => edged(a, f)); },
+  // Images under a text: each with an edge, rounded, 12px or more from
+  // the next on its line; in the editor, each with its ×.
+  'image-edge': (a) => {
+    const ts = all(a, '.thumbs .thumb');
+    if (!ts.length) return false;
+    const gapOK = ts.every((t, i) => { const n = ts[i + 1]; if (!n || n.parentNode !== t.parentNode) return true; const r = t.getBoundingClientRect(), q = n.getBoundingClientRect(); return Math.abs(r.top - q.top) > 1 || q.left - r.right >= 11.5; });
+    return gapOK && ts.every((t) => { const i = t.querySelector('img'); return edged(a, i) && parseFloat(getComputedStyle(i).borderTopLeftRadius) >= 8 && (!t.closest('.editor') || visible(t.querySelector('.unimage'))); });
+  },
   'image-large': (a) => { const i = a.querySelector('.viewer img'); return visible(i) && i.naturalWidth > i.clientWidth + 1; },
   'message': (a) => all(a, '.status:not(.need)').some((s) => s.textContent !== ''),
   'sent': (a) => all(a, '.status').some((s) => s.textContent.startsWith(fx.Sent)),
@@ -307,8 +372,9 @@ function story(mod, v, i, kind, grid) {
     if (st) {
       rec.fixture = v.fixture || 'dense';
       const u = st.ui;
-      rec.ui = { cur: u.cur, open: u.open, mode: u.mode, panel: u.panel, editor: u.editor, image: u.image, status: u.status, statusTone: u.statusTone, showHidden: u.showHidden, how: 'person', start: false, at: 0 };
+      rec.ui = { cur: u.cur, open: u.open, mode: u.mode, panel: u.panel, editor: u.editor, image: u.image, status: u.status, statusTone: u.statusTone, showHidden: u.showHidden, back: u.back, busy: u.busy, how: 'person', start: false, at: 0 };
     }
+    if (kind === 'home') rec.index = v.index;
     stories.push({ rec, app, v, kind, ui: st && st.ui });
   } catch (e) {
     box.classList.add('error');
@@ -371,9 +437,12 @@ for (const s of stories) {
 }
 // What a module declares, the variant it names must show. At the default
 // width (a variant with its own width at that one); narrower, keys are
-// left out by design.
-if (!ONLY.includes('/') && W === 1280) {
+// left out by design. What holds at every width (EVERY_WIDTH) is checked
+// at each.
+const EVERY_WIDTH = new Set(['text-edge']);
+if (!ONLY.includes('/')) {
   for (const d of declared) {
+    if (W !== 1280 && !(d.axis === 'difference' && EVERY_WIDTH.has(d.value))) continue;
     for (const name of d.names) {
       const f = shown.get(name + '\u0000' + d.mod);
       if (!f) { report.errors.push({ id: d.mod, what: `${d.axis} ${d.value}: no variant "${name}"` }); continue; }

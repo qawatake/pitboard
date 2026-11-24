@@ -70,6 +70,8 @@ type Situation struct {
 	// can take them back: u). Page is as a fresh tab sees it, as the live
 	// page the gallery is compared with.
 	UndoMore []page.Hint `json:",omitempty"`
+	// ShowHidden: Page shows the hidden lines (H), as the page's ui says.
+	ShowHidden bool `json:",omitempty"`
 }
 
 // OfferPair is a line's offers, closed and open.
@@ -204,7 +206,7 @@ func (g *gboard) situation(note string, showHidden, placed bool) *Situation {
 		fresh = g.b
 	}
 	t := &tab{b: fresh, seen: map[string]seenLine{}}
-	out := &Situation{Note: note, Page: t.pageJSON(g.st, showHidden)}
+	out := &Situation{Note: note, Page: t.pageJSON(g.st, showHidden), ShowHidden: showHidden}
 	if g.b.CanWrite() && len(g.b.Hist) > 0 {
 		out.UndoMore, _ = g.b.Bar(showHidden)
 	}
@@ -651,9 +653,9 @@ var (
 // and must be shown by some variant (WEBFIX3): a module declares it, the
 // gallery checks the drawn DOM shows it.
 var requiredDifferences = []string{
-	"rights-below", "unpinned", "under-band", "under-bar", "at-bottom", "focus-bar",
+	"rights-below", "unpinned", "under-band", "under-band-bare", "text-edge", "under-bar", "at-bottom", "focus-bar",
 	"loose-editor", "editor-empty", "edit-comment", "panel-scrolled", "help-scrolled",
-	"image-large", "message", "sent", "index-none", "index-several", "index-gone",
+	"image-large", "float-edge", "image-edge", "message", "sent", "index-none", "index-several", "index-gone",
 	"list-tight", "list-loose", "head-runin", "head-def",
 }
 

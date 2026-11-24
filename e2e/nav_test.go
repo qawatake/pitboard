@@ -154,8 +154,8 @@ func TestJump(t *testing.T) {
 		t.Errorf("a Fold inside a Section is a target:\n%s", v.dump())
 	}
 	r := rowOf(t, v, "進行中")
-	if !strings.HasPrefix(v.Line(r), "c") || v.ColorAt(r, 0) != "yellow" {
-		t.Errorf("label not yellow at the heading row:\n%s", v.dump())
+	if !strings.HasPrefix(v.Line(r), "c") || v.ColorAt(r, 0) != "blue" {
+		t.Errorf("label not structure (blue) at the heading row:\n%s", v.dump())
 	}
 	v.Keys("h")
 	v.WaitCursorOn("節の項目2")

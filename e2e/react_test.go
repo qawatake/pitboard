@@ -337,6 +337,12 @@ func TestCommentWithoutLine(t *testing.T) {
 		if n := len(ss.records("thought")); n != 1 {
 			t.Errorf("%d thoughts", n)
 		}
+		// The draft stays: m again brings it back; emptied and closed, it
+		// is gone.
+		v.Keys("m")
+		v.WaitFor("❯ やめる")
+		v.Keys("ctrl+u", "esc")
+		v.WaitGone("宛先なしのコメント")
 	})
 
 	t.Run("a paste: CR, LF and CRLF are one newline each; it does not submit", func(t *testing.T) {

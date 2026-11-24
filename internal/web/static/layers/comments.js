@@ -29,7 +29,7 @@ export function draw(cx, panel) {
 
 export const covers = {"mode": {"comments": ["every state; cursor on a comment"]}, "hint": {"edit": ["every state; cursor on a comment"], "retract": ["every state; cursor on a comment"]}};
 
-export const differences = {"panel-scrolled": ["scrolled to the cursor (the last comment)"]};
+export const differences = {"panel-scrolled": ["scrolled to the cursor (the last comment)"], "float-edge": ["every state; cursor on a comment", "no comments yet"], "image-edge": ["every state; cursor on a comment"]};
 
 export const variants = [
   { name: 'every state; cursor on a comment', fixture: 'comments', ui: { panel: true, mode: 'comments', cur: '#l:first' }, responsive: true },

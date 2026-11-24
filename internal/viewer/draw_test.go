@@ -124,7 +124,7 @@ func TestOpenedContentsColor(t *testing.T) {
 	s := strings.Join(raw, "\n")
 	for _, c := range []struct{ want, not string }{
 		{"中身の文", dim + "中身の文"},
-		{dim + "理由: ", magenta + "上の答え待ち"},
+		{dim + "理由: ", cBad + "上の答え待ち"},
 		{"上の答え待ち", dim + "上の答え待ち"},
 		{dim + "対応: ", dim + "対応: todo"},
 		{dim + "済んだ中身", ""},
@@ -340,6 +340,31 @@ func TestOpenSignIsBold(t *testing.T) {
 	for _, s := range []string{page.SignOpen, page.SignClosed} {
 		if w := width(s); w != 1 {
 			t.Errorf("%s is %d cells", s, w)
+		}
+	}
+}
+
+// FIX21: the terminal colors nothing outside the palette: code is the
+// normal color, a diff's @@ quiet, + move, - bad; format errors bad.
+func TestTerminalPaletteOnly(t *testing.T) {
+	st := testStore(t)
+	os.WriteFile(st.ReportPath(), []byte("<Item id=\"a\">x `code` y\n<Code lang=\"diff\">\n@@ -1 +1 @@\n-old\n+new\n</Code>\n</Item>\n<Bogus>\n"), 0o644)
+	a := testApp(t, st)
+	pv := a.top()
+	pv.open["a"] = true
+	var raw []string
+	for _, r := range a.rows(pv) {
+		raw = append(raw, r.line)
+	}
+	s := strings.Join(raw, "\n")
+	for _, bad := range []string{"\x1b[35m", "\x1b[36m"} {
+		if strings.Contains(s, bad) {
+			t.Errorf("a color outside the palette %q in:\n%q", bad, s)
+		}
+	}
+	for _, want := range []string{cQuiet + "@@ -1 +1 @@", cMove + "+new", cBad + "-old", cBad + bold} {
+		if !strings.Contains(s, want) {
+			t.Errorf("want %q in:\n%q", want, s)
 		}
 	}
 }

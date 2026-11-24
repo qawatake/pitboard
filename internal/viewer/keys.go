@@ -117,7 +117,7 @@ func (a *app) handle(k key) (quit bool) {
 	case k.name == "tab":
 		a.list, a.lfollow = true, true
 	case k.r == 'm' && a.canWrite():
-		a.in = newInput("", "", "宛先なしのコメント")
+		a.openInput(newInput("", "", "宛先なしのコメント"))
 		a.in.at = pv.cur
 	case k.r == 's':
 		a.wake()
@@ -170,7 +170,7 @@ func (a *app) react(pv *view, r rune) {
 	case page.DoOpen:
 		pv.open[n.Key] = true
 	case page.DoComment:
-		a.in = newInput(report.Target(n), n.Title(), "「"+plainText(n.Title(), "").trunc(max(a.textWidth()-24, 8)).plain()+"」にコメント")
+		a.openInput(newInput(report.Target(n), n.Title(), "「"+plainText(n.Title(), "").trunc(max(a.textWidth()-24, 8)).plain()+"」にコメント"))
 	case page.DoReact:
 		if _, err := a.b.React(page.SeenOf(n), v.Value); err != nil {
 			a.failed(pv, err)
@@ -260,7 +260,7 @@ func (a *app) handleList(k key) (quit bool) {
 	case k.r == 'e' && len(ts) > 0 && a.lcurShown:
 		a.rewrite(ts[i].N)
 	case k.r == 'm' && a.canWrite():
-		a.in = newInput("", "", "宛先なしのコメント")
+		a.openInput(newInput("", "", "宛先なしのコメント"))
 	case k.r == 's':
 		a.wake()
 	}
@@ -327,7 +327,7 @@ func (a *app) handlePane(k key) (quit bool) {
 	case k.name == "tab":
 		a.list, a.lfollow = true, true
 	case k.r == 'm' && a.canWrite():
-		a.in = newInput("", "", "宛先なしのコメント")
+		a.openInput(newInput("", "", "宛先なしのコメント"))
 	case k.r == 's':
 		a.wake()
 	}

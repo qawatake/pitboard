@@ -1,8 +1,10 @@
 // The editor: where a comment is written, right under what it is about
 // (the line, its link's target, or the comment being edited), starting
 // where the comment will sit. A comment on no line (m) floats where the
-// comment panel does, headed 宛先なしのコメント: it is about no line, so
-// it is never under one. The text area grows with what is
+// comment panel does, labelled 宛先なしのコメント: it is about no line, so
+// it is never under one. Either way it is one card (the label, the text
+// area with no edge of its own, the images; the focus shows on the
+// card's border). The text area grows with what is
 // written, up to 40% of the screen, then scrolls. Its keys are in the bar
 // (only the editor's). The text area is the same element from one drawing
 // to the next, so what is being typed (and the input method) is never
@@ -21,7 +23,8 @@ export function box(cx) {
     const area = el('textarea');
     area.id = 'editor-text';
     // No note under it: the bar shows the keys, and ? says the rest.
-    // Under it, the images the text refers to, at a size to read.
+    // Under it, in the same card, the images the text refers to, at a
+    // size to read, each with a × that takes it out of the text.
     b.append(lab, area, el('div', 'thumbs'));
     m.editor = b;
   }
@@ -34,7 +37,7 @@ export function box(cx) {
   // Without field-sizing (CSS), it is as many lines high as the text has.
   area.rows = Math.max(3, Math.min(text.split('\n').length + 1, 12));
   const ns = [...new Set([...text.matchAll(/\[Image #([0-9]+)\]/g)].map((x) => Number(x[1])))];
-  b.querySelector('.thumbs').replaceWith(thumbs(cx, ns));
+  b.querySelector('.thumbs').replaceWith(thumbs(cx, ns, true));
   return b;
 }
 
@@ -60,7 +63,7 @@ const long = Array.from({ length: 8 }, (_, i) => `${i + 1} 行目`).join('\n');
 
 export const covers = {"mode": {"editor": ["on a line"]}, "hint": {"place": ["on a line"], "stop": ["on a line"], "newline": ["on a line"]}};
 
-export const differences = {"loose-editor": ["m: a comment on no line, floating", "m: long text grows upward"], "editor-empty": ["empty, on a line"], "edit-comment": ["editing a comment in the panel"], "content-above-float": ["m: long text and an image over a tall page, scrolled to its end"]};
+export const differences = {"loose-editor": ["m: a comment on no line, floating", "m: long text grows upward"], "float-edge": ["m: a comment on no line, floating", "m: with text", "m: three images", "m: seven images"], "image-edge": ["three images", "m: three images", "m: seven images", "a white image, on a line"], "editor-empty": ["empty, on a line"], "edit-comment": ["editing a comment in the panel"], "content-above-float": ["m: long text and an image over a tall page, scrolled to its end"]};
 
 export const variants = [
   { name: 'on a line', ui: { cur: 'hook', mode: 'editor', editor: { kind: 'comment', key: 'hook', at: 'hook', label: '「hook を入れるか決める」にコメント', text: '入れてよい' } }, responsive: true },
@@ -74,4 +77,9 @@ export const variants = [
   { name: 'three images', fixture: 'comments', ui: { cur: 'c1', mode: 'editor', editor: { kind: 'comment', key: 'c1', at: 'c1', label: '「未送信のコメントのある行」にコメント', text: '前 [Image #1] 後 [Image #3] 全体 [Image #2]' } }, responsive: true },
   { name: 'editing a comment in the panel', fixture: 'comments', ui: { panel: true, cur: '#l:first', mode: 'editor', editor: { kind: 'edit', at: '#l:first', label: 'コメントを直す', text: '同じ行への 2 つ目' } } },
   { name: 'm: long text and an image over a tall page, scrolled to its end', ui: { cur: 'hook', mode: 'editor', editor: { kind: 'comment', key: '', at: 'hook', label: '宛先なしのコメント', text: long + '\n[Image #2]' } }, scroll: 'bottom', responsive: true },
+  { name: 'm: with text', ui: { cur: 'hook', mode: 'editor', editor: { kind: 'comment', key: '', at: 'hook', label: '宛先なしのコメント', text: '全体に境界が見えづらい' } }, responsive: true },
+  { name: 'm: one image', ui: { cur: 'hook', mode: 'editor', editor: { kind: 'comment', key: '', at: 'hook', label: '宛先なしのコメント', text: 'この画面 [Image #4]' } }, responsive: true },
+  { name: 'm: three images', ui: { cur: 'hook', mode: 'editor', editor: { kind: 'comment', key: '', at: 'hook', label: '宛先なしのコメント', text: '前 [Image #4] 後 [Image #1] 縦長 [Image #3]' } }, responsive: true },
+  { name: 'm: seven images', ui: { cur: 'hook', mode: 'editor', editor: { kind: 'comment', key: '', at: 'hook', label: '宛先なしのコメント', text: [1, 2, 3, 4, 5, 6, 7].map((n) => `[Image #${n}]`).join(' ') } }, responsive: true },
+  { name: 'a white image, on a line', fixture: 'comments', ui: { cur: 'c1', mode: 'editor', editor: { kind: 'comment', key: 'c1', at: 'c1', label: '「未送信のコメントのある行」にコメント', text: '白い画面 [Image #4]' } }, responsive: true },
 ];

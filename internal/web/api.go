@@ -118,6 +118,10 @@ func (b *hosted) handlePage(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Write(body)
+	// The person's page shows these rows now (see board.Store.RememberShown).
+	if !b.gallery && b.st != nil {
+		b.st.RememberShown()
+	}
 }
 
 // pageJSON is the page as the tab is to be shown it now (and remembered

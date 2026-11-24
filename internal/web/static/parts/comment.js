@@ -22,10 +22,13 @@ export function text(s) {
 }
 
 // thumbs is a comment's images, at a size to read (the CSS caps them;
-// never larger than they are); each opens whole (cx.onImage).
-export function thumbs(cx, ns) {
+// never larger than they are); each opens whole (data-image). In the
+// editor (removable), each also has a × that takes its [Image #N] out of
+// the text (data-unimage).
+export function thumbs(cx, ns, removable) {
   const box = el('div', 'thumbs');
   for (const n of ns || []) {
+    const t = el('span', 'thumb');
     const b = el('button');
     b.type = 'button';
     b.dataset.image = String(n);
@@ -34,7 +37,15 @@ export function thumbs(cx, ns) {
     img.src = cx.env.imageURL(n);
     img.alt = `[Image #${n}]`;
     b.appendChild(img);
-    box.appendChild(b);
+    t.appendChild(b);
+    if (removable) {
+      const x = el('button', 'unimage', '×');
+      x.type = 'button';
+      x.dataset.unimage = String(n);
+      x.setAttribute('aria-label', `画像 ${n} を文から外す`);
+      t.appendChild(x);
+    }
+    box.appendChild(t);
   }
   return box;
 }
@@ -115,7 +126,7 @@ const onLine = (id) => ({ fixture: 'comments', pick: id, open: true });
 
 export const covers = {"status": {"未送信": ["未送信, 3 lines, an image, a second one with a large and a tall image"], "送信済": ["送信済"], "既読": ["既読"], "対応中": ["対応中 (reply)"], "保留": ["保留 (reply)"], "対応済": ["対応済 (2-line reply)"]}, "settle": {"doing": ["対応中 (reply)"], "hold": ["保留 (reply)"], "done": ["対応済 (2-line reply)"]}};
 
-export const differences = {"rights-below": ["narrow: the state word below, as its list"]};
+export const differences = {"rights-below": ["narrow: the state word below, as its list"], "image-edge": ["未送信, 3 lines, an image, a second one with a large and a tall image"]};
 
 export const variants = [
   { name: '未送信, 3 lines, an image, a second one with a large and a tall image', ...onLine('c1'), responsive: true },

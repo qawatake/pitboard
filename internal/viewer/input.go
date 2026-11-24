@@ -33,6 +33,16 @@ func (a *app) handleInput(k key) {
 	}
 	switch k.name {
 	case "esc":
+		// What was written stays for the next time this is opened (even
+		// when it was off the screen: it is never lost silently).
+		if a.drafts == nil {
+			a.drafts = map[string]string{}
+		}
+		if t := e.String(); strings.TrimSpace(t) != "" {
+			a.drafts[a.in.draftKey()] = t
+		} else {
+			delete(a.drafts, a.in.draftKey())
+		}
 		a.in = nil
 	case "left", "ctrl+b":
 		e.Left()
@@ -106,6 +116,7 @@ func (a *app) write(text string) bool {
 		a.msg = err.Error()
 		return false
 	}
+	delete(a.drafts, a.in.draftKey())
 	a.in = nil // empty text closes it too (to take a thought back, x)
 	return true
 }
@@ -119,7 +130,7 @@ func (a *app) rewrite(n int) {
 	if t == nil || !a.canWrite() {
 		return
 	}
-	a.in = &input{edit: n, label: fmt.Sprintf("コメント %d を直す", n), ed: newEdit(strings.TrimSpace(t.Text)), paste: -1}
+	a.openInput(&input{edit: n, label: fmt.Sprintf("コメント %d を直す", n), ed: newEdit(strings.TrimSpace(t.Text)), paste: -1})
 }
 
 const scissors = "# ------------------------ >8 ------------------------"
@@ -462,7 +473,15 @@ func (a *app) drawEditing() {
 	} else if r := at + a.inAt[0] - top - skip; r >= 0 && r < h {
 		cur = &[2]int{len(banner) + head + r + 1, a.inAt[1] + 1}
 	}
-	a.t.draw(append(append(banner, lines...), ""), cur)
+	// Scrolled so far that the input is off the screen: the last line still
+	// says the editor is open (a key brings it back; esc keeps the draft).
+	last := ""
+	if cur == nil {
+		t := append(plainText(page.MsgWritingAway, cNeed), plainText("  ", "")...)
+		t = append(t, keyHints([]hint{{k: "esc", d: page.WordStop}})...)
+		last = a.compose(false, 0, nil, t.trunc(max(a.t.w-lgutter-margin, 4)), nil)
+	}
+	a.t.draw(append(append(banner, lines...), last), cur)
 }
 
 // editorHints is the editor's one line of hints. When narrow, they are
@@ -478,7 +497,13 @@ func (a *app) editorHints() []string {
 	for _, h := range page.EditorHints(nl) {
 		x := hint{k: h.Key, d: h.Word}
 		if h.Do == "newline" {
-			x.rank, x.short = 3, h.Key
+			// Kept as long as it can be (how to write a new line is found
+			// nowhere else): shortened to its key, then to S-enter, and
+			// left out only when even that does not fit (narrower than 40).
+			x.rank, x.short = 4, h.Key
+			if h.Key == "shift+enter" {
+				x.shortK = "S-enter"
+			}
 		}
 		all = append(all, x)
 	}
@@ -486,18 +511,24 @@ func (a *app) editorHints() []string {
 	if pv := a.top(); pv != nil && pv.taller() {
 		all = append(all, hint{k: "pgup pgdn", d: "スクロール", rank: 1})
 	}
+	// The hints take the screen's width, not the text's (the text stops at
+	// maxText; the keys need not).
+	room := max(a.t.w-lgutter-margin-markW-a.in.ind, 4)
 	var ks []hint
-	for lvl := 0; lvl <= 3; lvl++ {
+	for lvl := 0; lvl <= 4; lvl++ {
 		ks = ks[:0]
 		for _, k := range all {
 			if k.rank == 0 || k.rank > lvl {
 				if lvl >= 2 && k.short != "" {
 					k.k, k.d = k.short, ""
 				}
+				if lvl >= 3 && k.shortK != "" {
+					k.k = k.shortK
+				}
 				ks = append(ks, k)
 			}
 		}
-		if keyHints(ks).width() <= a.room(a.in.ind, nil) {
+		if keyHints(ks).width() <= room {
 			break
 		}
 	}
