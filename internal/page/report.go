@@ -11,8 +11,12 @@ import (
 
 // Report is the report as last read.
 type Report struct {
-	Path    string // "" when there is no session
-	Mtime   time.Time
+	Path  string // "" when there is no session
+	Mtime time.Time
+	// Shown is the mtime of the version on screen: Mtime, except while
+	// Fixing, when it stays the last good version's (Board.AITurn does not
+	// count a rewrite that is not shown).
+	Shown   time.Time
 	Err     string // it could not be read (not a format problem)
 	Missing bool   // it does not exist yet
 	Nodes   []*report.Node
@@ -43,12 +47,14 @@ func (r *Report) Load() {
 		r.Missing = true
 		return
 	}
+	// r.Shown moves only when what is shown is read: a version that could
+	// not be read, or one with problems over a good one (Fixing), keeps it.
 	r.Mtime = ModTime(r.Path)
 	b, err := os.ReadFile(r.Path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			r.Missing, r.Err, r.Nodes, r.Probs = true, "", nil, nil
-			r.Fixing, r.good = false, false
+			r.Fixing, r.good, r.Shown = false, false, r.Mtime
 			return
 		}
 		r.Err = err.Error()
@@ -67,7 +73,7 @@ func (r *Report) Load() {
 			return nil
 		}
 		r.Nodes, r.Probs = nodes, probs
-		r.good, r.Fixing = len(probs) == 0 && len(nodes) > 0, false
+		r.good, r.Fixing, r.Shown = len(probs) == 0 && len(nodes) > 0, false, r.Mtime
 		return nil
 	})
 	r.ReadErr = ""

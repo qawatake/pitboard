@@ -219,7 +219,10 @@ func (b *Board) Page(showHidden bool) *Page {
 	case b.NoSession:
 		p.Message = MsgNoSuchSession(b.Store.Session)
 		return p
-	case r.Missing:
+	}
+	// Whose turn it is shows whatever the report is (missing, empty).
+	p.Summary = b.Summary(showHidden)
+	if r.Missing {
 		p.Message = MsgNoReport
 		return p
 	}
@@ -242,7 +245,6 @@ func (b *Board) Page(showHidden bool) *Page {
 		}
 	}
 	p.Waiting, p.Unread = b.Counts(showHidden)
-	p.Summary = b.Summary(showHidden)
 	p.Hidden = b.HiddenCount()
 	comments := map[int]*Comment{}
 	for _, t := range b.Pending() {

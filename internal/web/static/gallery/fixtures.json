@@ -4748,7 +4748,12 @@
     "CanSend": false,
     "JumpTo": null,
     "Next": null,
-    "Summary": null,
+    "Summary": [
+     {
+      "Text": "あなたの番",
+      "Tone": "normal"
+     }
+    ],
     "Comments": null,
     "Session": "gallery1",
     "Dir": "~/dev/sample",
@@ -6993,7 +6998,12 @@
     "CanSend": false,
     "JumpTo": null,
     "Next": null,
-    "Summary": null,
+    "Summary": [
+     {
+      "Text": "あなたの番",
+      "Tone": "normal"
+     }
+    ],
     "Comments": null,
     "Session": "gallery1",
     "Dir": "~/dev/sample",
@@ -7560,7 +7570,12 @@
      "Session": "s5",
      "Where": "~/dev/notes",
      "Title": "",
-     "Summary": null,
+     "Summary": [
+      {
+       "Text": "あなたの番",
+       "Tone": "normal"
+      }
+     ],
      "Message": "AI はまだ報告を書いていません"
     },
     {

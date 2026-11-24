@@ -349,6 +349,11 @@ func (t *tab) act(a Act) Result {
 		if !ok || now == nil {
 			return changed
 		}
+		if a.Key == "x" && !a.ShowHidden && b.IsHidden(now) {
+			// A late x on a line already hidden: settling would say a
+			// second press shows it again, and Hide refuses it.
+			return Result{Message: page.MsgAlreadyHidden}
+		}
 		v := b.Allow(now, a.Key, t.touch(a, now))
 		t.again = v.Again
 		switch v.Do {

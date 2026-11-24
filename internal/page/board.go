@@ -69,7 +69,9 @@ func (b *Board) Load() {
 
 // AITurn says whether it is the AI's turn (AI の番): the person sent and
 // the report was not rewritten since, or a comment the AI settled as doing
-// is still doing. Otherwise it is the person's turn (あなたの番).
+// is still doing. Otherwise it is the person's turn (あなたの番). The
+// report counts as rewritten when the version on screen is newer
+// (Report.Shown): a rewrite with problems shown as Fixing is not.
 func (b *Board) AITurn() bool {
 	if b.State == nil {
 		return false
@@ -79,7 +81,7 @@ func (b *Board) AITurn() bool {
 			return true
 		}
 	}
-	return !b.SentAt.IsZero() && !b.Report.Mtime.After(b.SentAt)
+	return !b.SentAt.IsZero() && !b.Report.Shown.After(b.SentAt)
 }
 
 // LoadViewed reads again what the person has looked at (another screen of

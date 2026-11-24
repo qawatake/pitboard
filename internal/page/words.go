@@ -10,14 +10,18 @@ import (
 
 // What a screen says, in the person's language. Every screen uses these.
 const (
-	MsgChanged   = "報告が書き換わりました。もう一度押してください"
-	MsgMoved     = "報告が書き換わりました。カーソルの行を確かめてください"
-	MsgNoReport  = "AI はまだ報告を書いていません"
-	MsgEmpty     = "報告はまだ空です。AI が書くと、ここに出ます"
-	MsgNoBoard   = "このディレクトリと親に pitboard の置き場 (.pitboard/) がありません。AI を動かしているディレクトリで開いてください"
-	MsgNoSession = "pitboard にはまだ報告がありません。AI が報告を書くと、ここに出ます"
-	MsgProblems  = "報告に書き方の誤りがあります"
-	MsgPartial   = " (読めた所までを出しています)"
+	MsgChanged = "報告が書き換わりました。もう一度押してください"
+	MsgMoved   = "報告が書き換わりました。カーソルの行を確かめてください"
+	// MsgAlreadyHidden refuses x on a line already hidden while hidden
+	// lines are not shown (a press that came late): pressing again does
+	// the same.
+	MsgAlreadyHidden = "この行はもう隠れています"
+	MsgNoReport      = "AI はまだ報告を書いていません"
+	MsgEmpty         = "報告はまだ空です。AI が書くと、ここに出ます"
+	MsgNoBoard       = "このディレクトリと親に pitboard の置き場 (.pitboard/) がありません。AI を動かしているディレクトリで開いてください"
+	MsgNoSession     = "pitboard にはまだ報告がありません。AI が報告を書くと、ここに出ます"
+	MsgProblems      = "報告に書き方の誤りがあります"
+	MsgPartial       = " (読めた所までを出しています)"
 	// MsgFixing is the quiet line over the last good version, shown while
 	// report.md has problems (Report.Fixing).
 	MsgFixing  = "AI が報告を直しています"

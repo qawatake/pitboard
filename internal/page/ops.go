@@ -22,6 +22,11 @@ import (
 // report as it is now (and MsgChanged).
 var ErrChanged = errors.New(MsgChanged)
 
+// ErrAlreadyHidden is returned by Hide for a line already hidden while
+// hidden lines are not shown: nothing was recorded, and the report did not
+// change (MsgAlreadyHidden).
+var ErrAlreadyHidden = errors.New(MsgAlreadyHidden)
+
 // What actions say.
 const (
 	MsgEmptyComment = "空だったので書きませんでした"
@@ -141,7 +146,7 @@ func (b *Board) Hide(seen Seen, showHidden bool) (msg string, hidden bool, err e
 	if b.IsHidden(n) && !showHidden {
 		// Not on the person's screen: x pressed again before the screen
 		// left the line it just hid must not bring it back.
-		return "", false, ErrChanged
+		return "", false, ErrAlreadyHidden
 	}
 	if b.IsHidden(n) {
 		op, msg = "unhide", "表示に戻しました"
