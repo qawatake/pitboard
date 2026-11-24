@@ -133,8 +133,14 @@ type Thing struct {
 	Path  string    `json:",omitempty"` // a Link's file path, as written
 	URL   string    `json:",omitempty"` // a Link's URL
 	At    time.Time `json:",omitzero"`  // a Notice's: when the AI put it up
-	// Comments are the comments written on it, oldest first.
+	// Comments are the comments written on it: those the AI is not done
+	// with, oldest first, then those done (Finished), oldest first. Under
+	// the line the done ones fold into one line, DoneFold, until the
+	// person opens it (EnterStep).
 	Comments []*Comment `json:",omitempty"`
+	// DoneFold is that one line's words (DoneFoldWord): "" when no comment
+	// on it is done.
+	DoneFold string `json:",omitempty"`
 	// Body is what opening an Item or Notice shows (paragraphs, list
 	// lines, code); Kids what a Section or Fold holds, or an Ask's
 	// options; Subs the lines nested under a list line.
@@ -377,10 +383,19 @@ func (b *Board) thing(n *report.Node, comments map[int]*Comment) *Thing {
 	}
 	t.Sign, t.OpenSign = SignOf(n, t.CanOpen, false, t.Hidden), SignOf(n, t.CanOpen, true, t.Hidden)
 	if t.Target != "" {
+		var done []*Comment
 		for _, th := range b.State.On(t.Target) {
-			if c := comments[th.N]; c != nil {
+			switch c := comments[th.N]; {
+			case c == nil:
+			case c.Finished:
+				done = append(done, c)
+			default:
 				t.Comments = append(t.Comments, c)
 			}
+		}
+		t.Comments = append(t.Comments, done...)
+		if len(done) > 0 {
+			t.DoneFold = DoneFoldWord(len(done))
 		}
 	}
 	return t

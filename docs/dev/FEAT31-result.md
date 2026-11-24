@@ -1,0 +1,8 @@
+# FEAT31 result
+
+- Comment lines under a row are not cursor stops (rows carry no key), so the folded `✎ 対応済 N 件` line is not one either. It is opened with enter on the row: `page.EnterStep` makes enter go closed → open (folded) → open (done ones shown) → closed (folds again). Rows with no done comment toggle as before.
+- page: `Thing.Comments` lists not-done first, then done (each in writing order); `Thing.DoneFold` = `DoneFoldWord(n)` (`対応済 N 件`, internal/page/words.go). `Touch.Folded` makes the enter hint say `開く` while folded (Offer's enter hint only; Allow and the FIX22 settle rules are unchanged).
+- Terminal: `view.shown` per row key for the viewer's lifetime (internal/viewer/rows.go thoughtRows, keys.go enter, cursor.go). Web: `ui.shown`, `S.toggle` does the same steps, and clicking the folded line also shows them (parts/comment.js, state.js, main.js, row.js memo sig, app.css). The thoughts list and the comment pane are unchanged.
+- SPEC.md: one new bullet under the row-right-end/comments bullet. `-h`/SKILL don't describe how comments show, so they are unchanged.
+- Tests: internal/page/donefold_test.go (order, count, EnterStep, hint), internal/viewer/donefold_test.go (fold, not a stop, new done keeps it folded with the count updated, enter cycle), draw_test adjusted, e2e TestCommentStates (fold, then enter shows it). Gallery: a done comment was added on c4, and there are new variants `対応済 folded into one line` and `対応中 listed, 対応済 folded after it` (gallery `shown` option); fixtures regenerated with `-update`.
+- `go vet ./... && go test ./...` pass. The gallery browser step (scripts/web-gallery.sh) was not run because playwright-cli is not installed. The JS passes `node --check` only.

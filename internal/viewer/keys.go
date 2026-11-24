@@ -219,7 +219,10 @@ func (a *app) enter(pv *view) {
 	switch {
 	case n == nil:
 	case a.canOpen(pv, n):
-		pv.open[pv.cur] = !pv.open[pv.cur]
+		if pv.shown == nil {
+			pv.shown = map[string]bool{}
+		}
+		pv.open[pv.cur], pv.shown[pv.cur] = page.EnterStep(pv.open[pv.cur], pv.shown[pv.cur], pv.hasDone(n))
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/qawatake/pitboard/internal/board"
 	"github.com/qawatake/pitboard/internal/page"
 	"github.com/qawatake/pitboard/internal/report"
 )
@@ -280,7 +281,7 @@ func (a *app) rows(pv *view) []row {
 				if n.Kind == report.KindDetails {
 					// An open Fold: the thoughts on it right under its
 					// title, among what it holds (marks in their column).
-					c = a.thoughtRows(n, ind+4)
+					c = a.thoughtRows(pv, n, ind+4)
 				} else {
 					c = a.contents(pv, n, ind+2)
 				}
@@ -487,30 +488,54 @@ func (a *app) contents(pv *view, n *report.Node, ind int) []row {
 			i = j - 1
 		}
 	}
-	return append(rows, a.thoughtRows(n, ind+markW)...)
+	return append(rows, a.thoughtRows(pv, n, ind+markW)...)
 }
 
 // thoughtRows is the thoughts written on n, as shown under it when it is
-// open.
-func (a *app) thoughtRows(n *report.Node, ind int) []row {
+// open: those the AI is not done with, then those done folded into one
+// faint line (page.DoneFoldWord) until enter shows them (pv.shown).
+func (a *app) thoughtRows(pv *view, n *report.Node, ind int) []row {
 	var rows []row
-	if id := report.Target(n); id != "" {
-		for _, t := range a.b.State.On(id) {
-			word, color := a.statusOf(t)
-			for i, l := range strings.Split(strings.TrimSpace(t.Text), "\n") {
-				if i == 0 {
-					rows = append(rows, a.line(false, ind, plainText("✎", dim), withImages(l, ""), plainText(word, color))...)
-				} else {
-					rows = append(rows, a.line(false, ind, nil, withImages(l, ""), nil)...)
-				}
-			}
-			if t.Title != "" && t.Title != n.Title() {
-				rows = append(rows, a.line(false, ind, nil, plainText("(書いたときは: "+t.Title+")", dim).capped(8*a.textWidth()), nil)...)
-			}
-			if t.SettledState != "" {
-				rows = append(rows, a.line(false, ind, nil, headed(settleHead(t.SettledState), t.Settled).capped(8*a.textWidth()), nil)...)
-			}
+	id := report.Target(n)
+	if id == "" {
+		return rows
+	}
+	var done []*board.Thought
+	for _, t := range a.b.State.On(id) {
+		if t.Finished() {
+			done = append(done, t)
+			continue
 		}
+		rows = append(rows, a.thoughtRow(n, t, ind)...)
+	}
+	switch {
+	case len(done) == 0:
+	case pv.shown[n.Key]:
+		for _, t := range done {
+			rows = append(rows, a.thoughtRow(n, t, ind)...)
+		}
+	default:
+		rows = append(rows, a.line(false, ind, plainText("✎", dim), plainText(page.DoneFoldWord(len(done)), dim), nil)...)
+	}
+	return rows
+}
+
+// thoughtRow is thought t on n, as shown under it.
+func (a *app) thoughtRow(n *report.Node, t *board.Thought, ind int) []row {
+	var rows []row
+	word, color := a.statusOf(t)
+	for i, l := range strings.Split(strings.TrimSpace(t.Text), "\n") {
+		if i == 0 {
+			rows = append(rows, a.line(false, ind, plainText("✎", dim), withImages(l, ""), plainText(word, color))...)
+		} else {
+			rows = append(rows, a.line(false, ind, nil, withImages(l, ""), nil)...)
+		}
+	}
+	if t.Title != "" && t.Title != n.Title() {
+		rows = append(rows, a.line(false, ind, nil, plainText("(書いたときは: "+t.Title+")", dim).capped(8*a.textWidth()), nil)...)
+	}
+	if t.SettledState != "" {
+		rows = append(rows, a.line(false, ind, nil, headed(settleHead(t.SettledState), t.Settled).capped(8*a.textWidth()), nil)...)
 	}
 	return rows
 }

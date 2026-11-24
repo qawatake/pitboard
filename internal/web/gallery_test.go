@@ -495,12 +495,14 @@ func makeFixtures(t *testing.T) *Fixtures {
 	c4 := g.comment("c4", "", "直してほしい")
 	c5 := g.comment("c5", "", "あとでよい")
 	c6 := g.comment("c6", "", "これで合っている？")
+	c4done := g.comment("c4", "", "先に直した所")
 	f8 := g.comment("f1", "", "折りたたみへのコメント")
 	g.send()
 	g.read()
 	g.settle(board.Settlement{N: c4, State: "doing", Text: "直しています"},
 		board.Settlement{N: c5, State: "hold", Text: "次の版で"},
 		board.Settlement{N: c6, State: "done", Text: "合っています。\n2 行目の返事"},
+		board.Settlement{N: c4done, State: "done", Text: "直しました"},
 		board.Settlement{N: f8, State: "done", Text: "対応しました"})
 	_ = c3
 	g.comment("c2", "", "送ったコメント")

@@ -24,7 +24,10 @@ const (
 // view is the report on screen.
 type view struct {
 	*page.Report
-	open     map[string]bool
+	open map[string]bool
+	// shown is, by line, whether the comments the AI is done with on it
+	// are shown, not folded into one line (enter: page.EnterStep).
+	shown    map[string]bool
 	cur      string         // key of the node under the cursor
 	ends     map[string]int // where each stop's rows end (its contents too), from rows
 	top      int

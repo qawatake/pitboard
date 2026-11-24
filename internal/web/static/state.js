@@ -11,6 +11,8 @@
 //              how (person / app / start), at (ms), sel (the line's token then)
 //   lastIndex  where the cursor was among the lines (to stay near it)
 //   open       {key: bool}: what the person opened or closed
+//   shown      {key: true}: lines whose done comments are shown, not
+//              folded into one line (enter: page.EnterStep)
 //   mode       one of MODES (below); panel: the comment panel is open
 //              (under an editor, the keys or an image opened from it)
 //   editor     {kind: comment|edit, key, token, n, at, label, text}
@@ -33,7 +35,7 @@ export const CONNS = ["live", "offline", "gone"];
 
 export function initial() {
   return {
-    cur: '', start: true, how: 'start', at: 0, sel: '', lastIndex: 0, open: {},
+    cur: '', start: true, how: 'start', at: 0, sel: '', lastIndex: 0, open: {}, shown: {},
     mode: 'normal', panel: false, editor: null, image: 0,
     status: '', statusTone: '', statusSeq: 0, conn: 'live', connMsg: '', showHidden: false,
     offer: null, busy: false, unpinned: {}, reportCur: null, going: '',
@@ -43,6 +45,7 @@ export function initial() {
 
 const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
 export const isOpen = (ui, t) => (own(ui.open, t.Key) ? ui.open[t.Key] : !!t.Open);
+export const isShown = (ui, t) => !!(ui.shown && ui.shown[t.Key]);
 export const words = (page, k) => (page && page.Words && page.Words[k]) || '';
 const base = (ui) => (ui.panel ? 'comments' : 'normal');
 
@@ -141,12 +144,22 @@ export function setOpen(ui, keys, open = true) {
   return { ...ui, open: o };
 }
 
-// toggle opens or closes line key (one that opens).
+// toggle is enter on line key (one that opens), as page.EnterStep: closed,
+// it opens with its done comments folded; open with them folded, it shows
+// them; otherwise it closes, and they fold again.
 export function toggle(ui, page, key) {
   const t = index(page).things.get(key);
   if (!t || !t.CanOpen) return ui;
-  return setOpen(ui, [key], !isOpen(ui, t));
+  if (isOpen(ui, t) && t.DoneFold && !isShown(ui, t)) return showDone(ui, key);
+  const next = setOpen(ui, [key], !isOpen(ui, t));
+  if (!isShown(ui, t)) return next;
+  const shown = { ...ui.shown };
+  delete shown[key];
+  return { ...next, shown };
 }
+
+// showDone shows the done comments on line key (its folded line clicked).
+export const showDone = (ui, key) => ({ ...ui, shown: { ...ui.shown, [key]: true } });
 
 // next is where space goes: the nearest marked line below the cursor
 // (else the first), and the Folds to open on the way; null when none.
@@ -236,7 +249,8 @@ export const setConn = (ui, conn, msg) => ({ ...ui, conn, connMsg: msg || '' });
 
 // facts is how the cursor came to line t, for the server's guard.
 export function facts(ui, t, now) {
-  return { Start: ui.start, How: ui.how, Ago: Math.round(now - ui.at), Sel: ui.sel || t.Token, Open: isOpen(ui, t) };
+  return { Start: ui.start, How: ui.how, Ago: Math.round(now - ui.at), Sel: ui.sel || t.Token, Open: isOpen(ui, t),
+    Folded: !!(t.DoneFold && isOpen(ui, t) && !isShown(ui, t)) };
 }
 
 // offerOf is the server's offer for the cursor's line, if it is for the

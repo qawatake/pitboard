@@ -327,6 +327,9 @@ button.rowlink:focus-visible { outline: 2px solid var(--structure); outline-offs
 .comment > .ctext { white-space: pre-wrap; }
 .comment > .cstate { font-size: .9em; align-self: baseline; }
 .comment > .cunder { grid-column: 2 / -1; }
+/* The comments the AI is done with, folded into one faint line. */
+button.dfoldbtn { all: unset; grid-column: 2 / -1; color: var(--quiet); cursor: pointer; }
+button.dfoldbtn:hover { text-decoration: underline; }
 /* The AI's reply: its head word (page's SettleHead), the text going on
    after it, its lines under its own first. */
 .creply { display: grid; grid-template-columns: max-content minmax(0, 1fr); white-space: pre-wrap; }

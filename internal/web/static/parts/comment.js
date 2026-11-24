@@ -58,10 +58,14 @@ function reply(c) {
   return p;
 }
 
-// on is the comments written on line t, as shown under it opened.
+// on is the comments written on line t, as shown under it opened: those
+// the AI is not done with, then the done ones folded into one faint line
+// (t.DoneFold) until enter, or a click on that line, shows them.
 export function on(cx, t, cls) {
   const box = el('div', 'comments' + (cls ? ' ' + cls : ''));
+  const shown = !!(cx.isShown && cx.isShown(t));
   for (const c of t.Comments || []) {
+    if (c.Finished && !shown) continue;
     const d = el('div', 'comment');
     d.appendChild(el('span', 'cm', '✎'));
     d.appendChild(text(c.Text));
@@ -72,6 +76,16 @@ export function on(cx, t, cls) {
     const r = reply(c);
     if (r) under.appendChild(r);
     if (under.firstChild) d.appendChild(under);
+    box.appendChild(d);
+  }
+  if (t.DoneFold && !shown) {
+    const d = el('div', 'comment dfold');
+    d.appendChild(el('span', 'cm', '✎'));
+    const b = el('button', 'dfoldbtn quiet', t.DoneFold);
+    b.type = 'button';
+    b.tabIndex = -1; // not a stop: enter on the line shows them
+    b.dataset.fold = t.Key;
+    d.appendChild(b);
     box.appendChild(d);
   }
   return box;
@@ -134,7 +148,9 @@ export const variants = [
   { name: '既読', ...onLine('c3') },
   { name: '対応中 (reply)', ...onLine('c4') },
   { name: '保留 (reply)', ...onLine('c5') },
-  { name: '対応済 (2-line reply)', ...onLine('c6') },
+  { name: '対応済 (2-line reply)', ...onLine('c6'), shown: true },
+  { name: '対応済 folded into one line', ...onLine('c6') },
+  { name: '対応中 listed, 対応済 folded after it', ...onLine('c4') },
   { name: 'written on another title', ...onLine('c7') },
   { name: 'on a Fold', ...onLine('f1') },
   { name: 'long unbroken', fixture: 'long', pick: 'url', open: true },

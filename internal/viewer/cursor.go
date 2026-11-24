@@ -10,6 +10,7 @@ import (
 // touch is how the cursor came to its line, for page's guard.
 func (pv *view) touch() page.Touch {
 	t := page.Touch{Placed: pv.placed, Locked: pv.lock, Open: pv.open[pv.cur], Again: pv.again}
+	t.Folded = t.Open && !pv.shown[pv.cur] && pv.hasDone(pv.nodeAt(pv.cur))
 	if pv.auto != "" && pv.auto == pv.cur {
 		t.Auto = true
 		if !pv.autoAt.IsZero() {
@@ -214,4 +215,20 @@ func (pv *view) nodeAt(key string) *report.Node {
 		}
 	})
 	return found
+}
+
+// hasDone says whether n has comments the AI is done with (they fold
+// under it).
+func (pv *view) hasDone(n *report.Node) bool {
+	if n == nil || pv.b == nil {
+		return false
+	}
+	if id := report.Target(n); id != "" {
+		for _, t := range pv.b.State.On(id) {
+			if t.Finished() {
+				return true
+			}
+		}
+	}
+	return false
 }

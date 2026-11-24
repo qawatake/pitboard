@@ -117,6 +117,7 @@ func TestOpenedContentsColor(t *testing.T) {
 	a := testApp(t, st)
 	pv := a.top()
 	pv.open["a"], pv.open["d"] = true, true
+	pv.shown = map[string]bool{"a": true} // its done comment shown, not folded
 	var raw []string
 	for _, r := range a.rows(pv) {
 		raw = append(raw, r.line)

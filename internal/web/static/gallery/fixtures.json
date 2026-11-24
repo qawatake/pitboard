@@ -172,7 +172,7 @@
         "State": "todo",
         "Comments": [
          {
-          "N": 14,
+          "N": 16,
           "Text": "1 行目\n2 行目\n3 行目 [Image #1]",
           "Target": "c1",
           "About": "未送信のコメントのある行",
@@ -190,7 +190,7 @@
           ]
          },
          {
-          "N": 15,
+          "N": 17,
           "Text": "同じ行への 2 つ目 [Image #2] [Image #3]",
           "Target": "c1",
           "About": "未送信のコメントのある行",
@@ -263,7 +263,7 @@
         "State": "todo",
         "Comments": [
          {
-          "N": 12,
+          "N": 14,
           "Text": "送ったコメント",
           "Target": "c2",
           "About": "送った行",
@@ -364,10 +364,10 @@
          "Reaction": "",
          "Option": "",
          "OptionHead": "",
-         "Count": 0,
+         "Count": 2,
          "Input": {
-          "Text": "対応中",
-          "Tone": "move"
+          "Text": "対応済",
+          "Tone": "quiet"
          },
          "Status": {
           "Text": "",
@@ -393,8 +393,25 @@
           "Note": "",
           "Finished": false,
           "Images": null
+         },
+         {
+          "N": 6,
+          "Text": "先に直した所",
+          "Target": "c4",
+          "About": "対応中の行",
+          "TitleThen": "",
+          "Word": {
+           "Text": "対応済",
+           "Tone": "quiet"
+          },
+          "Settled": "直しました",
+          "SettledHead": "対応: ",
+          "Note": "",
+          "Finished": true,
+          "Images": null
          }
-        ]
+        ],
+        "DoneFold": "対応済 1 件"
        },
        {
         "Kind": "item",
@@ -510,7 +527,8 @@
           "Finished": true,
           "Images": null
          }
-        ]
+        ],
+        "DoneFold": "対応済 1 件"
        },
        {
         "Kind": "item",
@@ -553,7 +571,7 @@
         "State": "todo",
         "Comments": [
          {
-          "N": 16,
+          "N": 18,
           "Text": "題が変わる前に書いた",
           "Target": "c7",
           "About": "題を書き換えた行 (書いたときは: 前の題)",
@@ -679,7 +697,7 @@
         },
         "Comments": [
          {
-          "N": 6,
+          "N": 7,
           "Text": "折りたたみへのコメント",
           "Target": "f1",
           "About": "コメントのある折りたたみ",
@@ -695,6 +713,7 @@
           "Images": null
          }
         ],
+        "DoneFold": "対応済 1 件",
         "Kids": [
          {
           "Kind": "item",
@@ -761,7 +780,7 @@
     ],
     "Comments": [
      {
-      "N": 18,
+      "N": 20,
       "Text": "報告から消えた行へのコメント",
       "Target": "gone",
       "About": "(報告にもうない行) (書いたときは: 消えた行の題)",
@@ -777,7 +796,7 @@
       "Images": null
      },
      {
-      "N": 17,
+      "N": 19,
       "Text": "宛先なしのコメント",
       "Target": "",
       "About": "",
@@ -793,7 +812,7 @@
       "Images": null
      },
      {
-      "N": 16,
+      "N": 18,
       "Text": "題が変わる前に書いた",
       "Target": "c7",
       "About": "題を書き換えた行 (書いたときは: 前の題)",
@@ -809,7 +828,7 @@
       "Images": null
      },
      {
-      "N": 15,
+      "N": 17,
       "Text": "同じ行への 2 つ目 [Image #2] [Image #3]",
       "Target": "c1",
       "About": "未送信のコメントのある行",
@@ -828,7 +847,7 @@
       ]
      },
      {
-      "N": 14,
+      "N": 16,
       "Text": "1 行目\n2 行目\n3 行目 [Image #1]",
       "Target": "c1",
       "About": "未送信のコメントのある行",
@@ -846,7 +865,7 @@
       ]
      },
      {
-      "N": 12,
+      "N": 14,
       "Text": "送ったコメント",
       "Target": "c2",
       "About": "送った行",
@@ -910,7 +929,7 @@
       "Images": null
      },
      {
-      "N": 6,
+      "N": 7,
       "Text": "折りたたみへのコメント",
       "Target": "f1",
       "About": "コメントのある折りたたみ",
@@ -920,6 +939,22 @@
        "Tone": "quiet"
       },
       "Settled": "対応しました",
+      "SettledHead": "対応: ",
+      "Note": "",
+      "Finished": true,
+      "Images": null
+     },
+     {
+      "N": 6,
+      "Text": "先に直した所",
+      "Target": "c4",
+      "About": "対応中の行",
+      "TitleThen": "",
+      "Word": {
+       "Text": "対応済",
+       "Tone": "quiet"
+      },
+      "Settled": "直しました",
       "SettledHead": "対応: ",
       "Note": "",
       "Finished": true,

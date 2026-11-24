@@ -763,6 +763,13 @@ func TestCommentStates(t *testing.T) {
 	ss.mustRun("settle", "1", "--hold", "あとで")
 	state("保留", "dim")
 	ss.mustRun("settle", "1", "--done", "やりました")
+	v.Until("row ends with 対応済", func() bool { return strings.HasSuffix(v.Line(row), "対応済") })
+	// Done, it folds into one faint line under the row; enter shows it.
+	v.WaitFor("✎ 対応済 1 件")
+	v.WaitGone("✎ 状態を見る")
+	wantColor(t, v, "対応済 1 件", "dim")
+	v.Keys("enter")
+	v.WaitGone("対応済 1 件")
 	state("対応済", "dim")
 	// SPEC.md 「画面」: "行の下のコメントに AI の文があれば `対応: …` とし、
 	// 頭の語だけを薄く". (「コメント」 says only the state word shows under
