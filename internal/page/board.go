@@ -111,8 +111,8 @@ func sentThoughts(evs []board.Event, prev, last int) []int {
 // settled yet (a send that carried no thought waits for the rewrite
 // alone); or a comment the AI settled as doing is still doing. Otherwise
 // it is the person's turn (あなたの番). The report counts as rewritten when
-// the version on screen is newer (Report.Shown): a rewrite with problems
-// shown as Fixing is not.
+// a version that passes check is newer (Report.Shown): a rewrite with
+// problems never is, so a screen opened later agrees with one open before.
 func (b *Board) AITurn() bool {
 	if b.State == nil {
 		return false
