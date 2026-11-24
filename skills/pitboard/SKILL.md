@@ -13,5 +13,6 @@ Before you end your turn, run `pitboard -s SESSION wait` in the background; it e
 When a line starting with "pitboard:" arrives in the chat instead, run the command it gives.
 Settle every thought (the board calls them comments), with `--doing` / `--hold` while it is not done.
 Put `look="y"` only on lines you want the person to read (answers, results to check), not on progress lines.
+A report that fails `check` is not shown to the person (they keep seeing the last good one), so fix what `check`, `wait` and `changes` report.
 After a resume or a summary of your context, read the report's "Decided" (decisions and the person's standing rules) before acting: the board is your memory too.
 This skill does not repeat it, so it never goes out of date when pitboard is updated.

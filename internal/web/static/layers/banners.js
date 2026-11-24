@@ -2,7 +2,8 @@
 // connection (offline: what is shown may be old and nothing reaches the
 // board; gone: the board was dropped), and the board's own messages (no
 // session or report yet, an empty report, a report that could not be read,
-// its format errors). The banner starts on the text edge, like the page.
+// its format errors, the quiet line while the AI fixes a report that has
+// them and the last good version is shown). The banner starts on the text edge, like the page.
 
 import { el } from '../dom.js';
 
@@ -20,6 +21,7 @@ export function head(cx) {
   if (d.Message) out.push(el('p', 'msg', d.Message));
   if (d.Err) out.push(el('p', 'err', '読めませんでした: ' + d.Err));
   if (d.ReadErr) out.push(el('p', 'err', d.ReadErr));
+  if (d.Fixing) out.push(el('p', 'msg fixing', d.Fixing));
   if (d.Problems && d.Problems.length) {
     const p = el('div', 'err problems');
     p.appendChild(el('strong', '', d.ProblemHead));

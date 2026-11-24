@@ -21,6 +21,9 @@ type Page struct {
 	Message string
 	Err     string // the report could not be read: "読めませんでした: " + this
 	ReadErr string // the last read failed (a bug); what was read before is shown
+	// Fixing is MsgFixing while report.md has problems and the last version
+	// without any is shown (Report.Fixing); "" otherwise. A quiet line.
+	Fixing string `json:",omitempty"`
 	// Problems are the report's format errors, as shown under MsgProblems
 	// (+ MsgPartial when Partial: some of it could not be shown).
 	Problems []string `json:",omitempty"`
@@ -215,6 +218,9 @@ func (b *Board) Page(showHidden bool) *Page {
 		return p
 	}
 	p.Err, p.ReadErr = r.Err, r.ReadErr
+	if r.Fixing {
+		p.Fixing = MsgFixing
+	}
 	if r.Err == "" && r.ReadErr == "" && len(r.Nodes) == 0 && len(r.Probs) == 0 {
 		p.Message = MsgEmpty
 		return p

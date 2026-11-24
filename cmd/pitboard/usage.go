@@ -282,6 +282,9 @@ Manners:
     reports. The other commands ('changes', 'settle', 'wait') and the hooks
     also end with "report.md has N problem(s). Run: pitboard -s SESS check"
     while the report has problems: when you see it, run that and fix them.
+    A report that fails check is not shown to the person: they keep seeing
+    the last version that passed (with a line saying you are fixing it), so
+    nothing you wrote since reaches them until you fix what check reports.
   - Where to reply: what arrives from the board (through 'wait', 'changes'
     or the hooks) is answered in the report: the answer to a question, what
     you changed and how, what happens next. In the chat, say only a line or

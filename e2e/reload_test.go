@@ -47,14 +47,14 @@ func TestReloadKeepsCursorOnScreen(t *testing.T) {
 	v.WaitCursorOn("項目B")
 }
 
-// SPEC-format.md "check が見ること" / "解析が壊れないこと": a broken report
-// is drawn as far as it reads, with the problems at the top.
+// SPEC-format.md "check が見ること" / "解析が壊れないこと": a report that
+// was never good is drawn as far as it reads, with the problems at the top.
+// SPEC.md: once a good version was read, a broken one is not shown; the good
+// one stays with a quiet line until a good one comes.
 func TestBrokenReport(t *testing.T) {
 	t.Parallel()
-	v, ss := open(t, "<Item id=\"a\">項目A</Item>\n", 80, 20, "項目A")
-	ss.write("<Item id=\"a\">項目A</Item>\n<Item id=\"b\">項目B\n")
+	v, ss := open(t, "<Item id=\"a\">項目A</Item>\n<Item id=\"b\">項目B\n", 80, 20, "項目A")
 	v.WaitFor("報告に書き方の誤りがあります", "(読めた所までを出しています)", "2 行目")
-	v.WaitFor("項目A")
 	// A problem that loses nothing: no "(読めた所まで…)".
 	ss.write("<Item id=\"a\" look=\"n\">項目A</Item>\n")
 	v.WaitGone("(読めた所までを出しています)")
@@ -65,6 +65,16 @@ func TestBrokenReport(t *testing.T) {
 	ss.write("<Item id=\"a\">直った</Item>\n")
 	v.WaitFor("直った")
 	v.WaitGone("報告に書き方の誤りがあります")
+	// Broken again: the good version stays, with the quiet line.
+	ss.write("<Item id=\"a\">壊れた版</Item>\n<Item id=\"b\">項目B\n")
+	v.WaitFor("AI が報告を直しています")
+	wantColor(t, v, "AI が報告を直しています", "dim")
+	if s := v.Screen(); !strings.Contains(s, "直った") || strings.Contains(s, "壊れた版") || strings.Contains(s, "報告に書き方の誤りがあります") {
+		t.Errorf("broken again: not the good version:\n%s", v.dump())
+	}
+	ss.write("<Item id=\"a\">また直った</Item>\n")
+	v.WaitFor("また直った")
+	v.WaitGone("AI が報告を直しています")
 	// Control characters from the report never reach the terminal.
 	if strings.Contains(v.Raw(), "\x1b[31m</Item>") {
 		t.Errorf("an escape sequence from the report reached the terminal")

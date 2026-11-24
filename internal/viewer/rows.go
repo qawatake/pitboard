@@ -126,6 +126,10 @@ func (a *app) rows(pv *view) []row {
 		rows = append(rows, a.para(0, plainText(pv.ReadErr, cBad+bold))...)
 		blank()
 	}
+	if pv.Fixing {
+		rows = append(rows, a.para(0, plainText(page.MsgFixing, dim))...)
+		blank()
+	}
 	if len(pv.Probs) > 0 {
 		head := page.MsgProblems
 		if report.Partial(pv.Probs) {

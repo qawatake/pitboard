@@ -20,6 +20,12 @@ type Report struct {
 	// ReadErr is set when the last read failed (a bug): Nodes and Probs
 	// are still what was read before.
 	ReadErr string
+	// Fixing is set when the file has problems (what 'pitboard check'
+	// fails on) and a version without any was read before: Nodes are still
+	// that version, Probs are empty, and screens say MsgFixing. A report
+	// that never had a good version shows its problems.
+	Fixing bool
+	good   bool // Nodes are from a version without problems (an empty one is not kept)
 }
 
 // NewReport reads the report at path ("" when there is no session).
@@ -30,7 +36,8 @@ func NewReport(path string) *Report {
 }
 
 // Load reads the report again. Whatever goes wrong while reading, what was
-// read before is kept.
+// read before is kept; so is the last version without problems, while the
+// file has problems (Fixing).
 func (r *Report) Load() {
 	if r.Path == "" {
 		r.Missing = true
@@ -41,6 +48,7 @@ func (r *Report) Load() {
 	if err != nil {
 		if os.IsNotExist(err) {
 			r.Missing, r.Err, r.Nodes, r.Probs = true, "", nil, nil
+			r.Fixing, r.good = false, false
 			return
 		}
 		r.Err = err.Error()
@@ -53,7 +61,13 @@ func (r *Report) Load() {
 		if err != nil {
 			return err
 		}
+		if len(probs) > 0 && r.good {
+			// The person keeps seeing the last good version.
+			r.Probs, r.Fixing = nil, true
+			return nil
+		}
 		r.Nodes, r.Probs = nodes, probs
+		r.good, r.Fixing = len(probs) == 0 && len(nodes) > 0, false
 		return nil
 	})
 	r.ReadErr = ""

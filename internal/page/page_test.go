@@ -283,7 +283,7 @@ func TestCommentAnswersAsk(t *testing.T) {
 	if _, err := b.Comment(unit.Target, "ページの単位", "リポジトリごとがいい"); err != nil {
 		t.Fatal(err)
 	}
-	write(t, b.Store, strings.Replace(src, "<Option key=\"b\">プロジェクトごと</Option>", "<Option key=\"b\">プロジェクトごと</Option>\n    <Option key=\"c\">リポジトリごと</Option>", 1))
+	write(t, b.Store, strings.Replace(src, "<Option key=\"b\">プロジェクトごと</Option>", "<Option key=\"b\">プロジェクトごと</Option>\n    <Option key=\"d\">リポジトリごと</Option>", 1))
 	b.Report.Load()
 	if u := find(b.Page(false).Things, "unit"); u.Mark != MarkWaiting {
 		t.Errorf("Ask rewritten: %v", u.Mark)
