@@ -9,8 +9,8 @@ import (
 )
 
 // Under an open line, the thoughts the AI is done with fold into one faint
-// line after the others; enter shows them, enter again closes the line,
-// and opening it again shows them folded. The folded line is no stop.
+// line after the others, and stay folded: enter only closes the line, and
+// opening it again shows them folded. The folded line is no stop.
 func TestDoneFoldUnderRow(t *testing.T) {
 	st := testStore(t)
 	os.WriteFile(st.ReportPath(), []byte(`<Item id="a">項目</Item>
@@ -50,11 +50,6 @@ func TestDoneFoldUnderRow(t *testing.T) {
 		t.Fatalf("a new done one:\n%s", s)
 	}
 
-	a.enter(pv)
-	s = text()
-	if strings.Contains(s, "対応済 2 件") || !strings.Contains(s, "済んだ一つ目") || !strings.Contains(s, "対応: 直しました") || !strings.Contains(s, "済んだ二つ目") {
-		t.Fatalf("shown:\n%s", s)
-	}
 	a.enter(pv)
 	if s := text(); strings.Contains(s, "まだのもの") || !pv.isClosed("a") {
 		t.Fatalf("closed:\n%s", s)

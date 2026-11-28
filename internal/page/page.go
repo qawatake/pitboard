@@ -135,8 +135,8 @@ type Thing struct {
 	At    time.Time `json:",omitzero"`  // a Notice's: when the AI put it up
 	// Comments are the comments written on it: those the AI is not done
 	// with, oldest first, then those done (Finished), oldest first. Under
-	// the line the done ones fold into one line, DoneFold, until the
-	// person opens it (EnterStep).
+	// the line the done ones fold into one line, DoneFold (all of them
+	// are on the comments screen).
 	Comments []*Comment `json:",omitempty"`
 	// DoneFold is that one line's words (DoneFoldWord): "" when no comment
 	// on it is done.

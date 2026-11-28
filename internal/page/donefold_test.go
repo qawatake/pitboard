@@ -44,24 +44,8 @@ func TestDoneFold(t *testing.T) {
 	}
 }
 
-// Enter: closed opens (folded), folded shows them, shown closes (and
-// folds again); a line with nothing done toggles.
-func TestEnterStep(t *testing.T) {
-	for _, c := range []struct{ open, shown, done, wantOpen, wantShown bool }{
-		{false, false, true, true, false},
-		{true, false, true, true, true},
-		{true, true, true, false, false},
-		{false, false, false, true, false},
-		{true, false, false, false, false},
-	} {
-		if o, s := EnterStep(c.open, c.shown, c.done); o != c.wantOpen || s != c.wantShown {
-			t.Errorf("%+v: got %v %v", c, o, s)
-		}
-	}
-}
-
-// Open with its done comments folded, enter's hint is 開く (it shows
-// them); shown, 閉じる.
+// enter only opens and closes: open with its done comments folded, its
+// hint is 閉じる (the folded ones are on the comments screen).
 func TestDoneFoldHint(t *testing.T) {
 	b := open(t, "<Item id=\"a\">項目\n  中身\n</Item>\n")
 	n := b.Report.Nodes[0]
@@ -73,10 +57,10 @@ func TestDoneFoldHint(t *testing.T) {
 		}
 		return ""
 	}
-	if got := enter(Touch{Open: true, Folded: true}); got != "開く" {
-		t.Errorf("folded: %q", got)
-	}
 	if got := enter(Touch{Open: true}); got != "閉じる" {
-		t.Errorf("shown: %q", got)
+		t.Errorf("open: %q", got)
+	}
+	if got := enter(Touch{}); got != "開く" {
+		t.Errorf("closed: %q", got)
 	}
 }

@@ -80,7 +80,7 @@ export function row(cx, t, opts, add) {
   const open = !!(t.CanOpen && cx.isOpen(t));
   const jump = cx.ui.mode === 'goto' && t.JumpKey ? t.JumpKey : '';
   const { Kids, ...own } = t;
-  const sig = JSON.stringify(own) + '|' + open + '|' + (cx.isShown ? cx.isShown(t) : false) + '|' + jump + '|' + (opts.heading ? 'h' : '');
+  const sig = JSON.stringify(own) + '|' + open + '|' + jump + '|' + (opts.heading ? 'h' : '');
   let c = cx.memo.cache.get(t.Key);
   if (!c || c.sig !== sig) {
     const box = frame(cx, t, open, opts, jump);

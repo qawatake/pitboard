@@ -15,7 +15,7 @@
 
 import { el } from './dom.js';
 import { patch } from './parts/row.js';
-import { isOpen, isShown, words } from './state.js';
+import { isOpen, words } from './state.js';
 import * as notice from './parts/notice.js';
 import * as section from './parts/section.js';
 import * as item from './parts/item.js';
@@ -126,7 +126,6 @@ function context(page, ui, memo, env) {
     page, ui, memo, env, rows: new Map(),
     words: (k) => words(page, k),
     isOpen: (t) => isOpen(ui, t),
-    isShown: (t) => isShown(ui, t),
   };
   cx.things = (ts) => things(cx, ts, false);
   return cx;

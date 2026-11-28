@@ -27,7 +27,7 @@ export function draw(cx, panel) {
   list.replaceChildren(...out);
 }
 
-export const covers = {"mode": {"comments": ["every state; cursor on a comment"]}, "hint": {"edit": ["every state; cursor on a comment"], "retract": ["every state; cursor on a comment"]}};
+export const covers = {"mode": {"comments": ["every state; cursor on a comment"]}, "status": {"対応済": ["every state; cursor on a comment"]}, "settle": {"done": ["every state; cursor on a comment"]}, "hint": {"edit": ["every state; cursor on a comment"], "retract": ["every state; cursor on a comment"]}};
 
 export const differences = {"panel-scrolled": ["scrolled to the cursor (the last comment)"], "float-edge": ["every state; cursor on a comment", "no comments yet"], "image-edge": ["every state; cursor on a comment"]};
 

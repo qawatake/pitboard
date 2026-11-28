@@ -233,8 +233,6 @@ type Cur struct {
 	Sel string
 	// Open says whether the line is open (an Ask's options shown).
 	Open bool
-	// Folded: open, its done comments folded (page.Touch.Folded).
-	Folded bool
 }
 
 // Result is what an action returns: Message is the same notice the
@@ -295,7 +293,7 @@ func (t *tab) now(key string) *report.Node {
 // touch is a's facts as page's guard takes them.
 func (t *tab) touch(a Act, now *report.Node) page.Touch {
 	c := a.Cur
-	tc := page.Touch{Placed: c.Start, Open: c.Open, Folded: c.Open && c.Folded, Again: t.again}
+	tc := page.Touch{Placed: c.Start, Open: c.Open, Again: t.again}
 	if c.How == "app" {
 		tc.Auto, tc.Shown = true, time.Duration(max(c.Ago, 0))*time.Millisecond
 	}

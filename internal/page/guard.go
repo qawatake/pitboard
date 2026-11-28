@@ -49,9 +49,6 @@ type Touch struct {
 	Auto  bool
 	Shown time.Duration
 	Open  bool // the line is open on screen (an Ask's options are shown)
-	// Folded: open, with the comments the AI is done with on it folded
-	// into one line (enter shows them: EnterStep).
-	Folded bool
 	// Again is the press last dropped while settling (Verdict.Again): the
 	// screen keeps it and gives it back with the next press.
 	Again string
@@ -195,7 +192,7 @@ func (b *Board) Offer(n *report.Node, t Touch) Offer {
 	}
 	var enter, read, answer, write, hide []Hint
 	switch {
-	case b.CanOpen(n) && t.Open && !t.Folded:
+	case b.CanOpen(n) && t.Open:
 		enter = []Hint{{"close", "enter", "閉じる"}}
 	case b.CanOpen(n):
 		enter = []Hint{{"open", "enter", "開く"}}

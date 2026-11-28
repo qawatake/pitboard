@@ -113,11 +113,10 @@ func TestOpenedContentsColor(t *testing.T) {
 済んだ中身
 </Item>`), 0o644)
 	th, _ := st.Append(board.Event{Op: "thought", ID: "a", Text: "思いつき"})
-	st.Settle(th.N, "todo にした")
+	st.SettleAll([]board.Settlement{{N: th.N, State: "doing", Text: "todo にした"}}) // shown, not folded
 	a := testApp(t, st)
 	pv := a.top()
 	pv.open["a"], pv.open["d"] = true, true
-	pv.shown = map[string]bool{"a": true} // its done comment shown, not folded
 	var raw []string
 	for _, r := range a.rows(pv) {
 		raw = append(raw, r.line)
@@ -127,7 +126,7 @@ func TestOpenedContentsColor(t *testing.T) {
 		{"中身の文", dim + "中身の文"},
 		{dim + "理由: ", cBad + "上の答え待ち"},
 		{"上の答え待ち", dim + "上の答え待ち"},
-		{dim + "対応: ", dim + "対応: todo"},
+		{dim + "対応中: ", dim + "対応中: todo"},
 		{dim + "済んだ中身", ""},
 	} {
 		if !strings.Contains(s, c.want) || (c.not != "" && strings.Contains(s, c.not)) {

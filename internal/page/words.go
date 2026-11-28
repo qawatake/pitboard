@@ -91,20 +91,6 @@ func StatusWord(s board.Status) string {
 // line fold into, under it (after ✎, faint).
 func DoneFoldWord(n int) string { return fmt.Sprintf("対応済 %d 件", n) }
 
-// EnterStep is what enter does on a line that opens, from how it is
-// (open; shown: its done comments are shown, not folded; done: it has
-// done comments): closed, it opens with them folded; open with them
-// folded, it shows them; otherwise it closes, and they fold again.
-func EnterStep(open, shown, done bool) (bool, bool) {
-	switch {
-	case !open:
-		return true, false
-	case done && !shown:
-		return true, true
-	}
-	return false, false
-}
-
 // ThoughtWord is a comment's status in one word, in the palette's
 // meaning: not sent needs the person, 対応中 moves (the AI works on it),
 // the rest are quiet.

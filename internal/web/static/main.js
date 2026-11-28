@@ -655,8 +655,6 @@ function start() {
     if (un) { e.stopPropagation(); unimage(Number(un.dataset.unimage)); return; }
     const img = tg.closest('[data-image]');
     if (img) { e.stopPropagation(); openImage(Number(img.dataset.image), img); return; }
-    const fold = tg.closest('[data-fold]');
-    if (fold) { e.stopPropagation(); set(S.showDone(ui, fold.dataset.fold)); requestHint(); return; }
     const go = tg.closest('[data-go]');
     if (go) { e.stopPropagation(); goToComment(Number(go.dataset.go)); return; }
     const link = tg.closest('[data-link]');

@@ -63,9 +63,8 @@ function reply(c) {
 // (t.DoneFold) until enter, or a click on that line, shows them.
 export function on(cx, t, cls) {
   const box = el('div', 'comments' + (cls ? ' ' + cls : ''));
-  const shown = !!(cx.isShown && cx.isShown(t));
   for (const c of t.Comments || []) {
-    if (c.Finished && !shown) continue;
+    if (c.Finished) continue;
     const d = el('div', 'comment');
     d.appendChild(el('span', 'cm', '✎'));
     d.appendChild(text(c.Text));
@@ -78,14 +77,10 @@ export function on(cx, t, cls) {
     if (under.firstChild) d.appendChild(under);
     box.appendChild(d);
   }
-  if (t.DoneFold && !shown) {
+  if (t.DoneFold) {
     const d = el('div', 'comment dfold');
     d.appendChild(el('span', 'cm', '✎'));
-    const b = el('button', 'dfoldbtn quiet', t.DoneFold);
-    b.type = 'button';
-    b.tabIndex = -1; // not a stop: enter on the line shows them
-    b.dataset.fold = t.Key;
-    d.appendChild(b);
+    d.appendChild(el('span', 'dfoldw quiet', t.DoneFold));
     box.appendChild(d);
   }
   return box;
@@ -138,7 +133,7 @@ export function panelRow(cx, c, key, canGo) {
 
 const onLine = (id) => ({ fixture: 'comments', pick: id, open: true });
 
-export const covers = {"status": {"未送信": ["未送信, 3 lines, an image, a second one with a large and a tall image"], "送信済": ["送信済"], "既読": ["既読"], "対応中": ["対応中 (reply)"], "保留": ["保留 (reply)"], "対応済": ["対応済 (2-line reply)"]}, "settle": {"doing": ["対応中 (reply)"], "hold": ["保留 (reply)"], "done": ["対応済 (2-line reply)"]}};
+export const covers = {"status": {"未送信": ["未送信, 3 lines, an image, a second one with a large and a tall image"], "送信済": ["送信済"], "既読": ["既読"], "対応中": ["対応中 (reply)"], "保留": ["保留 (reply)"], "対応済": ["対応済 folded into one line"]}, "settle": {"doing": ["対応中 (reply)"], "hold": ["保留 (reply)"]}};
 
 export const differences = {"rights-below": ["narrow: the state word below, as its list"], "image-edge": ["未送信, 3 lines, an image, a second one with a large and a tall image"]};
 
@@ -148,7 +143,6 @@ export const variants = [
   { name: '既読', ...onLine('c3') },
   { name: '対応中 (reply)', ...onLine('c4') },
   { name: '保留 (reply)', ...onLine('c5') },
-  { name: '対応済 (2-line reply)', ...onLine('c6'), shown: true },
   { name: '対応済 folded into one line', ...onLine('c6') },
   { name: '対応中 listed, 対応済 folded after it', ...onLine('c4') },
   { name: 'written on another title', ...onLine('c7') },

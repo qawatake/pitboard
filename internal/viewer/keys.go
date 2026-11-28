@@ -210,10 +210,9 @@ func (a *app) enter(pv *view) {
 	switch {
 	case n == nil:
 	case a.canOpen(pv, n):
-		if pv.shown == nil {
-			pv.shown = map[string]bool{}
-		}
-		pv.open[pv.cur], pv.shown[pv.cur] = page.EnterStep(pv.open[pv.cur], pv.shown[pv.cur], pv.hasDone(n))
+		// Only open or close: the comments the AI is done with stay
+		// folded into one line (all are on the comments screen).
+		pv.open[pv.cur] = !pv.open[pv.cur]
 	}
 }
 

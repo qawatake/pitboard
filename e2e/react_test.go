@@ -766,20 +766,19 @@ func TestCommentStates(t *testing.T) {
 	state("保留", "dim")
 	ss.mustRun("settle", "1", "--done", "やりました")
 	v.Until("row ends with 対応済", func() bool { return strings.HasSuffix(v.Line(row), "対応済") })
-	// Done, it folds into one faint line under the row; enter shows it.
+	// Done, it folds into one faint line under the row, and stays folded:
+	// enter only closes the line.
 	v.WaitFor("✎ 対応済 1 件")
 	v.WaitGone("✎ 状態を見る")
 	wantColor(t, v, "対応済 1 件", "dim")
 	v.Keys("enter")
 	v.WaitGone("対応済 1 件")
-	state("対応済", "dim")
-	// SPEC.md 「画面」: "行の下のコメントに AI の文があれば `対応: …` とし、
-	// 頭の語だけを薄く". (「コメント」 says only the state word shows under
-	// the line; the two statements conflict: see docs/dev/E2E1-result.md.)
-	v.WaitFor("対応: やりました")
-	wantColor(t, v, "対応:", "dim")
-	wantColor(t, v, "やりました", "")
-	// On the comments screen: the first line of what the AI wrote.
+	v.Until("row ends with 対応済", func() bool { return strings.HasSuffix(v.Line(row), "対応済") })
+	if strings.Contains(v.Screen(), "状態を見る") {
+		t.Errorf("enter showed the done comment:\n%s", v.dump())
+	}
+	// On the comments screen: the first line of what the AI wrote, its
+	// head faint.
 	v.Keys("l")
 	v.WaitFor("状態を見る")
 	v.MoveTo("状態を見る")

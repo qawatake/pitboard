@@ -78,7 +78,6 @@ function resolve(v, isPart) {
     things = [t];
     if (v.after) things.push(v.after(page));
     if (v.open === true) ui.open[t.Key] = true;
-    if (v.shown) ui.shown = { [t.Key]: true };
     // The lines that hold it open (no change to the part drawn alone): the
     // live page it is compared with shows it so.
     for (const k of S.index(page).parents.get(t.Key) || []) if (!(k in ui.open)) ui.open[k] = true;

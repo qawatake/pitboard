@@ -493,7 +493,7 @@ func (a *app) contents(pv *view, n *report.Node, ind int) []row {
 
 // thoughtRows is the thoughts written on n, as shown under it when it is
 // open: those the AI is not done with, then those done folded into one
-// faint line (page.DoneFoldWord) until enter shows them (pv.shown).
+// faint line (page.DoneFoldWord): all of them are on the comments screen.
 func (a *app) thoughtRows(pv *view, n *report.Node, ind int) []row {
 	var rows []row
 	id := report.Target(n)
@@ -508,13 +508,7 @@ func (a *app) thoughtRows(pv *view, n *report.Node, ind int) []row {
 		}
 		rows = append(rows, a.thoughtRow(n, t, ind)...)
 	}
-	switch {
-	case len(done) == 0:
-	case pv.shown[n.Key]:
-		for _, t := range done {
-			rows = append(rows, a.thoughtRow(n, t, ind)...)
-		}
-	default:
+	if len(done) > 0 {
 		rows = append(rows, a.line(false, ind, plainText("✎", dim), plainText(page.DoneFoldWord(len(done)), dim), nil)...)
 	}
 	return rows
