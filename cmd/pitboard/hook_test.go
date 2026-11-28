@@ -238,3 +238,65 @@ func TestStopDoesNotBlockForHides(t *testing.T) {
 		t.Errorf("stop with an answer: %q", got)
 	}
 }
+
+// Claude Code hands a hook the whole session id, while the help tells the AI
+// to name its board by the first 8 characters: the hook finds that board.
+func TestHookFindsBoardNamedByIDHead(t *testing.T) {
+	const id = "0a1b2c3d-4e5f-6789-abcd-ef0123456789"
+	mk := func(base, name string) *board.Store {
+		st := board.Open(base, name)
+		if err := os.MkdirAll(st.Dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		os.WriteFile(st.ReportPath(), []byte("<Title>t</Title>\n"), 0o644)
+		return st
+	}
+	for _, ev := range []string{"prompt-submit", "post-tool", "stop"} {
+		base := t.TempDir()
+		st := mk(base, "0a1b2c3d")
+		st.Append(board.Event{Op: "thought", Text: "by head"})
+		sendAll(st)
+		// From a directory below the board, as after a cd.
+		sub := filepath.Join(base, "a", "b")
+		os.MkdirAll(sub, 0o755)
+		got := runHook(t, ev, hookInput(sub, id, ""))
+		if !strings.Contains(got, "by head") {
+			t.Errorf("%s: not delivered: %q", ev, got)
+		}
+		// The command it gives names the board as it is named.
+		if !strings.Contains(got, "pitboard -s 0a1b2c3d settle") {
+			t.Errorf("%s: settle line: %q", ev, got)
+		}
+		if again := runHook(t, ev, hookInput(sub, id, "")); again != "" {
+			t.Errorf("%s: delivered twice: %q", ev, again)
+		}
+	}
+
+	// A head shorter than 8 characters, or another session's board, is not this session's.
+	base := t.TempDir()
+	for _, name := range []string{"0a1b", "0a1b2c3e", "0a1b2c3d-4e5f-0000"} {
+		st := mk(base, name)
+		st.Append(board.Event{Op: "thought", Text: "other"})
+		sendAll(st)
+	}
+	if got := runHook(t, "prompt-submit", hookInput(base, id, "")); got != "" {
+		t.Errorf("delivered another board's: %q", got)
+	}
+
+	// The id itself wins over a head; among heads, the longest.
+	short := mk(base, "0a1b2c3d")
+	short.Append(board.Event{Op: "thought", Text: "short head"})
+	sendAll(short)
+	long := mk(base, "0a1b2c3d-4e5f")
+	long.Append(board.Event{Op: "thought", Text: "long head"})
+	sendAll(long)
+	if got := runHook(t, "prompt-submit", hookInput(base, id, "")); !strings.Contains(got, "long head") || strings.Contains(got, "short head") {
+		t.Errorf("longest head: %q", got)
+	}
+	whole := mk(base, id)
+	whole.Append(board.Event{Op: "thought", Text: "whole id"})
+	sendAll(whole)
+	if got := runHook(t, "prompt-submit", hookInput(base, id, "")); !strings.Contains(got, "whole id") {
+		t.Errorf("whole id: %q", got)
+	}
+}

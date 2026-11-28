@@ -17,7 +17,8 @@ import (
 //	stop           when the AI is about to stop: it is kept going to read them
 //
 // The hook runs in every session of every project, so a session without a
-// board (no .pitboard/<session_id>/ in the hook's cwd or above it), or input that is
+// board (no .pitboard/ directory named by the session id or its head in the
+// hook's cwd or above it), or input that is
 // not what Claude Code sends, gets nothing: no output, no files, exit 0.
 func hook(event string, stdin io.Reader, stdout io.Writer) error {
 	var in struct {
@@ -33,12 +34,14 @@ func hook(event string, stdin io.Reader, stdout io.Writer) error {
 	if in.Cwd == "" || !board.ReSession.MatchString(in.SessionID) {
 		return nil
 	}
-	// The AI may have cd'ed below where the board is: look upwards.
-	base, _, ok, err := board.FindSession(in.Cwd, in.SessionID, false)
-	if err != nil || !ok {
+	// The AI may have cd'ed below where the board is: look upwards. The hook
+	// is given the whole session id, while the board is named by its head
+	// (the first 8 characters, as the help says) or by the id itself.
+	base, name, ok := board.FindSessionByID(in.Cwd, in.SessionID)
+	if !ok {
 		return nil
 	}
-	st := board.Open(base, in.SessionID)
+	st := board.Open(base, name)
 	switch event {
 	case "prompt-submit", "post-tool", "stop":
 	default:
@@ -61,7 +64,7 @@ func hook(event string, stdin io.Reader, stdout io.Writer) error {
 		return nil
 	}
 	msg := "pitboard (the person acted on the board):\n" + strings.Join(lines, "\n") + "\n" +
-		fmt.Sprintf("Settle each thought with \"pitboard -s %s settle N [--doing|--hold|--done] TEXT\" (several: --STATE N TEXT --STATE N TEXT ...) once you know what to do with it.", in.SessionID)
+		fmt.Sprintf("Settle each thought with \"pitboard -s %s settle N [--doing|--hold|--done] TEXT\" (several: --STATE N TEXT --STATE N TEXT ...) once you know what to do with it.", name)
 	if n := st.ProblemNote(); n != "" {
 		msg += "\n" + n
 	}

@@ -158,6 +158,37 @@ func FindSession(dir, given string, prefix bool) (base, name string, ok bool, er
 	return "", "", false, nil
 }
 
+// minIDHead is the shortest head of a session id a board may be named by
+// and still be found from the whole id (the help tells the AI to name the
+// board by the first 8 characters of its Claude Code session id).
+const minIDHead = 8
+
+// FindSessionByID looks for the board of the session whose whole id is
+// given (what Claude Code hands a hook), from dir upwards. A board is named
+// by the id itself or by a head of it, minIDHead characters or more; in one
+// directory the id itself wins, then the longest head. name is the board's
+// name. ok is false when there is no such board anywhere.
+func FindSessionByID(dir, id string) (base, name string, ok bool) {
+	if !ReSession.MatchString(id) {
+		return "", "", false
+	}
+	for _, d := range ancestors(dir) {
+		if isDir(Open(d, id).Dir) {
+			return d, id, true
+		}
+		best := ""
+		for _, s := range Sessions(d) {
+			if len(s) >= minIDHead && len(s) > len(best) && strings.HasPrefix(id, s) {
+				best = s
+			}
+		}
+		if best != "" {
+			return d, best, true
+		}
+	}
+	return "", "", false
+}
+
 // Root is where boards live for commands run in dir: the nearest
 // directory (from dir upwards) that has a .pitboard/ directory, or dir.
 func Root(dir string) string {
