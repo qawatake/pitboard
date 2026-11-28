@@ -571,10 +571,16 @@ terminal program cannot turn it off; the terminal viewer runs a command the
 person gives for it, each time its comment editor closes (placed with enter,
 given up with esc, or back from $EDITOR):
 
-  export PITBOARD_IME_OFF='macism com.apple.keylayout.ABC'
+  export PITBOARD_IME_OFF="osascript -e 'tell application \"System Events\" to key code 102'"
+
+This presses the macOS 英数 key (key code 102) with nothing to install; the
+first run asks to give the terminal app Accessibility permission (System
+Settings > Privacy & Security > Accessibility). Tools such as macism or
+im-select work too. macOS shows an あ/A indicator on each switch; turn it
+off with defaults write -g TSMLanguageIndicatorEnabled -bool false (after
+logging in again).
 
 It is run with sh -c, in the background, cut off after 2 seconds; its
 output is discarded and a failure is ignored. Unset: nothing is run. The
-command switches the input method to ASCII: macism and im-select are such
-tools. The browser (serve) cannot run commands and does not do this.
+browser (serve) cannot run commands and does not do this.
 `

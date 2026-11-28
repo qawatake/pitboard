@@ -50,7 +50,9 @@ pitboard -s ID      # セッションを選ぶ (id は先頭数文字でよい)
 
 コメントを置いたあとも IME が日本語のままだと、続けて押す `s` などが変換に取られる。入力ソースを英数に切り替えるコマンドを `PITBOARD_IME_OFF` に置くと、端末の viewer はコメントのエディタが閉じるたびにそれを実行する (詳しくは `pitboard help ime`):
 
-    export PITBOARD_IME_OFF='macism com.apple.keylayout.ABC'
+    export PITBOARD_IME_OFF="osascript -e 'tell application \"System Events\" to key code 102'"
+
+macOS の英数キー (key code 102) を押すだけで、何も入れなくてよい。初回は端末アプリにアクセシビリティの許可を求められる (システム設定 > プライバシーとセキュリティ > アクセシビリティ)。切り替えのたびに出る「あ/A」の表示は `defaults write -g TSMLanguageIndicatorEnabled -bool false` で消せる (再ログイン後に効く)。
 
 ## 文書
 
