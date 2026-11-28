@@ -40,6 +40,28 @@ func TestStopHookIgnoresTakenBack(t *testing.T) {
 	}
 }
 
+// A retract the hooks deliver comes with the pointer to the topic that
+// explains it; an ordinary thought does not.
+func TestHookPointsAtHelpChanges(t *testing.T) {
+	const pointer = "(what these lines mean: pitboard help changes)"
+	for _, ev := range []string{"post-tool", "stop"} {
+		t.Run(ev, func(t *testing.T) {
+			st := testStore(t)
+			in := hookInput(st.Base, "s1", "")
+			th, _ := st.Append(board.Event{Op: "thought", Text: "x"})
+			sendAll(st)
+			if got := runHook(t, ev, in); !strings.Contains(got, "thought 1: x") || strings.Contains(got, pointer) {
+				t.Errorf("thought: %q", got)
+			}
+			st.Append(board.Event{Op: "retract", Thought: th.N})
+			sendAll(st)
+			if got := runHook(t, ev, in); !strings.Contains(got, "retract thought 1: x") || !strings.Contains(got, pointer) {
+				t.Errorf("retract: %q", got)
+			}
+		})
+	}
+}
+
 // ---- hook ----
 
 func hookInput(cwd, session string, extra string) string {

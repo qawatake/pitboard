@@ -48,6 +48,20 @@ func (s *Store) Changes() ([]string, error) {
 	return out, err
 }
 
+// ChangesHelp is the line that follows what 'changes' prints when it holds
+// a line pitboard -h does not explain in full (a retract, an edit, an
+// unretract, or a title rewritten since: "→ now"), pointing at the topic
+// that does. It is empty when there is none.
+func ChangesHelp(lines []string) string {
+	for _, l := range lines {
+		if strings.HasPrefix(l, "retract ") || strings.HasPrefix(l, "edit thought ") ||
+			strings.HasPrefix(l, "unretract ") || strings.Contains(l, " → now") {
+			return "(what these lines mean: pitboard help changes)"
+		}
+	}
+	return ""
+}
+
 // Pending is the events changes would deliver next, without delivering
 // them.
 func (s *Store) Pending() []Event {

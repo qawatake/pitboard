@@ -36,15 +36,22 @@ func wantLines(t *testing.T, got string, want ...string) {
 	}
 }
 
-// SPEC.md "コマンド": -h is the whole usage and names every command.
+// SPEC.md "コマンド": -h names every command and the help topics; what
+// only some sessions need is in a topic.
 func TestHelpMentionsEveryCommand(t *testing.T) {
 	s := newSandbox(t)
 	out := s.mustRun("-h")
-	for _, cmd := range []string{"view", "serve", "path", "changes", "settle", "open", "check", "wait", "hook", "--skill", "-h",
-		"post-tool", "hook stop", `"asyncRewake": true, "timeout": 86400`, stopHookNote, "PITBOARD_SEND", "A layout to start from", "Manners"} {
+	for _, cmd := range []string{"view", "serve", "path", "changes", "settle", "open", "check", "wait", "hook", "help", "--skill", "-h",
+		"post-tool", "A layout to start from", "Manners", "Topics (pitboard help TOPIC):"} {
 		if !strings.Contains(out, cmd) {
 			t.Errorf("-h does not mention %q", cmd)
 		}
+	}
+	if !strings.Contains(s.mustRun("help", "hooks"), `"asyncRewake": true, "timeout": 86400`) {
+		t.Error("help hooks lacks the Stop hook's settings")
+	}
+	if send := s.mustRun("help", "send"); !strings.Contains(send, stopHookNote) || !strings.Contains(send, "PITBOARD_SEND") {
+		t.Errorf("help send:\n%s", send)
 	}
 	// What is gone: the prompt-submit hook, and 'wait' as the cheapest way.
 	for _, w := range []string{"prompt-submit", "UserPromptSubmit", "cheapest"} {
@@ -348,6 +355,8 @@ func TestChanges(t *testing.T) {
 		"  image 3: "+img,
 		"hide (2): とても長い題のとても長い行をここで隠し… / 短い",
 		"unhide (1): 短い",
+		// "→ now" above: the line pointing at the topic that explains it.
+		"(what these lines mean: pitboard help changes)",
 	)
 	// Only what came before the latest send; nothing twice.
 	if out := ss.mustRun("changes"); out != "" {
@@ -378,7 +387,7 @@ func TestChangesEditsRetractsUndos(t *testing.T) {
 			name:   "edit after delivery",
 			before: []string{ev(1, "thought", `"text":"old"`)},
 			after:  []string{ev(3, "edit", `"thought":1,"text":"new"`), ev(4, "edit", `"thought":1,"text":"newer"`)},
-			want:   []string{"edit thought 1: newer"},
+			want:   []string{"edit thought 1: newer", "(what these lines mean: pitboard help changes)"},
 		},
 		{
 			name:  "retract before delivery is never told",
@@ -389,7 +398,7 @@ func TestChangesEditsRetractsUndos(t *testing.T) {
 			name:   "retract after delivery",
 			before: []string{ev(1, "thought", `"text":"old words"`)},
 			after:  []string{ev(3, "retract", `"thought":1`)},
-			want:   []string{"retract thought 1: old words"},
+			want:   []string{"retract thought 1: old words", "(what these lines mean: pitboard help changes)"},
 		},
 		{
 			name:  "undo of an unsent answer: as if never",
@@ -400,7 +409,7 @@ func TestChangesEditsRetractsUndos(t *testing.T) {
 			name:   "undo of a sent answer",
 			before: []string{ev(1, "react", `"id":"hook","value":"y","title":"hook を入れるか決める","option":"入れる"`)},
 			after:  []string{ev(3, "undo", `"undo":1`)},
-			want:   []string{"retract answer hook = y (入れる)"},
+			want:   []string{"retract answer hook = y (入れる)", "(what these lines mean: pitboard help changes)"},
 		},
 		{
 			// FEAT25: y / n of an older viewer in events.jsonl break nothing:
@@ -414,7 +423,7 @@ func TestChangesEditsRetractsUndos(t *testing.T) {
 			name:   "undo of a sent hide",
 			before: []string{ev(1, "hide", `"key":"k","title":"隠した行"`)},
 			after:  []string{ev(3, "undo", `"undo":1`)},
-			want:   []string{"retract hide: 隠した行"},
+			want:   []string{"retract hide: 隠した行", "(what these lines mean: pitboard help changes)"},
 		},
 		{
 			// "送ったが AI がまだ読んでいないものを取り消して送ったら、どちらも届けない"
@@ -448,9 +457,9 @@ func TestChangesEditsRetractsUndos(t *testing.T) {
 		ss.appendEvents(ev(1, "thought", `"text":"words"`), ev(2, "send", ""))
 		ss.mustRun("changes")
 		ss.appendEvents(ev(3, "retract", `"thought":1`), ev(4, "send", ""))
-		wantLines(t, ss.mustRun("changes"), "retract thought 1: words")
+		wantLines(t, ss.mustRun("changes"), "retract thought 1: words", "(what these lines mean: pitboard help changes)")
 		ss.appendEvents(ev(5, "undo", `"undo":3`), ev(6, "send", ""))
-		wantLines(t, ss.mustRun("changes"), "unretract thought 1: words")
+		wantLines(t, ss.mustRun("changes"), "unretract thought 1: words", "(what these lines mean: pitboard help changes)")
 	})
 }
 
@@ -470,7 +479,7 @@ func TestChangesTrailingLines(t *testing.T) {
 
 	// A broken report adds the problem line, after open:.
 	ss.write(changesReport + "<Item id=\"z\">\n")
-	n := len(strings.Split(strings.TrimSpace(ss.run("check").stdout), "\n"))
+	n := strings.Count(ss.run("check").stdout, "report.md:")
 	problem := fmt.Sprintf("report.md has %d problem(s). Run: pitboard -s abcdef12 check", n)
 	r := ss.run("changes")
 	wantLines(t, r.stdout, "open: 1 2 (oldest 0s). Details: pitboard -s abcdef12 open", problem)

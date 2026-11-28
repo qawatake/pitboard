@@ -15,12 +15,22 @@ func TestSkillIsThin(t *testing.T) {
 	if !strings.HasPrefix(s, "---\nname: pitboard\ndescription: ") || !strings.Contains(s, "pitboard -h") || strings.Contains(s, "hook post-tool") {
 		t.Errorf("skill:\n%s", s)
 	}
+	// The skill says which topic to read when.
+	for _, tp := range topics {
+		if !strings.Contains(s, "pitboard help "+tp.name) {
+			t.Errorf("skill does not point at pitboard help %s", tp.name)
+		}
+	}
 	out.Reset()
 	run([]string{"-h"}, &out)
-	for _, w := range []string{"pitboard hook post-tool", "settle", "scratchpad", "PITBOARD_SEND", "herdr agent prompt", "→ now:"} {
+	for _, w := range []string{"pitboard hook post-tool", "settle", "scratchpad", "→ now:", "AI の番", "old_string", "Topics (pitboard help TOPIC):"} {
 		if !strings.Contains(out.String(), w) {
 			t.Errorf("-h lacks %q", w)
 		}
+	}
+	// What -h says is not repeated in the skill.
+	if strings.Contains(s, "AI の番") {
+		t.Error("the skill repeats the AI の番 paragraph of -h")
 	}
 }
 

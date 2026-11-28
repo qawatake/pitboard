@@ -66,6 +66,25 @@ func TestWaitReturnsAtOnceWhenSent(t *testing.T) {
 	}
 }
 
+// What wait delivers points at 'pitboard help changes' when it holds a
+// line -h does not explain in full, as 'changes' does.
+func TestWaitPointsAtHelpChanges(t *testing.T) {
+	shortPoll(t)
+	st := testStore(t)
+	th, _ := st.Append(Event{Op: "thought", Text: "one"})
+	sendAll(st)
+	st.Changes()
+	st.Append(Event{Op: "retract", Thought: th.N})
+	sendAll(st)
+	var out bytes.Buffer
+	if err := st.Wait(context.Background(), time.Second, &out); err != nil {
+		t.Fatal(err)
+	}
+	if want := "retract thought 1: one\n(what these lines mean: pitboard help changes)\n"; out.String() != want {
+		t.Errorf("out %q, want %q", out.String(), want)
+	}
+}
+
 func TestWaitTimeoutAndSignal(t *testing.T) {
 	shortPoll(t)
 	st := testStore(t)

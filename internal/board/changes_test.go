@@ -361,3 +361,25 @@ func TestThoughtOnAFold(t *testing.T) {
 		t.Errorf("got\n%s\nwant\n%s", got, want)
 	}
 }
+
+// A retract, an edit, an unretract or a rewritten title is explained in
+// full only in 'pitboard help changes': the lines then point there.
+func TestChangesHelp(t *testing.T) {
+	for _, tt := range []struct {
+		lines []string
+		want  bool
+	}{
+		{[]string{"thought 1: x", "answer a = b (yes)", "hide (1): x"}, false},
+		{[]string{"thought 1: about the edit thought 3"}, false},
+		{[]string{"retract thought 1: x"}, true},
+		{[]string{"retract hide: x"}, true},
+		{[]string{"edit thought 2: y"}, true},
+		{[]string{"unretract thought 1: x"}, true},
+		{[]string{"answer a = b (yes; question: Q → now: Q2)"}, true},
+		{[]string{"thought 3 on a (old → now gone): x"}, true},
+	} {
+		if got := ChangesHelp(tt.lines) != ""; got != tt.want {
+			t.Errorf("ChangesHelp(%q) = %v, want %v", tt.lines, got, tt.want)
+		}
+	}
+}
