@@ -383,8 +383,10 @@ func (a *app) listItemOwn(pv *view, sel bool, ind int, n *report.Node, base stri
 		mark = listMark(n)
 	}
 	extra := max(mark.width()-markW, 0)
+	// The cursor never changes how a line is laid out (it only puts its >
+	// in the gutter: cursorRow).
 	var out []row
-	if len(right) > 0 || sel {
+	if len(right) > 0 {
 		out = a.titled(sel, ind, extra, mark, a.inline(n.Text, base), right, 0)
 	} else {
 		out = a.measured(ind, extra, mark, n.Text, base)

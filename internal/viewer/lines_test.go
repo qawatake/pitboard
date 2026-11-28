@@ -102,6 +102,61 @@ func TestEveryLineIsAStop(t *testing.T) {
 	}
 }
 
+// Where the cursor is never changes how a line is laid out: the report
+// drawn with the cursor on each of its lines is the same, but for the >.
+func TestLayoutIndependentOfTheCursor(t *testing.T) {
+	st := testStore(t)
+	os.WriteFile(st.ReportPath(), []byte(`<Title>題</Title>
+
+<Section title="進め方">
+- **まず**: 仕様を読んで、何を作るかを短くまとめる。それから手を動かす前に一度だけ確かめる
+- **そのあと**: 別のサブエージェントに確かめさせ、その結果を人に見せてよいかを聞く
+- **最後に**: まとめ
+1. **番号**: 番号つきの行も、頭の語があれば定義の形になる長さの文をここに書く
+
+**小見出し**: 段落にも頭の語があって、収まらなければ定義の形で描く。ここはそういう長い段落の例
+
+<Item id="a">項目
+  - **中身の頭**: 開いた中身の箇条にも、頭の語があって長い文がつづくものがある。ここがその例
+    - 入れ子の行
+  中身の段落。
+</Item>
+<Fold title="畳み">
+- **中の頭**: 畳みの中の箇条にも同じことが言える。長い文がここにつづく例をおく
+</Fold>
+</Section>
+`), 0o644)
+	for _, w := range []int{40, 60, 100} {
+		a := testApp(t, st)
+		a.t.w, a.t.h = w, 60
+		pv := a.top()
+		pv.open["a"], pv.open["fold:1"] = true, true
+		draw := func() []string {
+			var out []string
+			for _, r := range a.rows(pv) {
+				l := reEsc.ReplaceAllString(r.line, "")
+				if strings.HasPrefix(l, ">") {
+					l = " " + l[1:]
+				}
+				out = append(out, l)
+			}
+			return out
+		}
+		pv.cur = ""
+		want := strings.Join(draw(), "\n")
+		keys := pv.navKeys()
+		if len(keys) < 12 {
+			t.Fatalf("%d: stops %q", w, keys)
+		}
+		for _, k := range keys {
+			pv.cur = k
+			if got := strings.Join(draw(), "\n"); got != want {
+				t.Errorf("%d: the cursor on %q changes the layout:\n%s\nwant:\n%s", w, k, got, want)
+			}
+		}
+	}
+}
+
 // rowsText is the report's rows as drawn, without styles.
 func rowsText(a *app) []string {
 	var out []string
