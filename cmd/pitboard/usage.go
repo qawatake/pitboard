@@ -516,6 +516,8 @@ you with it). In ~/.claude/settings.json:
 
 - The hooks do nothing in a session without a board (no output, no files),
   and stay silent when the board cannot be read or written.
+- They do nothing inside a subagent (its tool calls fire the same hooks):
+  what the person sends is delivered to the main AI only.
 - Claude Code ends the Stop hook after "timeout" seconds (the default is
   far too short: give it). After that, any chat message or your next stop
   starts the waiting again.

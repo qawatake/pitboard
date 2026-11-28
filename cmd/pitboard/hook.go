@@ -22,17 +22,22 @@ import (
 // board (no .pitboard/ directory named by the session id or its head in the
 // hook's cwd or above it), or input that is
 // not what Claude Code sends, gets nothing: no output, no files, exit 0.
+//
+// So does a hook that fires inside a subagent (its input carries agent_id):
+// subagents share the session id, and what the person sends is for the main
+// AI, so a subagent's tool call must neither be given it nor mark it seen.
 func hook(ctx context.Context, event string, stdin io.Reader, stdout, stderr io.Writer) error {
 	var in struct {
 		SessionID string `json:"session_id"`
 		Cwd       string `json:"cwd"`
+		AgentID   string `json:"agent_id"`
 	}
 	// A hook's input can be large (a tool's whole output); past the limit it
 	// is not read at all.
 	if err := json.NewDecoder(io.LimitReader(stdin, hookInputLimit)).Decode(&in); err != nil {
 		return nil
 	}
-	if in.Cwd == "" || !board.ReSession.MatchString(in.SessionID) {
+	if in.Cwd == "" || in.AgentID != "" || !board.ReSession.MatchString(in.SessionID) {
 		return nil
 	}
 	// The AI may have cd'ed below where the board is: look upwards. The hook
