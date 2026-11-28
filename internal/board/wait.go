@@ -211,6 +211,9 @@ func (s *Store) Wait(ctx context.Context, timeout time.Duration, out io.Writer) 
 		for _, l := range lines {
 			fmt.Fprintln(out, l)
 		}
+		if h := ChangesHelp(lines); h != "" {
+			fmt.Fprintln(out, h)
+		}
 		s.NoteOpen(out)
 		return nil
 	}

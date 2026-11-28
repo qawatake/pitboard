@@ -104,6 +104,9 @@ func stopHook(ctx context.Context, st *board.Store, name string, stderr io.Write
 // hookMessage is what a hook tells the AI: the lines of `changes`, how to
 // settle, and the problem note if there is one.
 func hookMessage(st *board.Store, name string, lines []string) string {
+	if h := board.ChangesHelp(lines); h != "" {
+		lines = append(lines, h)
+	}
 	msg := "pitboard (the person acted on the board):\n" + strings.Join(lines, "\n") + "\n" +
 		fmt.Sprintf("Settle each thought with \"pitboard -s %s settle N [--doing|--hold|--done] TEXT\" (several: --STATE N TEXT --STATE N TEXT ...) once you know what to do with it.", name)
 	if n := st.ProblemNote(); n != "" {

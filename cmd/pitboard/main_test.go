@@ -203,6 +203,10 @@ func TestCheckCommand(t *testing.T) {
 	if err != exitError(1) || !strings.Contains(out.String(), ":2: duplicate id") {
 		t.Errorf("bad report: %v %q", err, out.String())
 	}
+	// The problems end with where the format is told in full.
+	if !strings.HasSuffix(out.String(), "(every part, attribute and text rule: pitboard help format)\n") {
+		t.Errorf("check does not point at help format: %q", out.String())
+	}
 }
 
 func TestSessionFlagAfterCommand(t *testing.T) {

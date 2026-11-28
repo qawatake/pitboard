@@ -223,6 +223,9 @@ func run(args []string, out io.Writer) error {
 		for _, l := range lines {
 			fmt.Fprintln(out, l)
 		}
+		if h := board.ChangesHelp(lines); h != "" {
+			fmt.Fprintln(out, h)
+		}
 		st.NoteOpen(out)
 		st.NoteProblems(out)
 	case "open":
@@ -259,6 +262,7 @@ func run(args []string, out io.Writer) error {
 			fmt.Fprintln(out, w)
 		}
 		if len(probs) > 0 {
+			fmt.Fprintln(out, "(every part, attribute and text rule: pitboard help format)")
 			return exitError(1)
 		}
 	default:
