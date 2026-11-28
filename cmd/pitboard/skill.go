@@ -26,6 +26,7 @@ What only some situations need is in ` + "`" + `pitboard help TOPIC` + "`" + `; 
 | ` + "`" + `wait` + "`" + ` or sending does not behave as ` + "`" + `-h` + "`" + ` says, or the person asks how a send wakes you (PITBOARD_SEND, herdr, tmux) | ` + "`" + `pitboard help send` + "`" + ` |
 | the person asks to install the Claude Code hooks | ` + "`" + `pitboard help hooks` + "`" + ` |
 | the person would rather see the board in a browser | ` + "`" + `pitboard help browser` + "`" + ` |
+| keys typed after a Japanese comment are composed by the input method | ` + "`" + `pitboard help ime` + "`" + ` |
 
 In short: the person answers on the board and then sends it all at once.
 With the Claude Code hooks it reaches you by itself; you cannot tell beforehand, so before you stop, run ` + "`" + `pitboard -s SESSION wait` + "`" + ` in the background (it ends with what was sent, and you are woken) until its output tells you the Stop hook waits instead.

@@ -133,6 +133,9 @@ func (a *app) rewrite(n int) {
 	a.openInput(&input{edit: n, label: fmt.Sprintf("コメント %d を直す", n), ed: newEdit(strings.TrimSpace(t.Text)), paste: -1})
 }
 
+// runExternal runs the person's editor on the terminal (tests replace it).
+var runExternal = func(t *term, c *exec.Cmd) error { return t.run(c) }
+
 const scissors = "# ------------------------ >8 ------------------------"
 
 func editorCommand() []string {
@@ -156,7 +159,7 @@ func (a *app) external() {
 	fmt.Fprintf(f, "%s\n\n%s\n# %s: この線より上を pitboard に置きます。空のまま閉じると何もしません。\n", a.in.ed.String(), scissors, a.in.label)
 	f.Close()
 	cmd := editorCommand()
-	if err := a.t.run(exec.Command(cmd[0], append(cmd[1:], f.Name())...)); err != nil {
+	if err := runExternal(a.t, exec.Command(cmd[0], append(cmd[1:], f.Name())...)); err != nil {
 		a.msg = cmd[0] + ": " + err.Error()
 		return
 	}

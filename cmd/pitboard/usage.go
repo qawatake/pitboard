@@ -28,6 +28,7 @@ var topics = []helpTopic{
 	{"send", "wait in detail, PITBOARD_SEND, herdr, tmux; read when a send does not reach you or the person asks how it does", sendText},
 	{"hooks", "the Claude Code hooks (~/.claude/settings.json); read when the person wants them installed", hooksText},
 	{"browser", "pitboard serve; read when the person would rather see the board in a browser", browserText},
+	{"ime", "PITBOARD_IME_OFF; read when the person's input method composes the viewer's keys after a comment", imeText},
 }
 
 var filler = strings.NewReplacer("{viewerKeys}", report.ViewerKeyList(), "{stopHookNote}", board.StopHookNote)
@@ -560,4 +561,20 @@ state and log: $XDG_STATE_HOME/pitboard/ (or ~/.local/state/pitboard/):
 token, serve.json, serve.log, boards.json (the boards added, shown again
 when it starts again, unless their directory is gone). 'pitboard serve -h'
 lists its flags.
+`
+
+const imeText = `pitboard help ime: the input method after a comment
+
+After writing a comment in Japanese, the input method is still on, so the
+viewer's keys that follow (s, j, x...) are composed instead of read. A
+terminal program cannot turn it off; the terminal viewer runs a command the
+person gives for it, each time its comment editor closes (placed with enter,
+given up with esc, or back from $EDITOR):
+
+  export PITBOARD_IME_OFF='macism com.apple.keylayout.ABC'
+
+It is run with sh -c, in the background, cut off after 2 seconds; its
+output is discarded and a failure is ignored. Unset: nothing is run. The
+command switches the input method to ASCII: macism and im-select are such
+tools. The browser (serve) cannot run commands and does not do this.
 `

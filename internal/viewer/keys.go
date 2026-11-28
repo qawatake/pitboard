@@ -31,6 +31,9 @@ func (a *app) handle(k key) (quit bool) {
 	}
 	if a.in != nil {
 		a.handleInput(k)
+		if a.in == nil {
+			imeOff() // placed, given up, or back from $EDITOR: typing keys again
+		}
 		return false
 	}
 	if a.jumping {

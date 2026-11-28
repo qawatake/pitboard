@@ -46,6 +46,12 @@ pitboard -s ID      # セッションを選ぶ (id は先頭数文字でよい)
 - **Claude Code の hook に入れる** (おすすめ): 止まっている AI は `s` で起き、作業中の AI にはツールを使うたびに届く。AI は何も動かさなくてよい。設定例は `pitboard help hooks`
 - **hook を入れないとき**: AI が止まる前に `pitboard wait` を裏で動かして待つ。それも無いときは、`PITBOARD_SEND` を設定すると AI の端末に 1 行打ち込んで起こす (tmux の例は `pitboard help send`)。herdr の中で AI を動かしていれば設定は要らない
 
+## 日本語でコメントを書くとき
+
+コメントを置いたあとも IME が日本語のままだと、続けて押す `s` などが変換に取られる。入力ソースを英数に切り替えるコマンドを `PITBOARD_IME_OFF` に置くと、端末の viewer はコメントのエディタが閉じるたびにそれを実行する (詳しくは `pitboard help ime`):
+
+    export PITBOARD_IME_OFF='macism com.apple.keylayout.ABC'
+
 ## 文書
 
 - [仕様](docs/spec/SPEC.md)
