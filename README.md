@@ -20,7 +20,7 @@ AI のセッションの横のペインに置く報告の画面。チャット�
 go install github.com/qawatake/pitboard/cmd/pitboard@latest
 ```
 
-AI に使わせるには skill を入れる。skill は「`pitboard -h` を読む」と要点を数行だけ書いた薄いもので、AI は入っている版の `-h` から使い方を読む。
+AI に使わせるには skill を入れる。skill は「`pitboard -h` を読む」と要点、どの場面でどの話題 (`pitboard help TOPIC`) を読むかだけを書いた薄いもので、AI は入っている版の `-h` から使い方を読む。
 
 ```sh
 gh skill install qawatake/pitboard pitboard
@@ -43,11 +43,11 @@ pitboard -s ID      # セッションを選ぶ (id は先頭数文字でよい)
 
 `s` で送っても AI が待っていないと、そのままでは届かない (画面にそう出る。チャットで一言伝えれば読む)。
 
-- **Claude Code の hook に入れる** (おすすめ): 止まっている AI は `s` で起き、作業中の AI にはツールを使うたびに届く。AI は何も動かさなくてよい。設定例は `pitboard -h` の "Hooks"
-- **hook を入れないとき**: AI が止まる前に `pitboard wait` を裏で動かして待つ。それも無いときは、`PITBOARD_SEND` を設定すると AI の端末に 1 行打ち込んで起こす (tmux の例は `pitboard -h` の "Send")。herdr の中で AI を動かしていれば設定は要らない
+- **Claude Code の hook に入れる** (おすすめ): 止まっている AI は `s` で起き、作業中の AI にはツールを使うたびに届く。AI は何も動かさなくてよい。設定例は `pitboard help hooks`
+- **hook を入れないとき**: AI が止まる前に `pitboard wait` を裏で動かして待つ。それも無いときは、`PITBOARD_SEND` を設定すると AI の端末に 1 行打ち込んで起こす (tmux の例は `pitboard help send`)。herdr の中で AI を動かしていれば設定は要らない
 
 ## 文書
 
 - [仕様](docs/spec/SPEC.md)
 - [報告の書き方](docs/spec/SPEC-format.md)
-- AI 向けの使い方: `pitboard -h`
+- AI 向けの使い方: `pitboard -h` (毎回読む分) と `pitboard help TOPIC` (format / changes / send / hooks / browser。要るときに読む分)

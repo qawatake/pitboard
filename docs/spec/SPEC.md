@@ -378,7 +378,13 @@ AI が「まずこれを見て」と伝える部品 (書き方と描き方は SP
     pitboard check           report.md を確かめる (SPEC-format.md の「check が見ること」)。誤りがあれば行番号つきで出し、終了コード 1
     pitboard hook EVENT      Claude Code の hook から呼ぶ (下の「hook」)
     pitboard --skill         Claude Code の skill ファイル (SKILL.md) を stdout に出す
-    pitboard -h              使い方の全文 (英語)。AI はこれを読んで使う: 始め方、報告の書き方、作法、changes の読み方、コメントへの対応 (settle)、hook、送る
+    pitboard -h              使い方のうち毎回要る分 (英語)。AI はこれを全部読んで使う: 目次、始め方、報告の書き方、作法、changes の読み方、コメントへの対応 (settle)、送る。最後に話題の一覧
+    pitboard help [TOPIC]    要るときだけ読む話題 (英語)。TOPIC なしは話題の一覧 (-h の最後と同じ)。知らない話題はエラーで、話題の名前を並べる
+                             format   部品と属性の全部、色、id、文の決まり (check が叱ったとき)
+                             changes  changes が出す行の全部: retract / edit / unretract / → now (届いたとき)
+                             send     送ったものが届く道の詳細: wait、PITBOARD_SEND、herdr、tmux
+                             hooks    Claude Code の hook の設定 (~/.claude/settings.json)
+                             browser  serve (ブラウザで見る)
 
 状態が `doing` / `hold` のままのコメント (取り消したもの・直して状態が外れたものは除く) があれば、`changes` (新しい入力が無くても) と `wait` (届いて終わるとき) の出力の最後に、その番号だけを 1 行で出す。AI が `--done` にし忘れても、道具が毎回見せる。何度も出るので、コンテキストを使わないよう番号だけにする。`settle` の出力には出さない:
 
@@ -427,6 +433,7 @@ AI が報告を書き直して、人がまだ用のある行を消したら、�
 - コメントの紐づけ先の題 (書いたときの題といまの題) は 30 字で切る
 - コメント (と `edit thought`) の文に `[Image #N]` が残っていて画像ファイルがあれば、その下に `  image N: <絶対パス>` を 1 行ずつ (同じ番号は 1 回)
 - `wait` と hook の出力も同じ
+- `retract ` `edit thought ` `unretract ` で始まる行か、` → now` を含む行があれば、最後に `(what these lines mean: pitboard help changes)` を 1 行足す (-h はそれらを詳しく書かないので、読むべき話題へ導く)
 
 `hide` は、人がその行をもう見なくてよいと判断した印。対応は要らない。報告を書き直すついでにその行を落としてよい (`-h` にも書く)。
 
@@ -450,7 +457,7 @@ AI が報告を書き直して、人がまだ用のある行を消したら、�
     pitboard hook post-tool       ツール実行のあと (PostToolUse。AI の作業中に届ける)
     pitboard hook stop            AI が止まったあと (Stop。`"asyncRewake": true` で入れる。人が送るまで待ち、AI を起こす)
 
-Claude Code ではこれが勧める届け方 (AI はコマンドを 1 つも動かさない)。設定は `-h` の "Hooks":
+Claude Code ではこれが勧める届け方 (AI はコマンドを 1 つも動かさない)。設定は `pitboard help hooks`:
 
     "PostToolUse": [{ "hooks": [{ "type": "command", "command": "pitboard hook post-tool" }] }],
     "Stop":        [{ "hooks": [{ "type": "command", "command": "pitboard hook stop", "asyncRewake": true, "timeout": 86400 }] }]
@@ -473,10 +480,13 @@ Claude Code ではこれが勧める届け方 (AI はコマンドを 1 つも動
 ### 組み込み skill
 
 skill は薄くする (道具を更新しても skill が古くならないように)。repo の `skills/pitboard/SKILL.md` が skill そのもので、`pitboard --skill` はこれと同じ文を出す。`//go:embed` は `cmd/pitboard/` から上のディレクトリを指せないので、同じ文を `cmd/pitboard/skill.go` に定数で持つ。正は SKILL.md で、ずれるとテスト (`TestSkillMatchesSKILLmd`) が落ちる。
-中身は frontmatter (`name: pitboard`、英語の description) と、「`pitboard -h` を読んでから使う。書いてあるのは、いま入っている版の使い方」という数行だけ。
+中身は frontmatter (`name: pitboard`、英語の description) と、「`pitboard -h` を全部読んでから使う。書いてあるのは、いま入っている版の使い方」、どの場面でどの話題 (`pitboard help TOPIC`) を読むかの表、要点の数行だけ。`-h` に書いてあることは繰り返さない。
 入れ方は `gh skill install qawatake/pitboard pitboard`、または `pitboard --skill > ~/.claude/skills/pitboard/SKILL.md`。
 
-使い方は全部 `pitboard -h` に置く (1 つのコマンドで全文。分けない): 何のための道具か、始め方 (セッション id の取り方、`path`、viewer を横に開いてもらう)、報告の書き方、作法、`changes` の読み方、コメントは必ず `settle` する、hook の設定例、送る (`s` で打ち込まれる文と、そのときにすること)。
+使い方は全部バイナリに置き、毎回要る分と要るときだけの分に分ける (毎回読む量を小さくするため。skill の progressive disclosure と同じ考え)。
+- `pitboard -h` (毎回全部読む): 目次、何のための道具か、始め方 (セッション id の取り方、`path`、viewer を横に開いてもらう)、報告の書き方の要点と例、作法、`changes` の読み方の要点、コメントは必ず `settle` する、送る (止まる前に wait、`s` で打ち込まれる文と、そのときにすること)。最後に話題の一覧
+- `pitboard help TOPIC` (要るときだけ): 上の「コマンド」の format / changes / send / hooks / browser
+- 道具の出力が話題へ導く: `check` は誤りを出したあと `(every part, attribute and text rule: pitboard help format)` を 1 行足す。`changes` / `wait` / hook は上の「`changes` の出力」のとおり `pitboard help changes` を指す
 
 AI の作法 (報告の書き方の勧め、返事の置き場所、`settle` の仕方など) の正は `-h` の "Manners"。ここには書かない。
 
