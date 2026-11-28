@@ -116,17 +116,14 @@ func (a *app) aboutLine(t *board.Thought) text {
 	return out
 }
 
-// listRows is the comments screen: a heading with how many the AI has not
-// finished, then each comment in two rows — its state in a column of its
-// own, its number and text (two rows at most), then faintly the line it is
-// about and the first line of what the AI wrote. Those finished come under
-// a rule. o opens a comment: its whole text and what the AI wrote in full.
+// listRows is the comments screen: after the top row (where the counts
+// go, as on the report), each comment in two rows — its state in a column
+// of its own, its number and text (two rows at most), then faintly the
+// line it is about and the first line of what the AI wrote. Those finished
+// come under a rule. enter opens a comment: its whole text and what the AI
+// wrote in full.
 func (a *app) listRows() []row {
-	head := plainText("コメント", bold+cStructure)
-	if n := a.openCount(); n > 0 {
-		head = append(head, plainText(fmt.Sprintf(" %d", n), bold)...)
-	}
-	rows := []row{{}, {line: a.compose(false, 0, nil, head, nil)}}
+	rows := []row{{}}
 	ts := a.listed()
 	if len(ts) == 0 {
 		return append(rows, a.para(0, plainText("コメントはまだありません。m で書けます", dim))...)

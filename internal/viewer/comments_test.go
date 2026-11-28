@@ -106,8 +106,8 @@ func TestCommentsScreen(t *testing.T) {
 	a.handle(key{r: 'l'})
 	ls, _ := screen(t, a)
 	s := strings.Join(ls, "\n")
-	// The heading counts those the AI has not finished.
-	if !strings.Contains(s, "コメント 3") {
+	// No heading: the comments start under the top row.
+	if strings.Contains(s, "コメント 3") || !strings.Contains(ls[1], "aqua") {
 		t.Errorf("heading:\n%s", s)
 	}
 	// Pending order: not finished (newest first), then a rule, then finished.
