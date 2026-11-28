@@ -18,7 +18,8 @@ func TestCommentOnAFold(t *testing.T) {
 		wait(t, time.Hour)
 		a.render()
 		pv := a.top()
-		a.handle(key{r: 'k'}) // pointed at by the person
+		a.handle(key{r: 'j'}) // pointed at by the person
+		a.handle(key{r: 'k'})
 		a.render()
 		if n := pv.nodeAt(pv.cur); n == nil || n.Title() != "済んだこと (2)" {
 			t.Fatalf("%q: cursor %q", attr, pv.cur)
@@ -79,19 +80,16 @@ func TestCommentOnAFold(t *testing.T) {
 	}
 }
 
-// The title of the report is never the cursor's line, whatever happens to
-// the notices above it (hidden with x, opened too tall to pin, gone from
-// the report), and a title that wraps keeps its second row under its text.
-func TestTitleNeverTheCursor(t *testing.T) {
+// A title that wraps keeps its second row under its text, whatever happens
+// to the notices above it (hidden with x, opened too tall to pin, gone from
+// the report), with the cursor on it or not.
+func TestTitleWrapsUnderItsText(t *testing.T) {
 	notice := "<Notice id=\"n\">開き直してください\n" + strings.Repeat("  本文の行。\n\n", 8) + "</Notice>\n"
 	page := "<Title>AI セッションの横に置く pitboard を作る</Title>\n\n<Item id=\"a\">項目 a</Item>\n"
 	check := func(step string, a *app) {
 		t.Helper()
 		ls, _ := screen(t, a)
 		for i, l := range ls {
-			if strings.HasPrefix(l, ">") && strings.Contains(l, "AI セッション") {
-				t.Errorf("%s: the title has the cursor:\n%s", step, strings.Join(ls, "\n"))
-			}
 			if strings.Contains(l, "AI セッションの横に置く") && i+1 < len(ls) && strings.Contains(ls[i+1], "pitboard を作る") {
 				if strings.Index(ls[i+1], "pitboard") != strings.Index(l, "AI") {
 					t.Errorf("%s: the second row is not under the first:\n%s", step, strings.Join(ls, "\n"))

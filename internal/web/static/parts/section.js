@@ -9,7 +9,7 @@ export function draw(cx, t, out) {
   if (t.Jump) h.dataset.jump = String(t.Jump);
   if (cx.ui.mode === 'goto' && t.JumpKey) h.appendChild(el('span', 'jumpkey hang', t.JumpKey));
   spans(h, t.Title);
-  out.push(h);
+  out.push(cx.line(t, h));
   if (t.None) out.push(el('p', 'none quiet', t.None));
   out.push(...cx.things(t.Kids));
 }

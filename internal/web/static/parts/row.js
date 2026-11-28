@@ -84,10 +84,19 @@ export function row(cx, t, opts, add) {
   let c = cx.memo.cache.get(t.Key);
   if (!c || c.sig !== sig) {
     const box = frame(cx, t, open, opts, jump);
+    // The lines of text drawn in it (its body, its nested lines) are
+    // kept with it: drawn again from the cache, they are still lines one
+    // points at.
+    const outer = cx.collect;
+    cx.collect = [];
     const kids = add ? add(box, open) || null : null;
-    c = { sig, box, kids };
+    c = { sig, box, kids, lines: cx.collect };
+    cx.collect = outer;
     cx.memo.cache.set(t.Key, c);
+  } else {
+    for (const [lt, lb] of c.lines || []) cx.rows.set(lt.Key, lb);
   }
+  if (cx.collect) cx.collect.push(...(c.lines || []));
   if (c.kids) patch(c.kids, cx.things(t.Kids));
   // While g waits, the cursor line's links show their digits.
   c.box.classList.toggle('nums', cx.ui.mode === 'goto' && cx.ui.cur === t.Key && !!(t.Links || []).length);

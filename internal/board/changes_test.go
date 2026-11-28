@@ -362,6 +362,26 @@ func TestThoughtOnAFold(t *testing.T) {
 	}
 }
 
+// A comment on a line of text (a paragraph, a heading, a line of a body):
+// named by what it says and the row it is in.
+func TestThoughtOnALine(t *testing.T) {
+	st := testStore(t)
+	os.WriteFile(st.ReportPath(), []byte("<Title>題</Title>\n\n段落の **文**。\n\n<Item id=\"a\">項目\n  - 中身\n</Item>\n<Fold title=\"決まったこと\">\n- 行\n  - 下の行\n</Fold>\n"), 0o644)
+	st.Append(Event{Op: "thought", ID: "Line|\n段落の **文**。", Title: "段落の 文。", Text: "これは？"})
+	st.Append(Event{Op: "thought", ID: "Line|a\n中身", Title: "中身", Text: "中身に"})
+	st.Append(Event{Op: "thought", ID: "Line|Fold|title=決まったこと\n下の行", Title: "下の行", Text: "下に"})
+	st.Append(Event{Op: "thought", ID: "Line|a\nもう無い", Title: "もう無い", Text: "x"})
+	want := strings.Join([]string{
+		`thought 1 on line "段落の 文。": これは？`,
+		`thought 2 on line "中身" in a: 中身に`,
+		`thought 3 on line "下の行" in fold "決まったこと": 下に`,
+		`thought 4 on line "もう無い" in a (now gone): x`,
+	}, "\n")
+	if got := changes(t, st); got != want {
+		t.Errorf("got\n%s\nwant\n%s", got, want)
+	}
+}
+
 // A retract, an edit, an unretract or a rewritten title is explained in
 // full only in 'pitboard help changes': the lines then point there.
 func TestChangesHelp(t *testing.T) {

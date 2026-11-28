@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/qawatake/pitboard/internal/report"
 )
 
 func jumpReport() string {
@@ -91,10 +93,9 @@ func TestGoTo(t *testing.T) {
 	}
 }
 
-// j / k read what is taller than the screen half a screen at a time
-// before moving on; the cursor stays, and reacting off screen only brings
-// the line back.
-func TestReadTallContents(t *testing.T) {
+// The lines of an opened body are stops: j / k go through them one by
+// one, the screen following the cursor.
+func TestBodyLinesAreStops(t *testing.T) {
 	st := testStore(t)
 	var b strings.Builder
 	b.WriteString("<Item id=\"a\">長い項目\n")
@@ -108,10 +109,54 @@ func TestReadTallContents(t *testing.T) {
 	wait(t, time.Hour)
 	pv := a.top()
 	a.render()
-	a.handle(key{r: 'j'})
-	a.handle(key{r: 'k'})
 	a.handle(key{name: "enter"})
 	a.render()
+	for i := range 60 {
+		a.handle(key{r: 'j'})
+		a.render()
+		n := pv.nodeAt(pv.cur)
+		if want := fmt.Sprintf("中身の %d 行目", i); n == nil || n.Title() != want || !pv.curShown {
+			t.Fatalf("j %d: cur %q shown %v", i+1, pv.cur, pv.curShown)
+		}
+	}
+	a.handle(key{r: 'j'})
+	if pv.cur != "b" {
+		t.Errorf("after the body: cur %q", pv.cur)
+	}
+	for range 61 {
+		a.handle(key{r: 'k'})
+		a.render()
+	}
+	if pv.cur != "a" || !pv.curShown {
+		t.Errorf("k back up: cur %q shown %v", pv.cur, pv.curShown)
+	}
+}
+
+// j / k read a stop taller than the screen (a long code block) half a
+// screen at a time before moving on; the cursor stays, and reacting off
+// screen only brings the line back.
+func TestReadTallContents(t *testing.T) {
+	st := testStore(t)
+	var b strings.Builder
+	b.WriteString("<Item id=\"a\">長い項目\n  <Code>\n")
+	for i := range 60 {
+		fmt.Fprintf(&b, "  中身の %d 行目\n", i)
+	}
+	b.WriteString("  </Code>\n</Item>\n<Item id=\"b\">次の項目</Item>\n")
+	os.WriteFile(st.ReportPath(), []byte(b.String()), 0o644)
+	a := testApp(t, st)
+	a.t.w, a.t.h = 80, 24
+	wait(t, time.Hour)
+	pv := a.top()
+	a.render()
+	a.handle(key{name: "enter"})
+	a.render()
+	a.handle(key{r: 'j'}) // onto the code block
+	a.render()
+	code := pv.cur
+	if n := pv.nodeAt(code); n == nil || n.Kind != report.KindCode {
+		t.Fatalf("cur %q is not the code block", code)
+	}
 	seen := map[int]bool{}
 	look := func() {
 		ls, _ := screen(t, a)
@@ -123,12 +168,12 @@ func TestReadTallContents(t *testing.T) {
 	}
 	look()
 	presses := 0
-	for pv.cur == "a" && presses < 50 {
+	for pv.cur == code && presses < 50 {
 		a.handle(key{r: 'j'})
 		a.render()
 		look()
 		presses++
-		if pv.cur == "a" && !pv.curShown && presses == 2 {
+		if pv.cur == code && !pv.curShown && presses == 2 {
 			if s := hintLine(a); !strings.Contains(s, "↑ カーソルは上") {
 				t.Errorf("off screen hints %q", s)
 			}
@@ -152,14 +197,14 @@ func TestReadTallContents(t *testing.T) {
 			break
 		}
 	}
-	// k reads back the same way before going to a.
+	// k reads back the same way before going to the code block.
 	presses = 0
 	for pv.cur == "b" && presses < 50 {
 		a.handle(key{r: 'k'})
 		a.render()
 		presses++
 	}
-	if pv.cur != "a" || presses < 4 {
+	if pv.cur != code || presses < 4 {
 		t.Errorf("k: cur %q after %d presses", pv.cur, presses)
 	}
 }
@@ -287,9 +332,9 @@ func TestOffScreenArrowKept(t *testing.T) {
 		a.handle(key{r: 'k'})
 		a.handle(key{name: "enter"})
 		a.render()
-		a.handle(key{r: 'j'})
+		a.handle(key{name: "ctrl+d"})
 		a.render()
-		a.handle(key{r: 'j'})
+		a.handle(key{name: "ctrl+d"})
 		a.render()
 		if pv.curShown {
 			t.Fatalf("%d: the cursor is on screen", w)

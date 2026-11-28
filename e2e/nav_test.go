@@ -23,15 +23,18 @@ const navReport = `<Notice id="n1" at="2020-11-22 21:46">お知らせ</Notice>
 `
 
 // SPEC.md "画面": j k ctrl+n ctrl+p, full-width keys move the cursor (↑ ↓
-// scroll the view: TestScrollKeys); k from the top goes into the Notice.
+// scroll the view: TestScrollKeys) over every line on screen, the title
+// and the headings too; k from the top goes into the Notice.
 func TestMoveKeys(t *testing.T) {
 	t.Parallel()
 	v, _ := open(t, navReport, 80, 24, "項目A")
 	// The first cursor is on the Notice.
 	v.WaitCursorOn("お知らせ")
 	for _, x := range []struct{ key, want string }{
-		{"j", "項目A"}, {"j", "項目B"}, {"ctrl+n", "項目C"}, {"ｊ", "中の畳み"}, {"j", "決まったこと"},
-		{"k", "中の畳み"}, {"k", "項目C"}, {"k", "項目B"}, {"ctrl+p", "項目A"}, {"ｋ", "お知らせ"},
+		{"j", "題"}, {"j", "あなたへ"}, {"j", "項目A"}, {"j", "項目B"}, {"ctrl+n", "進行中"}, {"j", "項目C"},
+		{"ｊ", "中の畳み"}, {"j", "決まったこと"},
+		{"k", "中の畳み"}, {"k", "項目C"}, {"k", "進行中"}, {"k", "項目B"}, {"ctrl+p", "項目A"},
+		{"k", "あなたへ"}, {"ｋ", "題"}, {"k", "お知らせ"},
 	} {
 		v.Keys(x.key)
 		v.WaitCursorOn(x.want)
@@ -43,16 +46,18 @@ func TestMoveKeys(t *testing.T) {
 func TestReadTallContents(t *testing.T) {
 	t.Parallel()
 	var b strings.Builder
-	b.WriteString("<Item id=\"tall\">高い項目\n")
+	b.WriteString("<Item id=\"tall\">高い項目\n  <Code>\n")
 	for i := 0; i < 40; i++ {
-		b.WriteString("  - 中身の行 " + itoa(i) + "\n")
+		b.WriteString("  中身の行 " + itoa(i) + "\n")
 	}
-	b.WriteString("</Item>\n<Item id=\"next\">次の項目</Item>\n")
+	b.WriteString("  </Code>\n</Item>\n<Item id=\"next\">次の項目</Item>\n")
 	v, ss := open(t, b.String(), 60, 16, "高い項目")
 	v.MoveTo("次の項目")
 	v.MoveTo("高い項目")
 	v.Keys("enter")
 	v.WaitFor("中身の行 0")
+	v.Keys("j") // onto the code block: one stop taller than the screen
+	v.WaitCursorOn("中身の行 0")
 	// j scrolls by half a screen without moving the cursor.
 	v.Keys("j")
 	v.WaitFor("↑ カーソルは上")
@@ -69,7 +74,7 @@ func TestReadTallContents(t *testing.T) {
 	v.WaitBottom("↑ カーソルは上")
 	// A key for the line brings the cursor back and is not taken.
 	v.Keys("x")
-	v.WaitCursorOn("高い項目")
+	v.WaitCursorOn("中身の行 0")
 	v.Sync()
 	ss.noRecords(t, "hide")
 	// Keep going: the next stop is reached only after the gap is shown.

@@ -110,19 +110,26 @@ func (pv *view) isHidden(n *report.Node) bool {
 // hiddenCount is how many lines of the report are hidden.
 func (pv *view) hiddenCount() int { return pv.b.HiddenCount() }
 
-// settleCursor puts the cursor on the first stop when it is on none. The
+// settleCursor puts the cursor on the first row (a part, or a "- " line;
+// the first line of text when there is none) when it is on none. The
 // person did not choose that line, so it is marked placed.
 func (pv *view) settleCursor() {
 	if pv.nodeAt(pv.cur) == nil {
 		pv.cur = ""
-		pv.step(0)
+		pv.stops(func(n *report.Node) {
+			if pv.cur == "" && report.Row(n) {
+				pv.cur, pv.follow = n.Key, true
+			}
+		})
+		if pv.cur == "" {
+			pv.step(0)
+		}
 		pv.placed = pv.cur != ""
 	}
 }
 
-// navigable says whether the cursor stops at n: a Fold, a part with an id,
-// or a plain "- " line (which can only be hidden; not a numbered one, and
-// never a nested one).
+// navigable says whether the cursor stops at n: every line on screen
+// (page.Stops), but an Ask's options (they are its row's).
 func (pv *view) navigable(n *report.Node) bool { return page.Stops(n) }
 
 // step moves the cursor d stops and reports whether it moved. When it did
@@ -193,13 +200,35 @@ func (pv *view) allHidden(ns []*report.Node) bool {
 	return len(ns) > 0
 }
 
+// stops visits the lines on screen the cursor stops at, in the order they
+// are drawn: what walk visits, and the lines of an opened body and those
+// nested under a list line (not a notice's body: it is pinned above the
+// page).
+func (pv *view) stops(f func(n *report.Node)) {
+	var inner func(ns []*report.Node)
+	inner = func(ns []*report.Node) {
+		for _, n := range ns {
+			if pv.navigable(n) && n.Key != "" {
+				f(n)
+			}
+			inner(n.Subs)
+		}
+	}
+	pv.walk(func(n *report.Node) {
+		if !pv.navigable(n) || n.Key == "" {
+			return
+		}
+		f(n)
+		if n.Kind != report.KindNotice && pv.open[n.Key] && pv.b.CanOpen(n) {
+			inner(n.Body)
+		}
+		inner(n.Subs)
+	})
+}
+
 func (pv *view) navKeys() []string {
 	var keys []string
-	pv.walk(func(n *report.Node) {
-		if pv.navigable(n) && n.Key != "" {
-			keys = append(keys, n.Key)
-		}
-	})
+	pv.stops(func(n *report.Node) { keys = append(keys, n.Key) })
 	return keys
 }
 
@@ -208,8 +237,8 @@ func (pv *view) nodeAt(key string) *report.Node {
 		return nil
 	}
 	var found *report.Node
-	pv.walk(func(n *report.Node) {
-		if n.Key == key && pv.navigable(n) {
+	pv.stops(func(n *report.Node) {
+		if n.Key == key {
 			found = n
 		}
 	})

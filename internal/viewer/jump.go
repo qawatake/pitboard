@@ -226,7 +226,8 @@ func (a *app) goTo(pv *view, n *report.Node) {
 		key = n.Key
 	default:
 		in := map[string]bool{}
-		report.WalkAll(n.Kids, func(c *report.Node) { in[c.Key] = true })
+		// The first row it holds (a line of text is only read).
+		report.WalkAll(n.Kids, func(c *report.Node) { in[c.Key] = report.Row(c) })
 		for _, k := range pv.navKeys() {
 			if in[k] {
 				key = k

@@ -257,11 +257,14 @@ Reading 'changes':
     thought 9: like this one? [Image #3]
       image 3: /abs/path/.pitboard/ID/images/3.png
     thought 10 on fold "Decided (1)": keep this rule
+    thought 11 on line "Retries are capped at 3." in hook: why 3?
     hide (2): Drop the log / Implement the vie…
     unhide (1): Drop the log
   answer: the option chosen, with its text. thought N: "on ID" when written
   on that row (with its title then), 'on fold "TITLE"' on a Fold without
-  an id. An image's path follows its thought: open it (Read). hide: the
+  an id, 'on line "TEXT" in ID' on a line of text (a paragraph, heading,
+  list line, a line of an Item's contents) inside that row (no "in" at the
+  top; 'in fold "TITLE"' in a Fold without an id). An image's path follows its thought: open it (Read). hide: the
   person no longer needs to see that line; unhide: they want to see it
   again (nothing to do but keep it). The
   text in parentheses is the title the person saw: "→ now: ..." after it
@@ -328,9 +331,9 @@ Text (paragraphs, an Item's contents, text in a Section or Fold):
                                   order), and comes back with g -
   Indentation counts from the first text line of the part (of an Item: its
   first line of contents). In a Section or Fold, only a first-level "- "
-  line is a stop the person can hide (with its nested lines); nested and
-  numbered lines, and lists in an Item, are read only. Inside Code nothing
-  of this applies.
+  line can be hidden by the person (with its nested lines); nested and
+  numbered lines, and lists in an Item, can only take comments, as every
+  other line of text. Inside Code nothing of this applies.
 
 Parts (anything else is an error):
   Notice    id (required), at="YYYY-MM-DD HH:MM" (local time it was put
@@ -428,7 +431,11 @@ told once, with the last.
 
 thought N is a thought; "on ID" when written on that line (the titles are
 cut to 30 characters there), 'on fold "TITLE"' when written on a Fold
-without an id. A thought may hold images, "[Image #N]" in its text: the
+without an id, 'on line "TEXT" in ID' when written on a line of text (a
+paragraph, a heading, a list line, a line of an Item's contents: the person
+can point at every line on screen) inside row ID ("in fold" for a Fold
+without an id; nothing at the top level; "(now gone)" when no line says
+that any more). A thought may hold images, "[Image #N]" in its text: the
 line under it gives the image's path; open it (Read) to see it.
 
 hide / unhide come last, all on one line (titles cut to 20 characters).

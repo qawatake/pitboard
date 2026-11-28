@@ -56,6 +56,12 @@ type Node struct {
 	Subs  []*Node
 	Head  bool // KindPara: a line of only **…**, a small heading
 	Gap   bool // a blank line came before it in the text
+	// Up is the part n is in (a Section, Fold or Ask for what it holds;
+	// the line whose Body or Subs it is in), nil at the top. Inner says it
+	// is in a Body or Subs: what an opened line shows, or a nested list
+	// line.
+	Up    *Node
+	Inner bool
 }
 
 func (n *Node) item() bool {
@@ -79,8 +85,47 @@ func (n *Node) Part() string {
 	return fmt.Sprint(n.Kind)
 }
 
-// Title is the line's text as the person reads it.
-func (n *Node) Title() string { return PlainOf(n.Text) }
+// Title is the line's text as the person reads it (a code block's: its
+// first line that is not blank).
+func (n *Node) Title() string {
+	if n.Kind == KindCode && n.Text == "" {
+		return codeHead(n.Code)
+	}
+	return PlainOf(n.Text)
+}
+
+// codeHead is the first line of code that is not blank, trimmed.
+func codeHead(code []string) string {
+	for _, l := range code {
+		if t := strings.TrimSpace(l); t != "" {
+			return t
+		}
+	}
+	return ""
+}
+
+// Row says whether n is a row: a Fold, a part with an id, or a plain "- "
+// line of the report itself (not numbered, not in a body, not nested).
+// The other lines the cursor stops at (Line) are text: a comment can
+// point at them, nothing else acts on them.
+func Row(n *Node) bool {
+	return n.Kind == KindDetails || n.ID != "" || (n.Kind == KindPlain && n.Num == "" && !n.Inner)
+}
+
+// Line says whether n is a line of text the cursor stops at that is not
+// a Row: the title, a heading, a paragraph, a code block, a list line
+// (numbered, nested, or in an opened line's body). Not an Ask's option
+// (that is part of its Ask's row).
+func Line(n *Node) bool {
+	if Row(n) {
+		return false
+	}
+	switch n.Kind {
+	case KindTitle, KindSection, KindPara, KindCode, KindPlain:
+		return true
+	}
+	return false
+}
 
 // Sig is the line as the person saw it when reacting. If the AI rewrites the
 // line (its text, state, status or note, a Link's target, or the options of
@@ -114,21 +159,66 @@ func (n *Node) Choice(label string) *Node {
 // A plain "- " line is keyed by its text (and which one it is among lines
 // with the same text), so the cursor stays on it when lines are added above
 // and leaves it when its text changes.
+//
+// The other lines of text (Line) are keyed the same way, by a letter for
+// their kind (t title, h heading, p paragraph, c code, - list), and those
+// in a Body or Subs under the key of the line they are in.
 func assignKeys(nodes []*Node) {
 	nf := 0
 	plain := map[string]int{}
-	WalkAll(nodes, func(n *Node) {
-		switch {
-		case n.ID != "":
-			n.Key = n.ID
-		case n.Kind == KindDetails:
-			nf++
-			n.Key = fmt.Sprintf("fold:%d", nf)
-		case n.Kind == KindPlain:
-			plain[n.Text]++
-			n.Key = fmt.Sprintf("-%d:%s", plain[n.Text], n.Text)
+	var inner func(up *Node, ns []*Node)
+	inner = func(up *Node, ns []*Node) {
+		seen := map[string]int{}
+		for _, n := range ns {
+			n.Up, n.Inner = up, true
+			k := lineKey(n)
+			seen[k]++
+			n.Key = fmt.Sprintf("%s/%s%d:%s", up.Key, k[:1], seen[k], k[1:])
+			inner(n, n.Subs)
 		}
-	})
+	}
+	var rec func(up *Node, ns []*Node)
+	rec = func(up *Node, ns []*Node) {
+		for _, n := range ns {
+			n.Up = up
+			switch {
+			case n.ID != "":
+				n.Key = n.ID
+			case n.Kind == KindDetails:
+				nf++
+				n.Key = fmt.Sprintf("fold:%d", nf)
+			case n.Kind == KindPlain && n.Num == "":
+				plain[n.Text]++
+				n.Key = fmt.Sprintf("-%d:%s", plain[n.Text], n.Text)
+			case Line(n):
+				k := lineKey(n)
+				plain[k]++
+				n.Key = fmt.Sprintf("%s%d:%s", k[:1], plain[k], k[1:])
+			}
+			rec(n, n.Kids)
+			inner(n, n.Body)
+			inner(n, n.Subs)
+		}
+	}
+	rec(nil, nodes)
+}
+
+// lineKey is a line of text's kind letter and what it says, for its key.
+func lineKey(n *Node) string {
+	switch n.Kind {
+	case KindTitle:
+		return "t" + n.Text
+	case KindSection:
+		return "h" + n.Text
+	case KindCode:
+		return "c" + strings.Join(n.Code, "\n")
+	case KindPlain:
+		if n.Num != "" {
+			return "n" + n.Num + " " + n.Text
+		}
+		return "-" + n.Text
+	}
+	return "p" + n.Text
 }
 
 // HideKey is what a line says, for hiding it: the person hides the line as
@@ -141,8 +231,10 @@ func assignKeys(nodes []*Node) {
 //	Fold            kind, and its id or title
 func HideKey(n *Node) string {
 	switch {
-	case n.Kind == KindPlain:
+	case n.Kind == KindPlain && Row(n):
 		return "-|" + n.Text + subsText(n.Subs)
+	case n.Kind == KindPlain:
+		return "" // numbered, nested or in a body: not hidden on its own
 	case n.item() || n.Kind == KindQuestion || n.Kind == KindLink || n.Kind == KindNotice:
 		if n.ID == "" {
 			return ""
@@ -188,10 +280,21 @@ func WalkAll(ns []*Node, f func(*Node)) {
 	}
 }
 
-// ByID finds the node with the given id.
+// WalkDeep visits every node, opened or not, and the lines in their
+// bodies and nested under list lines too.
+func WalkDeep(ns []*Node, f func(*Node)) {
+	for _, n := range ns {
+		f(n)
+		WalkDeep(n.Kids, f)
+		WalkDeep(n.Body, f)
+		WalkDeep(n.Subs, f)
+	}
+}
+
+// ByID finds the node with the given target (see Target).
 func ByID(ns []*Node, id string) *Node {
 	var found *Node
-	WalkAll(ns, func(n *Node) {
+	WalkDeep(ns, func(n *Node) {
 		if found == nil && id != "" && Target(n) == id {
 			found = n
 		}
@@ -204,15 +307,49 @@ const foldTarget = "Fold|title="
 
 // Target is what reactions and comments on n are recorded against: its id,
 // or for a Fold without one, its title (as hiding goes by: see HideKey),
-// which can never be an id. "" when n takes none.
+// which can never be an id. A line of text (Line, and a "- " line) is
+// recorded by the row it is in and what it says: "Line|", the target of the nearest row around
+// it ("" for none), a newline, its text (a code block's first line). ""
+// when n takes none.
 func Target(n *Node) string {
 	switch {
 	case n.ID != "":
 		return n.ID
 	case n.Kind == KindDetails:
 		return foldTarget + n.Text
+	case Line(n) || n.Kind == KindPlain:
+		text := n.Text
+		if n.Kind == KindCode {
+			text = codeHead(n.Code)
+		}
+		return lineTarget + Anchor(n) + "\n" + text
 	}
 	return ""
+}
+
+// lineTarget starts the target of a line of text (Line).
+const lineTarget = "Line|"
+
+// Anchor is the target of the nearest row around n that is a part (an
+// Item, Ask, Notice, Link or Fold; "" for none).
+func Anchor(n *Node) string {
+	for u := n.Up; u != nil; u = u.Up {
+		if Row(u) && u.Kind != KindPlain {
+			return Target(u)
+		}
+	}
+	return ""
+}
+
+// LineOf is, for the target of a line of text, the target of the row it
+// is in ("" for none) and its text; ok false when target is not one.
+func LineOf(target string) (anchor, text string, ok bool) {
+	rest, ok := strings.CutPrefix(target, lineTarget)
+	if !ok {
+		return "", "", false
+	}
+	anchor, text, _ = strings.Cut(rest, "\n")
+	return anchor, text, true
 }
 
 // FoldTitle is the title in the target of a Fold without an id, and

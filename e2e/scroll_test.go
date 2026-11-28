@@ -9,11 +9,12 @@ import (
 // with a line before and after it.
 func tallReport() string {
 	var b strings.Builder
-	b.WriteString("<Item id=\"first\">最初の項目</Item>\n<Item id=\"tall\">高い項目\n")
+	// Its body is one stop taller than the screen: a code block.
+	b.WriteString("<Item id=\"first\">最初の項目</Item>\n<Item id=\"tall\">高い項目\n  <Code>\n")
 	for i := 0; i < 40; i++ {
-		b.WriteString("  - 中身の行 " + itoa(i) + "\n")
+		b.WriteString("  中身の行 " + itoa(i) + "\n")
 	}
-	b.WriteString("</Item>\n<Item id=\"next\">次の項目</Item>\n")
+	b.WriteString("  </Code>\n</Item>\n<Item id=\"next\">次の項目</Item>\n")
 	return b.String()
 }
 
@@ -71,26 +72,30 @@ func TestScrollKeys(t *testing.T) {
 	v.WaitCursorOn("高い項目")
 }
 
-// SPEC.md "画面": k reads back up through the contents j read down
-// through, before it moves to the line before.
+// SPEC.md "画面": k reads back up through a stop taller than the screen
+// that j read down through, before it moves to the line before.
 func TestKReadsBackUp(t *testing.T) {
 	t.Parallel()
 	v, _ := open(t, tallReport(), 60, 16, "最初の項目")
 	v.MoveTo("高い項目")
 	v.Keys("enter")
 	v.WaitFor("中身の行 0")
+	v.Keys("j") // onto the code block
+	v.WaitCursorOn("中身の行 0")
 	v.Keys("j", "j", "j")
 	v.Until("read down", func() bool { return firstBody(v) >= 12 })
 	low := firstBody(v)
 	v.Keys("k")
 	v.Until("k read back up", func() bool { a := firstBody(v); return a >= 0 && a < low })
-	// k by k, up through the contents (the cursor stays on 高い項目) until
-	// its title is on screen; only then does k move on.
+	// k by k, up through the block (the cursor stays on it) until its head
+	// is on screen; only then does k move on.
 	for i := 0; i < 8 && v.CursorRow() < 0; i++ {
 		before := firstBody(v)
 		v.Keys("k")
 		v.Until("k read on up", func() bool { return v.CursorRow() >= 0 || firstBody(v) < before })
 	}
+	v.WaitCursorOn("中身の行 0")
+	v.Keys("k")
 	v.WaitCursorOn("高い項目")
 	v.Keys("k")
 	v.WaitCursorOn("最初の項目")

@@ -72,7 +72,7 @@ function draw(only) {
   const anchor = memo.rows.get(ui.cur) || $('.editor');
   const before = anchor && anchor.isConnected ? anchor.getBoundingClientRect().top : null;
   const ae = document.activeElement;
-  const onRow = !!(ae && ae.closest && ae.closest('.row'));
+  const onRow = !!(ae && ae.closest && ae.closest('.row, .line'));
   const ta = textarea();
   const sel = ta && ta.isConnected && document.activeElement === ta ? [ta.selectionStart, ta.selectionEnd] : null;
   render(app, page, ui, memo, env);
@@ -115,7 +115,9 @@ function clear(ev) {
   if (was !== ui.status) draw('cursor');
 }
 
-const navOf = (key) => { const r = memo.rows.get(key); return r && r.querySelector(':scope > .rowbtn'); };
+// navOf is what takes the focus for line key: a row's button, or a line of
+// text itself.
+const navOf = (key) => { const r = memo.rows.get(key); return r && (r.dataset.nav ? r : r.querySelector(':scope > .rowbtn')); };
 
 // focusCur puts the focus on the cursor's row: the focus is the cursor.
 function focusCur() {
@@ -346,7 +348,7 @@ async function pressOnce(k) {
   if (!r) return;
   switch (r.Do) {
     case 'open': set(S.setOpen(ui, [t.Key])); requestHint(); return;
-    case 'comment': openEditor({ kind: 'comment', key: t.Key, token: t.Token, at: t.Key, label: '「' + plain(t.Title) + '」にコメント' }); return;
+    case 'comment': openEditor({ kind: 'comment', key: t.Key, token: t.Token, at: t.Key, label: '「' + (plain(t.Title) || ((t.Code || []).find((l) => l.trim()) || '').trim()) + '」にコメント' }); return;
     case 'hide': if (r.OK) ui = { ...ui, going: t.Key }; break;
   }
   if (r.OK || r.Changed) await refresh();
@@ -664,7 +666,7 @@ function start() {
     if (tg.closest('.b-comments')) { e.stopPropagation(); if (ui.panel) closePanel(); else openPanel(); return; }
     if (tg === $('.help')) { closeHelp(); return; }
     if (tg === $('.viewer')) { closeImage(); return; }
-    const b = tg.closest('.rowbtn');
+    const b = tg.closest('.rowbtn, .line[data-nav]');
     if (!b || tg.closest('a')) return;
     const key = b.dataset.nav;
     clear(e.detail === 0 ? 'key' : 'pointer');

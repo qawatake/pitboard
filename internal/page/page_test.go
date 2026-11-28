@@ -92,7 +92,7 @@ func TestPage(t *testing.T) {
 		t.Errorf("w %+v", w)
 	}
 	plain := find(p.Things, "-1:ただの行")
-	if plain == nil || plain.Kind != KindList || !plain.Stop || !plain.Actions.Hide || plain.Actions.Comment {
+	if plain == nil || plain.Kind != KindList || !plain.Stop || !plain.Actions.Hide || !plain.Actions.Comment || plain.CanOpen {
 		t.Errorf("plain %+v", plain)
 	}
 	fold := p.Things[2]

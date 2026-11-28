@@ -67,6 +67,7 @@
    "goNoLine",
    "linkHidden",
    "moved",
+   "noHide",
    "noMarked",
    "placedAnswer",
    "settlingHide",
@@ -116,16 +117,28 @@
     "Things": [
      {
       "Kind": "title",
+      "Key": "t1:コメント",
+      "Target": "Line|\nコメント",
       "Title": [
        {
         "Text": "コメント",
         "Style": "plain",
         "URL": ""
        }
-      ]
+      ],
+      "Line": true,
+      "Actions": {
+       "Options": null,
+       "Comment": true,
+       "Hide": false,
+       "Read": false
+      },
+      "Token": "tok-Line|\nコメント"
      },
      {
       "Kind": "section",
+      "Key": "h1:行に付いたコメント",
+      "Target": "Line|\n行に付いたコメント",
       "Title": [
        {
         "Text": "行に付いたコメント",
@@ -133,6 +146,14 @@
         "URL": ""
        }
       ],
+      "Line": true,
+      "Actions": {
+       "Options": null,
+       "Comment": true,
+       "Hide": false,
+       "Read": false
+      },
+      "Token": "tok-Line|\n行に付いたコメント",
       "Kids": [
        {
         "Kind": "item",
@@ -215,13 +236,23 @@
         "Body": [
          {
           "Kind": "para",
+          "Key": "c1/p1:中身",
+          "Target": "Line|c1\n中身",
           "Title": [
            {
             "Text": "中身",
             "Style": "plain",
             "URL": ""
            }
-          ]
+          ],
+          "Line": true,
+          "Actions": {
+           "Options": null,
+           "Comment": true,
+           "Hide": false,
+           "Read": false
+          },
+          "Token": "tok-Line|c1\n中身"
          }
         ]
        },
@@ -1151,6 +1182,32 @@
       "Locked": false
      }
     },
+    "c1/p1:中身": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
     "c2": {
      "Closed": {
       "Hints": [
@@ -1509,6 +1566,58 @@
       "Locked": false
      }
     },
+    "h1:行に付いたコメント": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
+    "t1:コメント": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
     "u1": {
      "Closed": {
       "Hints": [
@@ -1631,13 +1740,23 @@
       "Body": [
        {
         "Kind": "para",
+        "Key": "restart/p1:新しい版を入れました。q で閉じて、もう一度 pitboard を動かします。",
+        "Target": "Line|restart\n新しい版を入れました。q で閉じて、もう一度 pitboard を動かします。",
         "Title": [
          {
           "Text": "新しい版を入れました。q で閉じて、もう一度 pitboard を動かします。",
           "Style": "plain",
           "URL": ""
          }
-        ]
+        ],
+        "Line": true,
+        "Actions": {
+         "Options": null,
+         "Comment": true,
+         "Hide": false,
+         "Read": false
+        },
+        "Token": "tok-Line|restart\n新しい版を入れました。q で閉じて、もう一度 pitboard を動かします。"
        }
       ],
       "Jump": 1,
@@ -1688,16 +1807,28 @@
     "Things": [
      {
       "Kind": "title",
+      "Key": "t1:pitboard を作る",
+      "Target": "Line|\npitboard を作る",
       "Title": [
        {
         "Text": "pitboard を作る",
         "Style": "plain",
         "URL": ""
        }
-      ]
+      ],
+      "Line": true,
+      "Actions": {
+       "Options": null,
+       "Comment": true,
+       "Hide": false,
+       "Read": false
+      },
+      "Token": "tok-Line|\npitboard を作る"
      },
      {
       "Kind": "para",
+      "Key": "p1:inbox を広げた pitboard を作る。いまは **報告の書き方** を決めている。`report.md` は [仕様](https://example.com/spec) のとおり。",
+      "Target": "Line|\ninbox を広げた pitboard を作る。いまは **報告の書き方** を決めている。`report.md` は [仕様](https://example.com/spec) のとおり。",
       "Title": [
        {
         "Text": "inbox を広げた pitboard を作る。いまは ",
@@ -1735,10 +1866,20 @@
         "URL": ""
        }
       ],
+      "Line": true,
+      "Actions": {
+       "Options": null,
+       "Comment": true,
+       "Hide": false,
+       "Read": false
+      },
+      "Token": "tok-Line|\ninbox を広げた pitboard を作る。いまは **報告の書き方** を決めている。`report.md` は [仕様](https://example.com/spec) のとおり。",
       "Gap": true
      },
      {
       "Kind": "section",
+      "Key": "h1:あなたへ",
+      "Target": "Line|\nあなたへ",
       "Title": [
        {
         "Text": "あなたへ",
@@ -1746,6 +1887,14 @@
         "URL": ""
        }
       ],
+      "Line": true,
+      "Actions": {
+       "Options": null,
+       "Comment": true,
+       "Hide": false,
+       "Read": false
+      },
+      "Token": "tok-Line|\nあなたへ",
       "Kids": [
        {
         "Kind": "ask",
@@ -1929,6 +2078,8 @@
         "Body": [
          {
           "Kind": "para",
+          "Key": "hook/p1:入れると、書いたことが AI の作業中にも届く。`~/.claude/settings.json` を触る。",
+          "Target": "Line|hook\n入れると、書いたことが AI の作業中にも届く。`~/.claude/settings.json` を触る。",
           "Title": [
            {
             "Text": "入れると、書いたことが AI の作業中にも届く。",
@@ -1945,7 +2096,15 @@
             "Style": "plain",
             "URL": ""
            }
-          ]
+          ],
+          "Line": true,
+          "Actions": {
+           "Options": null,
+           "Comment": true,
+           "Hide": false,
+           "Read": false
+          },
+          "Token": "tok-Line|hook\n入れると、書いたことが AI の作業中にも届く。`~/.claude/settings.json` を触る。"
          }
         ]
        },
@@ -2045,6 +2204,8 @@
         "Body": [
          {
           "Kind": "para",
+          "Key": "reply/p1:ページの左の余白に置く。題の文の左端は見出しとそろえる。作業は [ブラウザ版を部品に分ける](#web) で。",
+          "Target": "Line|reply\nページの左の余白に置く。題の文の左端は見出しとそろえる。作業は [ブラウザ版を部品に分ける](#web) で。",
           "Title": [
            {
             "Text": "ページの左の余白に置く。題の文の左端は見出しとそろえる。作業は ",
@@ -2063,7 +2224,15 @@
             "Style": "plain",
             "URL": ""
            }
-          ]
+          ],
+          "Line": true,
+          "Actions": {
+           "Options": null,
+           "Comment": true,
+           "Hide": false,
+           "Read": false
+          },
+          "Token": "tok-Line|reply\nページの左の余白に置く。題の文の左端は見出しとそろえる。作業は [ブラウザ版を部品に分ける](#web) で。"
          }
         ],
         "Links": [
@@ -2122,6 +2291,8 @@
      },
      {
       "Kind": "section",
+      "Key": "h1:進行中",
+      "Target": "Line|\n進行中",
       "Title": [
        {
         "Text": "進行中",
@@ -2129,6 +2300,14 @@
         "URL": ""
        }
       ],
+      "Line": true,
+      "Actions": {
+       "Options": null,
+       "Comment": true,
+       "Hide": false,
+       "Read": false
+      },
+      "Token": "tok-Line|\n進行中",
       "Kids": [
        {
         "Kind": "item",
@@ -2211,6 +2390,8 @@
         "Body": [
          {
           "Kind": "list",
+          "Key": "web/-1:部品ごとにモジュールに分ける",
+          "Target": "Line|web\n部品ごとにモジュールに分ける",
           "Title": [
            {
             "Text": "部品ごとにモジュールに分ける",
@@ -2218,19 +2399,19 @@
             "URL": ""
            }
           ],
-          "Stop": true,
+          "Line": true,
           "Actions": {
            "Options": null,
-           "Comment": false,
-           "Hide": true,
+           "Comment": true,
+           "Hide": false,
            "Read": false
           },
-          "Sign": "·",
-          "OpenSign": "·",
-          "Token": "tok-11",
+          "Token": "tok-Line|web\n部品ごとにモジュールに分ける",
           "Subs": [
            {
             "Kind": "list",
+            "Key": "web/-1:部品ごとにモジュールに分ける/-1:入れ子の行",
+            "Target": "Line|web\n入れ子の行",
             "Title": [
              {
               "Text": "入れ子の行",
@@ -2238,22 +2419,22 @@
               "URL": ""
              }
             ],
-            "Stop": true,
+            "Line": true,
             "Actions": {
              "Options": null,
-             "Comment": false,
-             "Hide": true,
+             "Comment": true,
+             "Hide": false,
              "Read": false
             },
-            "Sign": "-",
-            "OpenSign": "-",
-            "Token": "tok-12",
+            "Token": "tok-Line|web\n入れ子の行",
             "Level": 1
            }
           ]
          },
          {
           "Kind": "list",
+          "Key": "web/-1:ギャラリーを作る",
+          "Target": "Line|web\nギャラリーを作る",
           "Title": [
            {
             "Text": "ギャラリーを作る",
@@ -2261,19 +2442,19 @@
             "URL": ""
            }
           ],
-          "Stop": true,
+          "Line": true,
           "Actions": {
            "Options": null,
-           "Comment": false,
-           "Hide": true,
+           "Comment": true,
+           "Hide": false,
            "Read": false
           },
-          "Sign": "·",
-          "OpenSign": "·",
-          "Token": "tok-13"
+          "Token": "tok-Line|web\nギャラリーを作る"
          },
          {
           "Kind": "list",
+          "Key": "web/n1:1. まず描く",
+          "Target": "Line|web\nまず描く",
           "Title": [
            {
             "Text": "まず描く",
@@ -2281,10 +2462,20 @@
             "URL": ""
            }
           ],
+          "Line": true,
+          "Actions": {
+           "Options": null,
+           "Comment": true,
+           "Hide": false,
+           "Read": false
+          },
+          "Token": "tok-Line|web\nまず描く",
           "Num": "1."
          },
          {
           "Kind": "list",
+          "Key": "web/n1:2. 次に測る",
+          "Target": "Line|web\n次に測る",
           "Title": [
            {
             "Text": "次に測る",
@@ -2292,10 +2483,20 @@
             "URL": ""
            }
           ],
+          "Line": true,
+          "Actions": {
+           "Options": null,
+           "Comment": true,
+           "Hide": false,
+           "Read": false
+          },
+          "Token": "tok-Line|web\n次に測る",
           "Num": "2."
          },
          {
           "Kind": "para",
+          "Key": "web/p1:**手順**",
+          "Target": "Line|web\n**手順**",
           "Title": [
            {
             "Text": "手順",
@@ -2303,18 +2504,36 @@
             "URL": ""
            }
           ],
+          "Line": true,
+          "Actions": {
+           "Options": null,
+           "Comment": true,
+           "Hide": false,
+           "Read": false
+          },
+          "Token": "tok-Line|web\n**手順**",
           "Head": true,
           "Gap": true
          },
          {
           "Kind": "para",
+          "Key": "web/p1:段落の 2 つ目。",
+          "Target": "Line|web\n段落の 2 つ目。",
           "Title": [
            {
             "Text": "段落の 2 つ目。",
             "Style": "plain",
             "URL": ""
            }
-          ]
+          ],
+          "Line": true,
+          "Actions": {
+           "Options": null,
+           "Comment": true,
+           "Hide": false,
+           "Read": false
+          },
+          "Token": "tok-Line|web\n段落の 2 つ目。"
          }
         ]
        },
@@ -2392,6 +2611,16 @@
         "Body": [
          {
           "Kind": "code",
+          "Key": "olddiff/c1:@@ -1,3 +1,3 @@\n-  .row.cur { outline: 1px solid var(--accent); }\n+  .row.cur \u003e .rowbtn \u003e .gut::before { content: \"\u003e\"; }",
+          "Target": "Line|olddiff\n@@ -1,3 +1,3 @@",
+          "Line": true,
+          "Actions": {
+           "Options": null,
+           "Comment": true,
+           "Hide": false,
+           "Read": false
+          },
+          "Token": "tok-Line|olddiff\n@@ -1,3 +1,3 @@",
           "Lang": "diff",
           "Code": [
            "@@ -1,3 +1,3 @@",
@@ -2407,6 +2636,8 @@
      },
      {
       "Kind": "section",
+      "Key": "h1:見せたいもの",
+      "Target": "Line|\n見せたいもの",
       "Title": [
        {
         "Text": "見せたいもの",
@@ -2414,6 +2645,14 @@
         "URL": ""
        }
       ],
+      "Line": true,
+      "Actions": {
+       "Options": null,
+       "Comment": true,
+       "Hide": false,
+       "Read": false
+      },
+      "Token": "tok-Line|\n見せたいもの",
       "Kids": [
        {
         "Kind": "link",
@@ -2463,6 +2702,16 @@
        },
        {
         "Kind": "code",
+        "Key": "c1:go test ./...",
+        "Target": "Line|\ngo test ./...",
+        "Line": true,
+        "Actions": {
+         "Options": null,
+         "Comment": true,
+         "Hide": false,
+         "Read": false
+        },
+        "Token": "tok-Line|\ngo test ./...",
         "Code": [
          "go test ./..."
         ]
@@ -2470,6 +2719,7 @@
        {
         "Kind": "list",
         "Key": "-1:ただの行",
+        "Target": "Line|\nただの行",
         "Title": [
          {
           "Text": "ただの行",
@@ -2480,17 +2730,18 @@
         "Stop": true,
         "Actions": {
          "Options": null,
-         "Comment": false,
+         "Comment": true,
          "Hide": true,
          "Read": false
         },
         "Sign": "·",
         "OpenSign": "·",
-        "Token": "tok-19"
+        "Token": "tok-Line|\nただの行"
        },
        {
         "Kind": "list",
         "Key": "-1:もう 1 つのただの行。仕様は [最小版の仕様](#spec)",
+        "Target": "Line|\nもう 1 つのただの行。仕様は [最小版の仕様](#spec)",
         "Title": [
          {
           "Text": "もう 1 つのただの行。仕様は ",
@@ -2508,13 +2759,13 @@
         "Stop": true,
         "Actions": {
          "Options": null,
-         "Comment": false,
+         "Comment": true,
          "Hide": true,
          "Read": false
         },
         "Sign": "·",
         "OpenSign": "·",
-        "Token": "tok-20",
+        "Token": "tok-Line|\nもう 1 つのただの行。仕様は [最小版の仕様](#spec)",
         "Links": [
          {
           "Text": "最小版の仕様",
@@ -2529,6 +2780,8 @@
      },
      {
       "Kind": "section",
+      "Key": "h1:あとで",
+      "Target": "Line|\nあとで",
       "Title": [
        {
         "Text": "あとで",
@@ -2536,6 +2789,14 @@
         "URL": ""
        }
       ],
+      "Line": true,
+      "Actions": {
+       "Options": null,
+       "Comment": true,
+       "Hide": false,
+       "Read": false
+      },
+      "Token": "tok-Line|\nあとで",
       "None": "なし",
       "Jump": 6,
       "JumpKey": "f"
@@ -2590,6 +2851,7 @@
        {
         "Kind": "list",
         "Key": "-1:id の要らない、ただの行",
+        "Target": "Line|Fold|title=決まったこと (3)\nid の要らない、ただの行",
         "Title": [
          {
           "Text": "id の要らない、ただの行",
@@ -2600,13 +2862,13 @@
         "Stop": true,
         "Actions": {
          "Options": null,
-         "Comment": false,
+         "Comment": true,
          "Hide": true,
          "Read": false
         },
         "Sign": "·",
         "OpenSign": "·",
-        "Token": "tok-23",
+        "Token": "tok-Line|Fold|title=決まったこと (3)\nid の要らない、ただの行",
         "Depth": 1
        },
        {
@@ -2658,13 +2920,23 @@
           "Body": [
            {
             "Kind": "para",
+            "Key": "deep/p1:中身",
+            "Target": "Line|deep\n中身",
             "Title": [
              {
               "Text": "中身",
               "Style": "plain",
               "URL": ""
              }
-            ]
+            ],
+            "Line": true,
+            "Actions": {
+             "Options": null,
+             "Comment": true,
+             "Hide": false,
+             "Read": false
+            },
+            "Token": "tok-Line|deep\n中身"
            }
           ],
           "Depth": 2
@@ -2874,6 +3146,11 @@
      "Closed": {
       "Hints": [
        {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       },
+       {
         "Do": "hide",
         "Key": "x",
         "Word": "隠す"
@@ -2885,6 +3162,11 @@
      },
      "Open": {
       "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       },
        {
         "Do": "hide",
         "Key": "x",
@@ -2900,6 +3182,11 @@
      "Closed": {
       "Hints": [
        {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       },
+       {
         "Do": "hide",
         "Key": "x",
         "Word": "隠す"
@@ -2911,6 +3198,11 @@
      },
      "Open": {
       "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       },
        {
         "Do": "hide",
         "Key": "x",
@@ -2926,6 +3218,11 @@
      "Closed": {
       "Hints": [
        {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       },
+       {
         "Do": "hide",
         "Key": "x",
         "Word": "隠す"
@@ -2943,6 +3240,11 @@
      "Open": {
       "Hints": [
        {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       },
+       {
         "Do": "hide",
         "Key": "x",
         "Word": "隠す"
@@ -2951,6 +3253,32 @@
         "Do": "link",
         "Key": "g 1",
         "Word": "→ 最小版の仕様"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
+    "c1:go test ./...": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
        }
       ],
       "Options": null,
@@ -3033,6 +3361,32 @@
         "Do": "hide",
         "Key": "x",
         "Word": "隠す"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
+    "deep/p1:中身": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
        }
       ],
       "Options": null,
@@ -3132,6 +3486,110 @@
       "Locked": false
      }
     },
+    "h1:あとで": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
+    "h1:あなたへ": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
+    "h1:見せたいもの": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
+    "h1:進行中": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
     "hook": {
      "Closed": {
       "Hints": [
@@ -3171,6 +3629,32 @@
         "Do": "hide",
         "Key": "x",
         "Word": "隠す"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
+    "hook/p1:入れると、書いたことが AI の作業中にも届く。`~/.claude/settings.json` を触る。": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
        }
       ],
       "Options": null,
@@ -3396,6 +3880,58 @@
       "Locked": false
      }
     },
+    "olddiff/c1:@@ -1,3 +1,3 @@\n-  .row.cur { outline: 1px solid var(--accent); }\n+  .row.cur \u003e .rowbtn \u003e .gut::before { content: \"\u003e\"; }": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
+    "p1:inbox を広げた pitboard を作る。いまは **報告の書き方** を決めている。`report.md` は [仕様](https://example.com/spec) のとおり。": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
     "parts": {
      "Closed": {
       "Hints": [
@@ -3544,6 +4080,32 @@
       "Locked": false
      }
     },
+    "reply/p1:ページの左の余白に置く。題の文の左端は見出しとそろえる。作業は [ブラウザ版を部品に分ける](#web) で。": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
     "restart": {
      "Closed": {
       "Hints": [
@@ -3590,6 +4152,32 @@
       "Locked": false
      }
     },
+    "restart/p1:新しい版を入れました。q で閉じて、もう一度 pitboard を動かします。": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
     "spec": {
      "Closed": {
       "Hints": [
@@ -3619,6 +4207,32 @@
         "Do": "hide",
         "Key": "x",
         "Word": "隠す"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
+    "t1:pitboard を作る": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
        }
       ],
       "Options": null,
@@ -3755,6 +4369,188 @@
         "Do": "hide",
         "Key": "x",
         "Word": "隠す"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
+    "web/-1:ギャラリーを作る": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
+    "web/-1:部品ごとにモジュールに分ける": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
+    "web/-1:部品ごとにモジュールに分ける/-1:入れ子の行": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
+    "web/n1:1. まず描く": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
+    "web/n1:2. 次に測る": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
+    "web/p1:**手順**": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
+    "web/p1:段落の 2 つ目。": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
        }
       ],
       "Options": null,
@@ -3821,6 +4617,11 @@
     "-1:id の要らない、ただの行": {
      "Hints": [
       {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      },
+      {
        "Do": "hide",
        "Key": "x",
        "Word": "隠す"
@@ -3832,6 +4633,11 @@
     },
     "-1:ただの行": {
      "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      },
       {
        "Do": "hide",
        "Key": "x",
@@ -3845,6 +4651,11 @@
     "-1:もう 1 つのただの行。仕様は [最小版の仕様](#spec)": {
      "Hints": [
       {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      },
+      {
        "Do": "hide",
        "Key": "x",
        "Word": "隠す"
@@ -3853,6 +4664,18 @@
        "Do": "link",
        "Key": "g 1",
        "Word": "→ 最小版の仕様"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "c1:go test ./...": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
       }
      ],
      "Options": null,
@@ -3892,6 +4715,18 @@
        "Do": "hide",
        "Key": "x",
        "Word": "隠す"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "deep/p1:中身": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
       }
      ],
      "Options": null,
@@ -3942,6 +4777,54 @@
      "Recheck": 0,
      "Locked": false
     },
+    "h1:あとで": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "h1:あなたへ": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "h1:見せたいもの": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "h1:進行中": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
     "hook": {
      "Hints": [
       {
@@ -3958,6 +4841,18 @@
        "Do": "hide",
        "Key": "x",
        "Word": "隠す"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "hook/p1:入れると、書いたことが AI の作業中にも届く。`~/.claude/settings.json` を触る。": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
       }
      ],
      "Options": null,
@@ -4064,6 +4959,30 @@
      "Recheck": 0,
      "Locked": false
     },
+    "olddiff/c1:@@ -1,3 +1,3 @@\n-  .row.cur { outline: 1px solid var(--accent); }\n+  .row.cur \u003e .rowbtn \u003e .gut::before { content: \"\u003e\"; }": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "p1:inbox を広げた pitboard を作る。いまは **報告の書き方** を決めている。`report.md` は [仕様](https://example.com/spec) のとおり。": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
     "parts": {
      "Hints": [
       {
@@ -4135,6 +5054,18 @@
      "Recheck": 0,
      "Locked": false
     },
+    "reply/p1:ページの左の余白に置く。題の文の左端は見出しとそろえる。作業は [ブラウザ版を部品に分ける](#web) で。": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
     "restart": {
      "Hints": [
       {
@@ -4157,6 +5088,18 @@
      "Recheck": 0,
      "Locked": false
     },
+    "restart/p1:新しい版を入れました。q で閉じて、もう一度 pitboard を動かします。": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
     "spec": {
      "Hints": [
       {
@@ -4168,6 +5111,18 @@
        "Do": "hide",
        "Key": "x",
        "Word": "隠す"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "t1:pitboard を作る": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
       }
      ],
      "Options": null,
@@ -4229,6 +5184,90 @@
        "Do": "hide",
        "Key": "x",
        "Word": "隠す"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "web/-1:ギャラリーを作る": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "web/-1:部品ごとにモジュールに分ける": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "web/-1:部品ごとにモジュールに分ける/-1:入れ子の行": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "web/n1:1. まず描く": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "web/n1:2. 次に測る": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "web/p1:**手順**": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "web/p1:段落の 2 つ目。": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
       }
      ],
      "Options": null,
@@ -4262,6 +5301,11 @@
     "-1:id の要らない、ただの行": {
      "Hints": [
       {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      },
+      {
        "Do": "hide",
        "Key": "x",
        "Word": "隠す"
@@ -4273,6 +5317,11 @@
     },
     "-1:ただの行": {
      "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      },
       {
        "Do": "hide",
        "Key": "x",
@@ -4286,6 +5335,11 @@
     "-1:もう 1 つのただの行。仕様は [最小版の仕様](#spec)": {
      "Hints": [
       {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      },
+      {
        "Do": "hide",
        "Key": "x",
        "Word": "隠す"
@@ -4294,6 +5348,18 @@
        "Do": "link",
        "Key": "g 1",
        "Word": "→ 最小版の仕様"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "c1:go test ./...": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
       }
      ],
      "Options": null,
@@ -4333,6 +5399,18 @@
        "Do": "hide",
        "Key": "x",
        "Word": "隠す"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "deep/p1:中身": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
       }
      ],
      "Options": null,
@@ -4383,6 +5461,54 @@
      "Recheck": 0,
      "Locked": false
     },
+    "h1:あとで": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "h1:あなたへ": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "h1:見せたいもの": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "h1:進行中": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
     "hook": {
      "Hints": [
       {
@@ -4399,6 +5525,18 @@
        "Do": "hide",
        "Key": "x",
        "Word": "隠す"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "hook/p1:入れると、書いたことが AI の作業中にも届く。`~/.claude/settings.json` を触る。": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
       }
      ],
      "Options": null,
@@ -4510,6 +5648,30 @@
      "Recheck": 0,
      "Locked": false
     },
+    "olddiff/c1:@@ -1,3 +1,3 @@\n-  .row.cur { outline: 1px solid var(--accent); }\n+  .row.cur \u003e .rowbtn \u003e .gut::before { content: \"\u003e\"; }": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "p1:inbox を広げた pitboard を作る。いまは **報告の書き方** を決めている。`report.md` は [仕様](https://example.com/spec) のとおり。": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
     "parts": {
      "Hints": [
       {
@@ -4581,6 +5743,18 @@
      "Recheck": 0,
      "Locked": false
     },
+    "reply/p1:ページの左の余白に置く。題の文の左端は見出しとそろえる。作業は [ブラウザ版を部品に分ける](#web) で。": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
     "restart": {
      "Hints": [
       {
@@ -4603,6 +5777,18 @@
      "Recheck": 0,
      "Locked": false
     },
+    "restart/p1:新しい版を入れました。q で閉じて、もう一度 pitboard を動かします。": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
     "spec": {
      "Hints": [
       {
@@ -4614,6 +5800,18 @@
        "Do": "hide",
        "Key": "x",
        "Word": "隠す"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "t1:pitboard を作る": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
       }
      ],
      "Options": null,
@@ -4680,6 +5878,90 @@
        "Do": "hide",
        "Key": "x",
        "Word": "隠す"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "web/-1:ギャラリーを作る": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "web/-1:部品ごとにモジュールに分ける": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "web/-1:部品ごとにモジュールに分ける/-1:入れ子の行": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "web/n1:1. まず描く": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "web/n1:2. 次に測る": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "web/p1:**手順**": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
+      }
+     ],
+     "Options": null,
+     "Recheck": 0,
+     "Locked": false
+    },
+    "web/p1:段落の 2 つ目。": {
+     "Hints": [
+      {
+       "Do": "comment",
+       "Key": "c",
+       "Word": "行に書く"
       }
      ],
      "Options": null,
@@ -4927,16 +6209,28 @@
     "Things": [
      {
       "Kind": "title",
+      "Key": "t1:隠した行",
+      "Target": "Line|\n隠した行",
       "Title": [
        {
         "Text": "隠した行",
         "Style": "plain",
         "URL": ""
        }
-      ]
+      ],
+      "Line": true,
+      "Actions": {
+       "Options": null,
+       "Comment": true,
+       "Hide": false,
+       "Read": false
+      },
+      "Token": "tok-Line|\n隠した行"
      },
      {
       "Kind": "section",
+      "Key": "h1:節",
+      "Target": "Line|\n節",
       "Title": [
        {
         "Text": "節",
@@ -4944,6 +6238,14 @@
         "URL": ""
        }
       ],
+      "Line": true,
+      "Actions": {
+       "Options": null,
+       "Comment": true,
+       "Hide": false,
+       "Read": false
+      },
+      "Token": "tok-Line|\n節",
       "Kids": [
        {
         "Kind": "item",
@@ -5072,6 +6374,7 @@
        {
         "Kind": "list",
         "Key": "-1:隠したただの行",
+        "Target": "Line|\n隠したただの行",
         "Title": [
          {
           "Text": "隠したただの行",
@@ -5082,18 +6385,19 @@
         "Stop": true,
         "Actions": {
          "Options": null,
-         "Comment": false,
+         "Comment": true,
          "Hide": true,
          "Read": false
         },
         "Sign": "⌀",
         "OpenSign": "⌀",
         "Hidden": true,
-        "Token": "tok-7"
+        "Token": "tok-Line|\n隠したただの行"
        },
        {
         "Kind": "list",
         "Key": "-1:見えているただの行",
+        "Target": "Line|\n見えているただの行",
         "Title": [
          {
           "Text": "見えているただの行",
@@ -5104,13 +6408,13 @@
         "Stop": true,
         "Actions": {
          "Options": null,
-         "Comment": false,
+         "Comment": true,
          "Hide": true,
          "Read": false
         },
         "Sign": "·",
         "OpenSign": "·",
-        "Token": "tok-8"
+        "Token": "tok-Line|\n見えているただの行"
        },
        {
         "Kind": "fold",
@@ -5139,6 +6443,7 @@
          {
           "Kind": "list",
           "Key": "-1:中",
+          "Target": "Line|h4\n中",
           "Title": [
            {
             "Text": "中",
@@ -5149,13 +6454,13 @@
           "Stop": true,
           "Actions": {
            "Options": null,
-           "Comment": false,
+           "Comment": true,
            "Hide": true,
            "Read": false
           },
           "Sign": "·",
           "OpenSign": "·",
-          "Token": "tok-10",
+          "Token": "tok-Line|h4\n中",
           "Depth": 1
          }
         ]
@@ -5315,6 +6620,11 @@
      "Closed": {
       "Hints": [
        {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       },
+       {
         "Do": "hide",
         "Key": "x",
         "Word": "隠す"
@@ -5326,6 +6636,11 @@
      },
      "Open": {
       "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       },
        {
         "Do": "hide",
         "Key": "x",
@@ -5341,6 +6656,11 @@
      "Closed": {
       "Hints": [
        {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       },
+       {
         "Do": "hide",
         "Key": "x",
         "Word": "隠す"
@@ -5352,6 +6672,11 @@
      },
      "Open": {
       "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       },
        {
         "Do": "hide",
         "Key": "x",
@@ -5367,6 +6692,11 @@
      "Closed": {
       "Hints": [
        {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       },
+       {
         "Do": "hide",
         "Key": "x",
         "Word": "表示に戻す"
@@ -5378,6 +6708,11 @@
      },
      "Open": {
       "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       },
        {
         "Do": "hide",
         "Key": "x",
@@ -5418,6 +6753,32 @@
         "Do": "hide",
         "Key": "x",
         "Word": "表示に戻す"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
+    "h1:節": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
        }
       ],
       "Options": null,
@@ -5633,6 +6994,32 @@
       "Locked": false
      }
     },
+    "t1:隠した行": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
     "v1": {
      "Closed": {
       "Hints": [
@@ -5694,16 +7081,8 @@
     "Things": [
      {
       "Kind": "title",
-      "Title": [
-       {
-        "Text": "箇条",
-        "Style": "plain",
-        "URL": ""
-       }
-      ]
-     },
-     {
-      "Kind": "section",
+      "Key": "t1:箇条",
+      "Target": "Line|\n箇条",
       "Title": [
        {
         "Text": "箇条",
@@ -5711,6 +7090,34 @@
         "URL": ""
        }
       ],
+      "Line": true,
+      "Actions": {
+       "Options": null,
+       "Comment": true,
+       "Hide": false,
+       "Read": false
+      },
+      "Token": "tok-Line|\n箇条"
+     },
+     {
+      "Kind": "section",
+      "Key": "h1:箇条",
+      "Target": "Line|\n箇条",
+      "Title": [
+       {
+        "Text": "箇条",
+        "Style": "plain",
+        "URL": ""
+       }
+      ],
+      "Line": true,
+      "Actions": {
+       "Options": null,
+       "Comment": true,
+       "Hide": false,
+       "Read": false
+      },
+      "Token": "tok-Line|\n箇条",
       "Kids": [
        {
         "Kind": "item",
@@ -5738,6 +7145,8 @@
         "Body": [
          {
           "Kind": "list",
+          "Key": "tight/-1:いち",
+          "Target": "Line|tight\nいち",
           "Title": [
            {
             "Text": "いち",
@@ -5745,19 +7154,19 @@
             "URL": ""
            }
           ],
-          "Stop": true,
+          "Line": true,
           "Actions": {
            "Options": null,
-           "Comment": false,
-           "Hide": true,
+           "Comment": true,
+           "Hide": false,
            "Read": false
           },
-          "Sign": "·",
-          "OpenSign": "·",
-          "Token": "tok-2"
+          "Token": "tok-Line|tight\nいち"
          },
          {
           "Kind": "list",
+          "Key": "tight/-1:に",
+          "Target": "Line|tight\nに",
           "Title": [
            {
             "Text": "に",
@@ -5765,19 +7174,19 @@
             "URL": ""
            }
           ],
-          "Stop": true,
+          "Line": true,
           "Actions": {
            "Options": null,
-           "Comment": false,
-           "Hide": true,
+           "Comment": true,
+           "Hide": false,
            "Read": false
           },
-          "Sign": "·",
-          "OpenSign": "·",
-          "Token": "tok-3"
+          "Token": "tok-Line|tight\nに"
          },
          {
           "Kind": "list",
+          "Key": "tight/-1:さん",
+          "Target": "Line|tight\nさん",
           "Title": [
            {
             "Text": "さん",
@@ -5785,16 +7194,14 @@
             "URL": ""
            }
           ],
-          "Stop": true,
+          "Line": true,
           "Actions": {
            "Options": null,
-           "Comment": false,
-           "Hide": true,
+           "Comment": true,
+           "Hide": false,
            "Read": false
           },
-          "Sign": "·",
-          "OpenSign": "·",
-          "Token": "tok-4"
+          "Token": "tok-Line|tight\nさん"
          }
         ]
        },
@@ -5824,6 +7231,8 @@
         "Body": [
          {
           "Kind": "list",
+          "Key": "loose/-1:短い",
+          "Target": "Line|loose\n短い",
           "Title": [
            {
             "Text": "短い",
@@ -5831,19 +7240,19 @@
             "URL": ""
            }
           ],
-          "Stop": true,
+          "Line": true,
           "Actions": {
            "Options": null,
-           "Comment": false,
-           "Hide": true,
+           "Comment": true,
+           "Hide": false,
            "Read": false
           },
-          "Sign": "·",
-          "OpenSign": "·",
-          "Token": "tok-6"
+          "Token": "tok-Line|loose\n短い"
          },
          {
           "Kind": "list",
+          "Key": "loose/-1:これは長い一行で、狭い幅でも広い幅でも折り返すほど長い文。だから並び全体の行の間を少し空けて、どこで次の行が始まるのかが見えるようにする。もう少し長くしておく",
+          "Target": "Line|loose\nこれは長い一行で、狭い幅でも広い幅でも折り返すほど長い文。だから並び全体の行の間を少し空けて、どこで次の行が始まるのかが見えるようにする。もう少し長くしておく",
           "Title": [
            {
             "Text": "これは長い一行で、狭い幅でも広い幅でも折り返すほど長い文。だから並び全体の行の間を少し空けて、どこで次の行が始まるのかが見えるようにする。もう少し長くしておく",
@@ -5851,19 +7260,19 @@
             "URL": ""
            }
           ],
-          "Stop": true,
+          "Line": true,
           "Actions": {
            "Options": null,
-           "Comment": false,
-           "Hide": true,
+           "Comment": true,
+           "Hide": false,
            "Read": false
           },
-          "Sign": "·",
-          "OpenSign": "·",
-          "Token": "tok-7"
+          "Token": "tok-Line|loose\nこれは長い一行で、狭い幅でも広い幅でも折り返すほど長い文。だから並び全体の行の間を少し空けて、どこで次の行が始まるのかが見えるようにする。もう少し長くしておく"
          },
          {
           "Kind": "list",
+          "Key": "loose/-1:おわり",
+          "Target": "Line|loose\nおわり",
           "Title": [
            {
             "Text": "おわり",
@@ -5871,16 +7280,14 @@
             "URL": ""
            }
           ],
-          "Stop": true,
+          "Line": true,
           "Actions": {
            "Options": null,
-           "Comment": false,
-           "Hide": true,
+           "Comment": true,
+           "Hide": false,
            "Read": false
           },
-          "Sign": "·",
-          "OpenSign": "·",
-          "Token": "tok-8"
+          "Token": "tok-Line|loose\nおわり"
          }
         ]
        },
@@ -5910,6 +7317,8 @@
         "Body": [
          {
           "Kind": "para",
+          "Key": "runin/p1:**頭の語**: 一行に収まる",
+          "Target": "Line|runin\n**頭の語**: 一行に収まる",
           "Title": [
            {
             "Text": "一行に収まる",
@@ -5917,6 +7326,14 @@
             "URL": ""
            }
           ],
+          "Line": true,
+          "Actions": {
+           "Options": null,
+           "Comment": true,
+           "Hide": false,
+           "Read": false
+          },
+          "Token": "tok-Line|runin\n**頭の語**: 一行に収まる",
           "HeadWord": "頭の語"
          }
         ]
@@ -5947,6 +7364,8 @@
         "Body": [
          {
           "Kind": "list",
+          "Key": "def/-1:**理由**: これは頭の語のある行で、とても長いので、頭の語だけを一行に置き、中身をその下に一段下げて続ける。そうすれば太字の無いフォントでも頭が見える",
+          "Target": "Line|def\n**理由**: これは頭の語のある行で、とても長いので、頭の語だけを一行に置き、中身をその下に一段下げて続ける。そうすれば太字の無いフォントでも頭が見える",
           "Title": [
            {
             "Text": "これは頭の語のある行で、とても長いので、頭の語だけを一行に置き、中身をその下に一段下げて続ける。そうすれば太字の無いフォントでも頭が見える",
@@ -5954,20 +7373,20 @@
             "URL": ""
            }
           ],
-          "Stop": true,
+          "Line": true,
           "Actions": {
            "Options": null,
-           "Comment": false,
-           "Hide": true,
+           "Comment": true,
+           "Hide": false,
            "Read": false
           },
-          "Sign": "·",
-          "OpenSign": "·",
-          "Token": "tok-11",
+          "Token": "tok-Line|def\n**理由**: これは頭の語のある行で、とても長いので、頭の語だけを一行に置き、中身をその下に一段下げて続ける。そうすれば太字の無いフォントでも頭が見える",
           "HeadWord": "理由"
          },
          {
           "Kind": "list",
+          "Key": "def/-1:**短い**: 一行",
+          "Target": "Line|def\n**短い**: 一行",
           "Title": [
            {
             "Text": "一行",
@@ -5975,16 +7394,14 @@
             "URL": ""
            }
           ],
-          "Stop": true,
+          "Line": true,
           "Actions": {
            "Options": null,
-           "Comment": false,
-           "Hide": true,
+           "Comment": true,
+           "Hide": false,
            "Read": false
           },
-          "Sign": "·",
-          "OpenSign": "·",
-          "Token": "tok-12",
+          "Token": "tok-Line|def\n**短い**: 一行",
           "HeadWord": "短い"
          }
         ]
@@ -6175,6 +7592,84 @@
       "Locked": false
      }
     },
+    "def/-1:**理由**: これは頭の語のある行で、とても長いので、頭の語だけを一行に置き、中身をその下に一段下げて続ける。そうすれば太字の無いフォントでも頭が見える": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
+    "def/-1:**短い**: 一行": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
+    "h1:箇条": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
     "loose": {
      "Closed": {
       "Hints": [
@@ -6214,6 +7709,84 @@
         "Do": "hide",
         "Key": "x",
         "Word": "隠す"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
+    "loose/-1:おわり": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
+    "loose/-1:これは長い一行で、狭い幅でも広い幅でも折り返すほど長い文。だから並び全体の行の間を少し空けて、どこで次の行が始まるのかが見えるようにする。もう少し長くしておく": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
+    "loose/-1:短い": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
        }
       ],
       "Options": null,
@@ -6267,6 +7840,58 @@
       "Locked": false
      }
     },
+    "runin/p1:**頭の語**: 一行に収まる": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
+    "t1:箇条": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
     "tight": {
      "Closed": {
       "Hints": [
@@ -6312,6 +7937,84 @@
       "Recheck": 0,
       "Locked": false
      }
+    },
+    "tight/-1:いち": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
+    "tight/-1:さん": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
+    "tight/-1:に": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
     }
    }
   },
@@ -6347,13 +8050,23 @@
       "Body": [
        {
         "Kind": "para",
+        "Key": "long/p1:https://example.com/a/very/long/path/that/has/no/spaces/at/all/and/keeps/going/for/a/while/until/it/overflows/the/box",
+        "Target": "Line|long\nhttps://example.com/a/very/long/path/that/has/no/spaces/at/all/and/keeps/going/for/a/while/until/it/overflows/the/box",
         "Title": [
          {
           "Text": "https://example.com/a/very/long/path/that/has/no/spaces/at/all/and/keeps/going/for/a/while/until/it/overflows/the/box",
           "Style": "plain",
           "URL": ""
          }
-        ]
+        ],
+        "Line": true,
+        "Actions": {
+         "Options": null,
+         "Comment": true,
+         "Hide": false,
+         "Read": false
+        },
+        "Token": "tok-Line|long\nhttps://example.com/a/very/long/path/that/has/no/spaces/at/all/and/keeps/going/for/a/while/until/it/overflows/the/box"
        }
       ],
       "Jump": 1,
@@ -6363,16 +8076,28 @@
     "Things": [
      {
       "Kind": "title",
+      "Key": "t1:長い文字列 ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ",
+      "Target": "Line|\n長い文字列 ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ",
       "Title": [
        {
         "Text": "長い文字列 ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ",
         "Style": "plain",
         "URL": ""
        }
-      ]
+      ],
+      "Line": true,
+      "Actions": {
+       "Options": null,
+       "Comment": true,
+       "Hide": false,
+       "Read": false
+      },
+      "Token": "tok-Line|\n長い文字列 ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ"
      },
      {
       "Kind": "section",
+      "Key": "h1:長いもの ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ",
+      "Target": "Line|\n長いもの ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ",
       "Title": [
        {
         "Text": "長いもの ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ",
@@ -6380,6 +8105,14 @@
         "URL": ""
        }
       ],
+      "Line": true,
+      "Actions": {
+       "Options": null,
+       "Comment": true,
+       "Hide": false,
+       "Read": false
+      },
+      "Token": "tok-Line|\n長いもの ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ",
       "Kids": [
        {
         "Kind": "item",
@@ -6441,16 +8174,28 @@
         "Body": [
          {
           "Kind": "para",
+          "Key": "url/p1:https://example.com/a/very/long/path/that/has/no/spaces/at/all/and/keeps/going/for/a/while/until/it/overflows/the/box ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJK",
+          "Target": "Line|url\nhttps://example.com/a/very/long/path/that/has/no/spaces/at/all/and/keeps/going/for/a/while/until/it/overflows/the/box ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJK",
           "Title": [
            {
             "Text": "https://example.com/a/very/long/path/that/has/no/spaces/at/all/and/keeps/going/for/a/while/until/it/overflows/the/box ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJK",
             "Style": "plain",
             "URL": ""
            }
-          ]
+          ],
+          "Line": true,
+          "Actions": {
+           "Options": null,
+           "Comment": true,
+           "Hide": false,
+           "Read": false
+          },
+          "Token": "tok-Line|url\nhttps://example.com/a/very/long/path/that/has/no/spaces/at/all/and/keeps/going/for/a/while/until/it/overflows/the/box ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJK"
          },
          {
           "Kind": "list",
+          "Key": "url/-1:箇条の中の長い列 ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ",
+          "Target": "Line|url\n箇条の中の長い列 ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ",
           "Title": [
            {
             "Text": "箇条の中の長い列 ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ",
@@ -6458,19 +8203,27 @@
             "URL": ""
            }
           ],
-          "Stop": true,
+          "Line": true,
           "Actions": {
            "Options": null,
-           "Comment": false,
-           "Hide": true,
+           "Comment": true,
+           "Hide": false,
            "Read": false
           },
-          "Sign": "·",
-          "OpenSign": "·",
-          "Token": "tok-3"
+          "Token": "tok-Line|url\n箇条の中の長い列 ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ"
          },
          {
           "Kind": "code",
+          "Key": "url/c1:const veryLongLine = \"a code line that is much longer than the box it sits in, and scrolls inside its own box only, never clipped\";",
+          "Target": "Line|url\nconst veryLongLine = \"a code line that is much longer than the box it sits in, and scrolls inside its own box only, never clipped\";",
+          "Line": true,
+          "Actions": {
+           "Options": null,
+           "Comment": true,
+           "Hide": false,
+           "Read": false
+          },
+          "Token": "tok-Line|url\nconst veryLongLine = \"a code line that is much longer than the box it sits in, and scrolls inside its own box only, never clipped\";",
           "Code": [
            "const veryLongLine = \"a code line that is much longer than the box it sits in, and scrolls inside its own box only, never clipped\";"
           ]
@@ -6556,6 +8309,7 @@
        {
         "Kind": "list",
         "Key": "-1:ただの行にも長い列 ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ",
+        "Target": "Line|\nただの行にも長い列 ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ",
         "Title": [
          {
           "Text": "ただの行にも長い列 ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ",
@@ -6566,13 +8320,13 @@
         "Stop": true,
         "Actions": {
          "Options": null,
-         "Comment": false,
+         "Comment": true,
          "Hide": true,
          "Read": false
         },
         "Sign": "·",
         "OpenSign": "·",
-        "Token": "tok-6"
+        "Token": "tok-Line|\nただの行にも長い列 ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ"
        }
       ],
       "Jump": 2,
@@ -6759,6 +8513,11 @@
      "Closed": {
       "Hints": [
        {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       },
+       {
         "Do": "hide",
         "Key": "x",
         "Word": "隠す"
@@ -6771,9 +8530,40 @@
      "Open": {
       "Hints": [
        {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       },
+       {
         "Do": "hide",
         "Key": "x",
         "Word": "隠す"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
+    "h1:長いもの ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
        }
       ],
       "Options": null,
@@ -6881,6 +8671,32 @@
       "Locked": false
      }
     },
+    "long/p1:https://example.com/a/very/long/path/that/has/no/spaces/at/all/and/keeps/going/for/a/while/until/it/overflows/the/box": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
     "longlink": {
      "Closed": {
       "Hints": [
@@ -6910,6 +8726,32 @@
         "Do": "hide",
         "Key": "x",
         "Word": "隠す"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
+    "t1:長い文字列 ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
        }
       ],
       "Options": null,
@@ -6956,6 +8798,84 @@
         "Do": "hide",
         "Key": "x",
         "Word": "隠す"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
+    "url/-1:箇条の中の長い列 ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
+    "url/c1:const veryLongLine = \"a code line that is much longer than the box it sits in, and scrolls inside its own box only, never clipped\";": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
+    "url/p1:https://example.com/a/very/long/path/that/has/no/spaces/at/all/and/keeps/going/for/a/while/until/it/overflows/the/box ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJK": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
        }
       ],
       "Options": null,
@@ -7248,16 +9168,28 @@
     "Things": [
      {
       "Kind": "title",
+      "Key": "t1:誤りのある報告",
+      "Target": "Line|\n誤りのある報告",
       "Title": [
        {
         "Text": "誤りのある報告",
         "Style": "plain",
         "URL": ""
        }
-      ]
+      ],
+      "Line": true,
+      "Actions": {
+       "Options": null,
+       "Comment": true,
+       "Hide": false,
+       "Read": false
+      },
+      "Token": "tok-Line|\n誤りのある報告"
      },
      {
       "Kind": "section",
+      "Key": "h1:節",
+      "Target": "Line|\n節",
       "Title": [
        {
         "Text": "節",
@@ -7265,6 +9197,14 @@
         "URL": ""
        }
       ],
+      "Line": true,
+      "Actions": {
+       "Options": null,
+       "Comment": true,
+       "Hide": false,
+       "Read": false
+      },
+      "Token": "tok-Line|\n節",
       "Kids": [
        {
         "Kind": "item",
@@ -7302,13 +9242,23 @@
        },
        {
         "Kind": "para",
+        "Key": "p1:知らない部品",
+        "Target": "Line|\n知らない部品",
         "Title": [
          {
           "Text": "知らない部品",
           "Style": "plain",
           "URL": ""
          }
-        ]
+        ],
+        "Line": true,
+        "Actions": {
+         "Options": null,
+         "Comment": true,
+         "Hide": false,
+         "Read": false
+        },
+        "Token": "tok-Line|\n知らない部品"
        }
       ],
       "Jump": 1,
@@ -7450,6 +9400,32 @@
     }
    },
    "Offers": {
+    "h1:節": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
     "ok": {
      "Closed": {
       "Hints": [
@@ -7479,6 +9455,58 @@
         "Do": "hide",
         "Key": "x",
         "Word": "隠す"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
+    "p1:知らない部品": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     }
+    },
+    "t1:誤りのある報告": {
+     "Closed": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
+       }
+      ],
+      "Options": null,
+      "Recheck": 0,
+      "Locked": false
+     },
+     "Open": {
+      "Hints": [
+       {
+        "Do": "comment",
+        "Key": "c",
+        "Word": "行に書く"
        }
       ],
       "Options": null,
@@ -7613,6 +9641,7 @@
   "goNoLine": "宛先なしのコメントです。行はありません",
   "linkHidden": "隠した行です。H で表示すると行けます",
   "moved": "報告が書き換わりました。カーソルの行を確かめてください",
+  "noHide": "この行は隠せません (c でコメントは書けます)",
   "noMarked": "印のある行はありません",
   "placedAnswer": "j k で動かすと答えられます",
   "settlingHide": "いま移った行です。もう一度押すと隠れます",

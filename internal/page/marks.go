@@ -171,7 +171,7 @@ func (b *Board) Lines(showHidden bool) []Marked {
 			if !showHidden && (b.IsHidden(n) || (n.Kind == report.KindSection && b.allHidden(n.Kids))) {
 				continue
 			}
-			if Stops(n) && n.Key != "" {
+			if report.Row(n) && n.Key != "" {
 				m := MarkNone
 				switch {
 				case n.Kind != report.KindDetails:

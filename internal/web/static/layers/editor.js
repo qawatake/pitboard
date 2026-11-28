@@ -55,7 +55,8 @@ export function place(cx, app) {
   const b = box(cx);
   const r = !loose(ed) && ed.at && cx.rows.get(ed.at);
   b.classList.toggle('loose', !r);
-  if (r) (r.querySelector(':scope > .target') || r.querySelector(':scope > .rowbtn')).after(b);
+  // Under a row's title (and a Link's target); under a line of text.
+  if (r) (r.querySelector(':scope > .target') || r.querySelector(':scope > .rowbtn') || r).after(b);
   else if (b.parentNode !== app) app.querySelector('.foot').before(b);
 }
 

@@ -59,3 +59,35 @@ func TestFoldKeys(t *testing.T) {
 		t.Errorf("a fold with an id is tracked by it: %q %q", a[1].Key, b[2].Key)
 	}
 }
+
+// Lines of text (not rows) are keyed by what they say, those of a body
+// under their row's key, and recorded by the row they are in.
+func TestLineKeysAndTargets(t *testing.T) {
+	nodes, _, _ := Parse("<Title>題</Title>\n\n段落。\n\n<Item id=\"a\">項目\n  段落。\n  1. 番号\n</Item>\n<Fold title=\"畳み\">\n- 行\n  - 下\n</Fold>\n")
+	var got []string
+	WalkDeep(nodes, func(n *Node) {
+		if Row(n) || Line(n) {
+			got = append(got, n.Key+" => "+strings.ReplaceAll(Target(n), "\n", "/"))
+		}
+	})
+	want := []string{
+		"t1:題 => Line|/題",
+		"p1:段落。 => Line|/段落。",
+		"a => a",
+		"a/p1:段落。 => Line|a/段落。",
+		"a/n1:1. 番号 => Line|a/番号",
+		"fold:1 => Fold|title=畳み",
+		"-1:行 => Line|Fold|title=畳み/行",
+		"-1:行/-1:下 => Line|Fold|title=畳み/下",
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Errorf("got\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+	anchor, text, ok := LineOf("Line|Fold|title=畳み\n下")
+	if !ok || anchor != "Fold|title=畳み" || text != "下" {
+		t.Errorf("LineOf: %q %q %v", anchor, text, ok)
+	}
+	if _, _, ok := LineOf("a"); ok {
+		t.Error("an id is a line")
+	}
+}

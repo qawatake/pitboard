@@ -110,8 +110,10 @@ func TestLockAndReappear(t *testing.T) {
 		t.Errorf("reappear: %q", a.msg)
 	}
 	// Rewrite the line under the cursor: lock.
-	a.handle(key{r: 'j'})
-	a.render()
+	for pv.cur != "a" {
+		a.handle(key{r: 'j'}) // past the title and the heading
+		a.render()
+	}
 	rewriteReport(t, a, strings.Replace(fix15Report, "項目 a", "項目 A", 1))
 	a.tickReload()
 	if !pv.lock {

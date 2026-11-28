@@ -272,6 +272,20 @@ func describe(e Event, nodes []*report.Node) string {
 		case now.Title() != seen:
 			ctx += " → now: " + CutTitle(now.Title(), thoughtTitleMax)
 		}
+		if anchor, line, ok := report.LineOf(e.ID); ok {
+			// A line of text (a paragraph, a heading, a line of a body):
+			// named by what it says, and the row it is in.
+			where := fmt.Sprintf("line %q", CutTitle(report.PlainOf(line), thoughtTitleMax))
+			if title, fold := report.FoldTitle(anchor); fold {
+				where += fmt.Sprintf(" in fold %q", CutTitle(report.PlainOf(title), thoughtTitleMax))
+			} else if anchor != "" {
+				where += " in " + anchor
+			}
+			if now == nil {
+				where += " (now gone)"
+			}
+			return fmt.Sprintf("thought %d on %s: %s", e.N, where, text)
+		}
 		if title, ok := report.FoldTitle(e.ID); ok {
 			// A Fold without an id: named by its title, which is what finds it.
 			where := fmt.Sprintf("fold %q", CutTitle(report.PlainOf(title), thoughtTitleMax))

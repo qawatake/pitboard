@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/qawatake/pitboard/internal/board"
+	"github.com/qawatake/pitboard/internal/page"
 	"github.com/qawatake/pitboard/internal/report"
 )
 
@@ -23,8 +24,13 @@ func TestNestedListHidesWithItsLine(t *testing.T) {
 	os.WriteFile(st.ReportPath(), []byte(src), 0o644)
 	a := testApp(t, st)
 	pv := a.top()
-	if keys := pv.navKeys(); len(keys) != 2 {
-		t.Errorf("stops %q: nested lines must not be stops", keys)
+	// Every line is a stop (the heading, the nested line too); the rows
+	// that hide are the two "- " lines.
+	if keys := pv.navKeys(); len(keys) != 4 || keys[2] != "-1:板はセッションごと/-1:理由 A" {
+		t.Errorf("stops %q", keys)
+	}
+	if n := pv.nodeAt("-1:板はセッションごと/-1:理由 A"); n == nil || report.HideKey(n) != "" {
+		t.Error("a nested line hides on its own")
 	}
 	a.render()
 	a.handle(key{r: 'j'})
@@ -35,10 +41,10 @@ func TestNestedListHidesWithItsLine(t *testing.T) {
 	if s := shown(a); strings.Contains(s, "理由 A") || strings.Contains(s, "板はセッションごと") {
 		t.Errorf("hidden with its nested lines:\n%s", s)
 	}
-	// A numbered line is read only.
+	// A numbered line is a stop, but does not hide.
 	nodes, _, _ = report.Parse("<Section title=\"s\">\n1. a\n</Section>")
-	if pv.navigable(nodes[0].Kids[0]) {
-		t.Error("a numbered line is a stop")
+	if n := nodes[0].Kids[0]; !pv.navigable(n) || report.HideKey(n) != "" {
+		t.Error("a numbered line is no stop, or hides")
 	}
 }
 
@@ -73,13 +79,18 @@ func TestHideAndUnhide(t *testing.T) {
 	a.handle(key{r: 'j'})
 	a.handle(key{r: 'k'})
 	a.draw()
-	// y n (no keys any more) and c do nothing on a plain line.
-	for _, r := range "ync" {
+	// y n (no keys any more) do nothing on a plain line; c writes on it.
+	for _, r := range "yn" {
 		a.handle(key{r: r})
 	}
 	if len(st.Events()) != 0 || a.in != nil {
-		t.Fatal("y n c acted on a plain line")
+		t.Fatal("y n acted on a plain line")
 	}
+	a.handle(key{r: 'c'})
+	if a.in == nil || a.in.id != "Line|\n板はセッションごと" {
+		t.Fatalf("c on a plain line: %+v", a.in)
+	}
+	a.handle(key{name: "esc"})
 	a.handle(key{r: 'x'})
 	a.draw()
 	if s := shown(a); strings.Contains(s, "板はセッションごと") {
@@ -204,13 +215,17 @@ func TestHMovesCursorAndWaits(t *testing.T) {
 	if evs := st.Events(); len(evs) != 2 || evs[1].Op != "hide" || !strings.Contains(evs[1].Key, "題 A") {
 		t.Fatalf("x pressed again works: %+v", evs)
 	}
+	// Hiding a moved the cursor to the next line, the heading of ほか.
+	if pv.cur != "h1:ほか" {
+		t.Fatalf("after a was hidden: cursor %q", pv.cur)
+	}
 	a.handle(key{r: 'u'})
 	a.handle(key{r: 'H'})
-	a.handle(key{r: 'H'}) // shown and left out again: the cursor stays on a
+	a.handle(key{r: 'H'}) // shown and left out again: the cursor stays
 	a.draw()
 	wait(t, settleDelay)
 	a.handle(key{r: 'x'})
-	if evs := st.Events(); evs[len(evs)-1].Op != "hide" {
-		t.Errorf("after the delay x works without j/k: %+v", evs)
+	if pv.cur != "h1:ほか" || a.msg != page.MsgNoHide {
+		t.Errorf("after the delay x is told it cannot hide a heading (not dropped): cur %q %q", pv.cur, a.msg)
 	}
 }

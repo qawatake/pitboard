@@ -109,11 +109,12 @@ func TestJKBringTheCursorBack(t *testing.T) {
 	a.t.w, a.t.h = 60, 10
 	pv := a.top()
 	a.render()
-	a.handle(key{r: 'j'}) // the person moves to a
-	a.handle(key{r: 'k'})
-	a.render()
-	for range 12 {
-		a.handle(key{r: 'k'})
+	for pv.cur != "a" {
+		a.handle(key{r: 'j'}) // the person moves to a
+		a.render()
+	}
+	for range 4 {
+		a.handle(key{name: "ctrl+u"}) // the view goes up; the cursor stays
 		a.render()
 	}
 	if pv.curShown || pv.cur != "a" {
@@ -175,8 +176,11 @@ func TestPlacedCursorTakesNoReaction(t *testing.T) {
 		t.Errorf("c on a placed cursor: %+v", a.in)
 	}
 	a.in = nil
+	a.render()
 	a.handle(key{r: 'j'})
+	a.render()
 	a.handle(key{r: 'k'})
+	a.render()
 	pv.curShown = true
 	a.react(pv, 'a')
 	if evs := st.Events(); len(evs) != 1 || evs[0].Value != "a" {
@@ -186,7 +190,7 @@ func TestPlacedCursorTakesNoReaction(t *testing.T) {
 
 func TestPlacedWhenStopsAppear(t *testing.T) {
 	st := testStore(t)
-	os.WriteFile(st.ReportPath(), []byte("<Title>t</Title>\n\nまだ項目は無い。\n"), 0o644)
+	os.WriteFile(st.ReportPath(), []byte(""), 0o644) // no line yet
 	a := testApp(t, st)
 	pv := a.top()
 	pv.settleCursor()

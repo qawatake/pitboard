@@ -60,7 +60,7 @@ function reply(c) {
 
 // on is the comments written on line t, as shown under it opened: those
 // the AI is not done with, then the done ones folded into one faint line
-// (t.DoneFold) until enter, or a click on that line, shows them.
+// (t.DoneFold; all of them are in the comment panel).
 export function on(cx, t, cls) {
   const box = el('div', 'comments' + (cls ? ' ' + cls : ''));
   for (const c of t.Comments || []) {

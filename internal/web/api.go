@@ -161,12 +161,14 @@ func (t *tab) remember(p *page.Page) {
 	var walk func(ts []*page.Thing)
 	walk = func(ts []*page.Thing) {
 		for _, x := range ts {
-			if x.Stop && x.Node != nil {
+			if (x.Stop || x.Line) && x.Node != nil {
 				if _, ok := t.seen[x.Token]; !ok {
 					t.seen[x.Token] = seenLine{seen: x.Seen, target: x.Target, title: x.Node.Title(), node: x.Node}
 				}
 			}
 			walk(x.Kids)
+			walk(x.Body)
+			walk(x.Subs)
 		}
 	}
 	walk(p.Notices)
@@ -282,7 +284,7 @@ func (t *tab) line(key, tok string) (seenLine, bool) {
 // now is the line key in the report as it is now (nil: gone).
 func (t *tab) now(key string) *report.Node {
 	var now *report.Node
-	report.WalkAll(t.b.Report.Nodes, func(n *report.Node) {
+	report.WalkDeep(t.b.Report.Nodes, func(n *report.Node) {
 		if now == nil && key != "" && n.Key == key && page.Stops(n) {
 			now = n
 		}

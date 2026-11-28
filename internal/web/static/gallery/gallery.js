@@ -81,7 +81,7 @@ function resolve(v, isPart) {
     // The lines that hold it open (no change to the part drawn alone): the
     // live page it is compared with shows it so.
     for (const k of S.index(page).parents.get(t.Key) || []) if (!(k in ui.open)) ui.open[k] = true;
-    if (CUR && t.Stop) ui.cur = t.Key;
+    if (CUR && (t.Stop || t.Line)) ui.cur = t.Key;
   } else {
     ui.cur = keyOf(page, ui.cur);
     if (ui.editor) ui.editor = { ...ui.editor, at: keyOf(page, ui.editor.at), key: keyOf(page, ui.editor.key) };

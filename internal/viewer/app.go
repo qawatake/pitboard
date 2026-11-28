@@ -27,6 +27,7 @@ type view struct {
 	open map[string]bool
 	cur      string         // key of the node under the cursor
 	ends     map[string]int // where each stop's rows end (its contents too), from rows
+	lines    map[string]bool // the stops of the last rows, by key (navKeys)
 	top      int
 	follow   bool // scroll the cursor into view on the next render
 	curRow   int

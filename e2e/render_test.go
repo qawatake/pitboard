@@ -490,7 +490,7 @@ func TestRenderNoticePinnedWhileScrolling(t *testing.T) {
 	}
 	b.WriteString("</Section>\n")
 	v, _ := open(t, b.String(), 50, 15, "お知らせの題")
-	for i := 0; i < 40; i++ {
+	for i := 0; i < 41; i++ { // the heading of s is a stop too
 		v.Keys("j")
 	}
 	v.WaitCursorOn("項目 39")

@@ -248,6 +248,16 @@ pre.code .cl { display: block; white-space: pre-wrap; overflow-wrap: anywhere; w
 .gut { color: var(--structure); font-weight: 800; }
 .row.cur > .rowbtn > .gut:empty::before { content: ">"; }
 .rowbtn:focus, .rowbtn:focus-visible, .board:focus, .board:focus-visible { outline: none; }
+/* A line of text one points at (a paragraph, a heading, a line of a body):
+   the same > hangs just left of it; what the person wrote on it goes at
+   its right end. */
+.line { position: relative; cursor: pointer; }
+.line:focus, .line:focus-visible { outline: none; }
+.line.cur::before {
+  content: ">"; position: absolute; left: -1.4em; top: 0;
+  color: var(--structure); font-weight: 800; font-size: 1rem; line-height: inherit;
+}
+.line > .right { float: right; } .list.line > .right { float: none; margin-left: auto; }
 /* A link to a row of the report: structure, underlined on hover and
    focus; its digit only while g waits on its line. */
 .rowlink { color: var(--structure); }

@@ -6,17 +6,20 @@ import (
 	"github.com/qawatake/pitboard/internal/report"
 )
 
-// Stops says whether n is a line the person points at (and so can act
-// on): a Fold, a part with an id, or a plain "- " line (which can only be
-// hidden; not a numbered one, and never a nested one).
-func Stops(n *report.Node) bool {
-	return n.Kind == report.KindDetails || n.ID != "" || (n.Kind == report.KindPlain && n.Num == "")
-}
+// Stops says whether n is a line the person points at: every line on
+// screen. A row (report.Row: a Fold, a part with an id, a plain "- " line
+// of the report) takes the keys of its kind; a line of text (report.Line:
+// the title, a heading, a paragraph, a code block, a numbered or nested
+// list line, a line of an opened body) takes only a comment. An Ask's
+// options are its row's.
+func Stops(n *report.Node) bool { return report.Row(n) || report.Line(n) }
 
 // CanOpen says whether n opens to show more: a Fold, an Ask (its options),
-// or a line with contents, a note or comments on it. A Link never opens.
+// or a line with contents, a note or comments on it. A Link never opens,
+// nor does a list line or a line of text (what is written on them shows
+// at their right end).
 func (b *Board) CanOpen(n *report.Node) bool {
-	if n.Kind == report.KindLink || n.Kind == report.KindChoice {
+	if n.Kind == report.KindLink || n.Kind == report.KindChoice || n.Kind == report.KindPlain || report.Line(n) {
 		return false
 	}
 	if n.Kind == report.KindDetails || n.Kind == report.KindQuestion || len(n.Body) > 0 || n.Reason != "" {

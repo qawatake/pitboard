@@ -153,6 +153,11 @@ func (a *app) rows(pv *view) []row {
 	chosen := "" // the answered Option of the Ask being drawn
 	var curAsk *report.Node
 	pv.ends = map[string]int{}
+	pv.lines = map[string]bool{}
+	for _, k := range pv.navKeys() {
+		pv.lines[k] = true
+	}
+	defer func() { cursorRow(rows, pv.cur) }()
 	pv.walk(func(n *report.Node) {
 		sel := n.Key != "" && n.Key == pv.cur
 		ind := indentOf(n)
@@ -169,11 +174,11 @@ func (a *app) rows(pv *view) []row {
 				blank()
 			}
 		case report.KindTitle:
-			rows = append(rows, a.para(0, a.inline(n.Text, bold))...)
+			rows = append(rows, a.textRows(pv, n, 0, a.inline(n.Text, bold))...)
 			rows = append(rows, row{})
 		case report.KindSection:
 			blank()
-			h := a.para(0, a.inline(n.Text, bold+cStructure))
+			h := a.textRows(pv, n, 0, a.inline(n.Text, bold+cStructure))
 			h[0].jump = n
 			rows = append(rows, h...)
 			if page.EmptySection(n) {
@@ -181,11 +186,11 @@ func (a *app) rows(pv *view) []row {
 			}
 		case report.KindPara:
 			blank()
-			rows = append(rows, a.para(ind, a.paraText(n, ""))...)
+			rows = append(rows, a.textRows(pv, n, ind, a.paraText(n, ""))...)
 			rows = append(rows, row{})
 		case report.KindCode:
 			blank()
-			rows = append(rows, a.code(n, ind+2)...)
+			rows = append(rows, a.lineRows(pv, n, a.code(n, ind+2))...)
 			rows = append(rows, row{})
 		case report.KindChoice:
 			defer func() {
@@ -259,7 +264,7 @@ func (a *app) rows(pv *view) []row {
 				if !hidden {
 					mark = nil // the list's own mark
 				}
-				lns = a.listItem(sel, ind, n, base, mark, right)
+				lns = a.listItem(pv, sel, ind, n, base, mark, right)
 			} else {
 				lns = a.line(sel, ind, mark, body, right)
 			}
@@ -320,17 +325,60 @@ func listMark(n *report.Node) text {
 	return plainText("·", dim)
 }
 
+// textRows is a line of text (the title, a heading, a paragraph) as drawn
+// at indent ind: wrapped, with what the person wrote on it at its right
+// end, and a stop of its own (lineRows).
+func (a *app) textRows(pv *view, n *report.Node, ind int, t text) []row {
+	if right := a.right(pv, n); len(right) > 0 {
+		return a.lineRows(pv, n, a.titled(false, ind, 0, nil, t, right, 0))
+	}
+	return a.lineRows(pv, n, a.para(ind, t))
+}
+
+// lineRows makes rs, the rows of line n, a stop when the cursor stops at
+// n: its key on the first row, the rest the same line wrapped (so the
+// screen brings all of it into view).
+func (a *app) lineRows(pv *view, n *report.Node, rs []row) []row {
+	if len(rs) == 0 || !pv.lines[n.Key] {
+		return rs
+	}
+	rs[0].key = n.Key
+	for i := range rs[1:] {
+		rs[i+1].cont = true
+	}
+	return rs
+}
+
+// cursorRow puts the cursor on the first row of line key when no row has
+// it yet (a line of text: a row draws its own).
+func cursorRow(rows []row, key string) {
+	if key == "" {
+		return
+	}
+	for _, r := range rows {
+		if r.isCur {
+			return
+		}
+	}
+	for i, r := range rows {
+		if r.key == key && strings.HasPrefix(r.line, " ") {
+			rows[i].isCur, rows[i].line = true, ">"+r.line[1:]
+			return
+		}
+	}
+}
+
 // listItem draws a list line and the lines nested under it. Its text
 // wraps to where it starts (past a number wider than the mark field), and
 // each level is indented 2 more. mark replaces the list's own mark if set.
-func (a *app) listItem(sel bool, ind int, n *report.Node, base string, mark, right text) []row {
-	rows, _ := a.listItemOwn(sel, ind, n, base, mark, right)
+func (a *app) listItem(pv *view, sel bool, ind int, n *report.Node, base string, mark, right text) []row {
+	rows, _ := a.listItemOwn(pv, sel, ind, n, base, mark, right)
 	return rows
 }
 
 // listItemOwn is listItem, and how many rows its own text takes (its
 // sub-items left out): what makes its list loose (page.Loose).
-func (a *app) listItemOwn(sel bool, ind int, n *report.Node, base string, mark, right text) ([]row, int) {
+func (a *app) listItemOwn(pv *view, sel bool, ind int, n *report.Node, base string, mark, right text) ([]row, int) {
 	if len(mark) == 0 {
 		mark = listMark(n)
 	}
@@ -342,17 +390,20 @@ func (a *app) listItemOwn(sel bool, ind int, n *report.Node, base string, mark, 
 		out = a.measured(ind, extra, mark, n.Text, base)
 	}
 	own := len(out)
-	return append(out, a.listLines(ind+markW+extra, n.Subs, base)...), own
+	if n.Inner {
+		out = a.lineRows(pv, n, out) // a row's own key is set by rows
+	}
+	return append(out, a.listLines(pv, ind+markW+extra, n.Subs, base)...), own
 }
 
 // listLines draws the lines of one list (one level under one parent): with
 // a blank row between all of them when any takes more than one row
 // (page.Loose). A nested list decides for itself.
-func (a *app) listLines(ind int, ls []*report.Node, base string) []row {
+func (a *app) listLines(pv *view, ind int, ls []*report.Node, base string) []row {
 	var parts [][]row
 	var lines []int
 	for _, s := range ls {
-		r, own := a.listItemOwn(false, ind, s, base, nil, nil)
+		r, own := a.listItemOwn(pv, false, ind, s, base, nil, a.right(pv, s))
 		parts, lines = append(parts, r), append(lines, own)
 	}
 	loose := page.Loose(lines)
@@ -472,19 +523,22 @@ func (a *app) contents(pv *view, n *report.Node, ind int) []row {
 		}
 		switch b.Kind {
 		case report.KindPara:
-			if b.Head {
-				rows = append(rows, a.para(ind, a.paraText(b, base))...)
-			} else {
-				rows = append(rows, a.measured(ind, 0, nil, b.Text, base)...)
+			switch right := a.right(pv, b); {
+			case b.Head:
+				rows = append(rows, a.textRows(pv, b, ind, a.paraText(b, base))...)
+			case len(right) > 0:
+				rows = append(rows, a.lineRows(pv, b, a.titled(false, ind, 0, nil, a.inline(b.Text, base), right, 0))...)
+			default:
+				rows = append(rows, a.lineRows(pv, b, a.measured(ind, 0, nil, b.Text, base))...)
 			}
 		case report.KindCode:
-			rows = append(rows, a.code(b, ind+markW)...)
+			rows = append(rows, a.lineRows(pv, b, a.code(b, ind+markW))...)
 		default: // list lines: the run of them up to the next blank line is one list
 			j := i + 1
 			for j < len(n.Body) && n.Body[j].Kind == b.Kind && !n.Body[j].Gap && !n.Body[j].Head {
 				j++
 			}
-			rows = append(rows, a.listLines(ind+markW, n.Body[i:j], base)...)
+			rows = append(rows, a.listLines(pv, ind+markW, n.Body[i:j], base)...)
 			i = j - 1
 		}
 	}

@@ -46,6 +46,11 @@ export const isOpen = (ui, t) => (own(ui.open, t.Key) ? ui.open[t.Key] : !!t.Ope
 export const words = (page, k) => (page && page.Words && page.Words[k]) || '';
 const base = (ui) => (ui.panel ? 'comments' : 'normal');
 
+// stops says whether one can point at line t: a row (Stop) or a line of
+// text (Line: the title, a heading, a paragraph, code, a list line, a line
+// of an opened body).
+export const stops = (t) => !!(t.Stop || t.Line);
+
 // index is the lines of page one can point at (by key), the lines one can
 // open that hold each (outermost first), and the line of each Target.
 export function index(page) {
@@ -54,12 +59,15 @@ export function index(page) {
   const byTarget = new Map();
   const walk = (ts, up) => {
     for (const t of ts || []) {
-      if (t.Stop) {
+      if (stops(t)) {
         things.set(t.Key, t);
         parents.set(t.Key, up);
         if (t.Target && !byTarget.has(t.Target)) byTarget.set(t.Target, t.Key);
       }
-      walk(t.Kids, t.Stop && t.CanOpen ? [...up, t.Key] : up);
+      const inner = t.Stop && t.CanOpen ? [...up, t.Key] : up;
+      if (t.Kind !== 'notice') walk(t.Body, inner);
+      walk(t.Subs, up);
+      walk(t.Kids, inner);
     }
   };
   if (page) { walk(page.Notices, []); walk(page.Things, []); }
@@ -81,13 +89,17 @@ export function cursorComment(page, ui) {
   return ui.panel && ui.cur.startsWith('#l:') ? commentOf(page, Number(ui.cur.slice(3))) : null;
 }
 
-// navKeys is the keys of the lines one can point at, in the order shown.
+// navKeys is the keys of the lines one can point at, in the order shown:
+// every line on screen (the lines of an opened body too, not a notice's),
+// but an Ask's options.
 export function navKeys(page, ui) {
   if (ui.panel) return panelOrder(page).map((c) => '#l:' + c.N);
   const out = [];
   const walk = (ts) => {
     for (const t of ts || []) {
-      if (t.Stop) out.push(t.Key);
+      if (stops(t)) out.push(t.Key);
+      if (t.Kind !== 'notice' && t.Stop && t.CanOpen && isOpen(ui, t)) walk(t.Body);
+      walk(t.Subs);
       if (t.Kind === 'section' || ((t.Kind === 'fold' || t.Kind === 'ask') && isOpen(ui, t))) walk(t.Kids);
     }
   };
@@ -107,7 +119,11 @@ export function placed(ui, page, now) {
   if (!keys.length) return { ...ui, cur: '' };
   if (ui.cur && keys.includes(ui.cur)) return { ...ui, lastIndex: keys.indexOf(ui.cur) };
   const had = ui.cur !== '';
-  const i = had ? Math.min(ui.lastIndex || 0, keys.length - 1) : 0;
+  // The page puts the cursor on its first row (a line of text only when
+  // there is none), as the terminal does.
+  const rows = index(page).things;
+  const first = Math.max(keys.findIndex((k) => rows.get(k) && rows.get(k).Stop), 0);
+  const i = had ? Math.min(ui.lastIndex || 0, keys.length - 1) : first;
   const cur = keys[Math.max(i, 0)];
   const out = { ...ui, cur, lastIndex: i };
   if ((had && ui.cur === going) || !had) {

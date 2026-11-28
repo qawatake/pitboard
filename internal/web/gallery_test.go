@@ -115,7 +115,7 @@ func (g *gboard) node(id string) *report.Node {
 	}
 	var found *report.Node
 	report.WalkAll(g.b.Report.Nodes, func(n *report.Node) {
-		if found == nil && page.Stops(n) && n.Title() == id {
+		if found == nil && report.Row(n) && n.Title() == id {
 			found = n
 		}
 	})
@@ -217,7 +217,7 @@ func (g *gboard) situation(note string, showHidden, placed bool) *Situation {
 			if !x.Right.At.IsZero() {
 				x.Right.AtText = page.AtWord(x.Right.At, galleryNow)
 			}
-			if x.Stop && x.Node != nil {
+			if (x.Stop || x.Line) && x.Node != nil {
 				if out.Offers == nil {
 					out.Offers = map[string]OfferPair{}
 				}
@@ -238,6 +238,8 @@ func (g *gboard) situation(note string, showHidden, placed bool) *Situation {
 				}
 			}
 			walk(x.Kids)
+			walk(x.Body)
+			walk(x.Subs)
 		}
 	}
 	walk(out.Page.Notices)

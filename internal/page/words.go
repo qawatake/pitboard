@@ -16,6 +16,9 @@ const (
 	// lines are not shown (a press that came late): pressing again does
 	// the same.
 	MsgAlreadyHidden = "この行はもう隠れています"
+	// MsgNoHide refuses x on a line of text (a paragraph, a heading, a
+	// line of a body): only rows and "- " lines of the report hide.
+	MsgNoHide = "この行は隠せません (c でコメントは書けます)"
 	MsgNoReport      = "AI はまだ報告を書いていません"
 	MsgEmpty         = "報告はまだ空です。AI が書くと、ここに出ます"
 	MsgNoBoard       = "このディレクトリと親に pitboard の置き場 (.pitboard/) がありません。AI を動かしているディレクトリで開いてください"

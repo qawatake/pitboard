@@ -783,6 +783,8 @@ func TestCommentStates(t *testing.T) {
 	v.WaitFor("状態を見る")
 	v.MoveTo("状態を見る")
 	v.WaitFor("対応: やりました")
+	wantColor(t, v, "対応:", "dim")
+	wantColor(t, v, "やりました", "")
 }
 
 // SPEC.md "報告の画面のカーソル": a changed cursor line takes no reaction

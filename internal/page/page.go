@@ -109,8 +109,13 @@ type Thing struct {
 	Key    string `json:",omitempty"`
 	Target string `json:",omitempty"`
 	Title  []Span `json:",omitempty"` // the line (a paragraph's or list line's text too)
-	// Stop: the person can point at it (and so act on it).
+	// Stop: a row (report.Row) the person can point at, and act on with
+	// the keys of its kind. Line: a line of text (report.Line) the person
+	// can point at too; only a comment acts on it (Actions.Comment), shown
+	// at its right end (Right). Seen, Token, Actions and Right are set on
+	// both.
 	Stop    bool    `json:",omitempty"`
+	Line    bool    `json:",omitempty"`
 	CanOpen bool    `json:",omitempty"`
 	Actions Actions `json:",omitzero"`
 	Mark    Mark    `json:",omitempty"`
@@ -354,6 +359,17 @@ func (b *Board) thing(n *report.Node, comments map[int]*Comment) *Thing {
 	}
 	for _, c := range n.Subs {
 		t.Subs = append(t.Subs, b.thing(c, comments))
+	}
+	if report.Line(n) {
+		t.Line = true
+		t.Seen = SeenOf(n)
+		t.Token = t.Seen.Token()
+		t.Actions = b.ActionsOf(n)
+		t.Right = b.RightOf(n)
+		if t.Links = b.LinksOf(n); len(t.Links) > 0 {
+			b.rowLinks(t.Title, b.LinkNums(n))
+		}
+		return t
 	}
 	if !Stops(n) {
 		return t

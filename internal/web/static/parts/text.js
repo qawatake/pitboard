@@ -1,13 +1,14 @@
 // Text: the page's title, paragraphs (and small headings) and list lines.
-// A list line one can point at (it can be hidden) is a row; the lines in
-// a body are not. Long words break anywhere: nothing is ever cut.
+// A "- " list line of the report (it can be hidden) is a row; the others,
+// and every line of text, are lines one points at too (cx.line: only a
+// comment acts on them). Long words break anywhere: nothing is ever cut.
 
 import { el, spans } from '../dom.js';
 import { row } from './row.js';
 import * as code from './code.js';
 
 export function title(cx, t) {
-  return spans(el('h1', 'ptitle'), t.Title);
+  return cx.line(t, spans(el('h1', 'ptitle'), t.Title));
 }
 
 // headed is text t (a list line's or a paragraph's) into box: run-in
@@ -22,17 +23,17 @@ function headed(box, t) {
   return box;
 }
 
-// block draws a line nobody points at: a paragraph, a list line (with the
-// lines under it), code.
+// block draws a line of text: a paragraph, a list line (with the lines
+// under it), code.
 export function block(cx, t) {
   switch (t.Kind) {
-    case 'code': return code.draw(cx, t);
+    case 'code': return cx.line(t, code.draw(cx, t));
     case 'list': {
       const d = el('div', 'li');
       const l = el('div', 'list' + (t.Gap ? ' gap' : ''));
       l.appendChild(el('span', 'lm', t.Num || (t.Level === 1 ? '-' : '·')));
       l.appendChild(headed(el('span', 'lt'), t));
-      d.appendChild(l);
+      d.appendChild(cx.line(t, l));
       if (t.Subs && t.Subs.length) {
         const s = el('div', 'subs');
         for (const x of t.Subs) s.appendChild(block(cx, x));
@@ -41,7 +42,7 @@ export function block(cx, t) {
       return d;
     }
     default:
-      return headed(el('div', 'para' + (t.Head ? ' head' : '') + (t.Gap ? ' gap' : '')), t);
+      return cx.line(t, headed(el('div', 'para' + (t.Head ? ' head' : '') + (t.Gap ? ' gap' : '')), t));
   }
 }
 

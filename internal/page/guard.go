@@ -118,6 +118,10 @@ func (b *Board) Allow(n *report.Node, key string, t Touch) Verdict {
 	}
 	switch key {
 	case "x":
+		if !a.Hide && report.Line(n) && b.CanWrite() {
+			v.Msg = MsgNoHide // a line of text: only a comment points at it
+			return v
+		}
 		if !a.Hide || (t.Placed && !a.Untouched().Hide) {
 			return v
 		}

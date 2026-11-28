@@ -14,7 +14,7 @@
 // lines of their own, and says which open notices are too tall to pin.
 
 import { el } from './dom.js';
-import { patch } from './parts/row.js';
+import { patch, rightOf } from './parts/row.js';
 import { isOpen, words } from './state.js';
 import * as notice from './parts/notice.js';
 import * as section from './parts/section.js';
@@ -126,9 +126,28 @@ function context(page, ui, memo, env) {
     page, ui, memo, env, rows: new Map(),
     words: (k) => words(page, k),
     isOpen: (t) => isOpen(ui, t),
+    collect: null,
   };
   cx.things = (ts) => things(cx, ts, false);
+  cx.line = (t, box) => line(cx, t, box);
   return cx;
+}
+
+// line makes box, the drawing of line of text t (page.Thing.Line: the
+// title, a heading, a paragraph, code, a list line, a line of an opened
+// body), a line one can point at: the cursor's when it is ui.cur, what a
+// click or Tab goes to, with what the person wrote on it at its right end.
+// A line nobody points at (in a notice's body) stays as it is.
+function line(cx, t, box) {
+  if (!t.Line) return box;
+  box.classList.add('line');
+  box.dataset.nav = t.Key;
+  box.tabIndex = -1;
+  const r = t.Right || {};
+  if (r.Input && r.Input.Text && !box.querySelector(':scope > .right')) box.appendChild(rightOf(t, false));
+  cx.rows.set(t.Key, box);
+  if (cx.collect) cx.collect.push([t, box]);
+  return box;
 }
 
 // things draws lines ts (top: the report's own, where a Fold is a heading).
@@ -162,14 +181,16 @@ function cursor(cx) {
   const { ui, memo } = cx;
   const now = ui.panel && !ui.cur.startsWith('#') ? null : memo.rows.get(ui.cur) || null;
   const prev = memo.curRow;
+  // A row's button carries aria-current; a line of text, itself.
+  const nav = (r) => r.querySelector(':scope > .rowbtn') || (r.dataset.nav ? r : null);
   if (prev && prev !== now) {
     prev.classList.remove('cur');
-    const b = prev.querySelector(':scope > .rowbtn');
+    const b = nav(prev);
     if (b) b.removeAttribute('aria-current');
   }
   if (now) {
     now.classList.add('cur');
-    const b = now.querySelector(':scope > .rowbtn');
+    const b = nav(now);
     if (b) b.setAttribute('aria-current', 'true');
   }
   memo.curRow = now;

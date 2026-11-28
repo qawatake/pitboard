@@ -36,8 +36,8 @@ func (b *Board) Known(target string) bool {
 // row is the same link), the first MaxLinks numbered. A link to n itself
 // is left out.
 func (b *Board) LinksOf(n *report.Node) []Link {
-	if n == nil {
-		return nil
+	if n == nil || n.Inner {
+		return nil // a line of a body: its links are its row's
 	}
 	var out []Link
 	seen := map[string]bool{}
@@ -98,35 +98,29 @@ type Follow struct {
 	Hidden bool
 }
 
-// Follow is how to go to the row whose target (report.Target: its id, or
-// for a Fold without one, its title) is target (false: no such row).
+// Follow is how to go to the line whose target (report.Target: its id,
+// for a Fold without one its title, for a line of text the row it is in
+// and what it says) is target (false: no such line). For a line in an
+// opened body, the line whose body it is opens too.
 func (b *Board) Follow(target string) (Follow, bool) {
-	var f Follow
-	var path []*report.Node
-	var find func(ns []*report.Node) bool
-	find = func(ns []*report.Node) bool {
-		for _, n := range ns {
-			if report.Target(n) == target && Stops(n) {
-				f.Key = n.Key
-				for _, a := range path {
-					if a.Kind == report.KindDetails {
-						f.Open = append(f.Open, a.Key)
-					}
-					f.Hidden = f.Hidden || b.IsHidden(a)
-				}
-				f.Hidden = f.Hidden || b.IsHidden(n)
-				return true
-			}
-			path = append(path, n)
-			if find(n.Kids) {
-				return true
-			}
-			path = path[:len(path)-1]
-		}
-		return false
-	}
-	if target == "" || !find(b.Report.Nodes) {
+	if target == "" {
 		return Follow{}, false
+	}
+	var found *report.Node
+	report.WalkDeep(b.Report.Nodes, func(n *report.Node) {
+		if found == nil && report.Target(n) == target && Stops(n) {
+			found = n
+		}
+	})
+	if found == nil {
+		return Follow{}, false
+	}
+	f := Follow{Key: found.Key, Hidden: b.IsHidden(found)}
+	for c, u := found, found.Up; u != nil; c, u = u, u.Up {
+		if u.Kind == report.KindDetails || (c.Inner && !u.Inner && u.Kind != report.KindPlain) {
+			f.Open = append([]string{u.Key}, f.Open...)
+		}
+		f.Hidden = f.Hidden || b.IsHidden(u)
 	}
 	return f, true
 }
