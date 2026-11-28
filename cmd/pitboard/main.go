@@ -174,8 +174,7 @@ func run(args []string, out io.Writer) error {
 		cmd, args = args[0], args[1:]
 	}
 	if cmd == "help" {
-		fmt.Fprint(out, usage)
-		return nil
+		return runHelp(args, out)
 	}
 	var st *board.Store
 	if session != "" {

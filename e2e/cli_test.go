@@ -36,15 +36,22 @@ func wantLines(t *testing.T, got string, want ...string) {
 	}
 }
 
-// SPEC.md "コマンド": -h is the whole usage and names every command.
+// SPEC.md "コマンド": -h names every command and the help topics; what
+// only some sessions need is in a topic.
 func TestHelpMentionsEveryCommand(t *testing.T) {
 	s := newSandbox(t)
 	out := s.mustRun("-h")
-	for _, cmd := range []string{"view", "serve", "path", "changes", "settle", "open", "check", "wait", "hook", "--skill", "-h",
-		"post-tool", "hook stop", `"asyncRewake": true, "timeout": 86400`, stopHookNote, "PITBOARD_SEND", "A layout to start from", "Manners"} {
+	for _, cmd := range []string{"view", "serve", "path", "changes", "settle", "open", "check", "wait", "hook", "help", "--skill", "-h",
+		"post-tool", "A layout to start from", "Manners", "Topics (pitboard help TOPIC):"} {
 		if !strings.Contains(out, cmd) {
 			t.Errorf("-h does not mention %q", cmd)
 		}
+	}
+	if !strings.Contains(s.mustRun("help", "hooks"), `"asyncRewake": true, "timeout": 86400`) {
+		t.Error("help hooks lacks the Stop hook's settings")
+	}
+	if send := s.mustRun("help", "send"); !strings.Contains(send, stopHookNote) || !strings.Contains(send, "PITBOARD_SEND") {
+		t.Errorf("help send:\n%s", send)
 	}
 	// What is gone: the prompt-submit hook, and 'wait' as the cheapest way.
 	for _, w := range []string{"prompt-submit", "UserPromptSubmit", "cheapest"} {

@@ -201,7 +201,7 @@ $XDG_STATE_HOME/pitboard/ (or ~/.local/state/pitboard/), and stops by itself
 after 30 minutes with no page open. The key (token) stays the same across
 restarts, so a URL or a bookmark (http://127.0.0.1:7482/s/<id>/, once
 opened with ?t=) and an open tab keep working; --stop and stopping by itself
-keep it, --rotate changes it. 'pitboard -h' says more ("Browser").
+keep it, --rotate changes it. 'pitboard help browser' says more.
 `
 
 func parseServe(args []string) (serveArgs, error) {
