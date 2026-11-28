@@ -66,7 +66,7 @@ var SendTimeout = 5 * time.Second
 
 // errNoTarget means there is no way to wake the AI: no $PITBOARD_SEND and
 // no herdr. Its text says how to fix it.
-var errNoTarget = errors.New(`AI に pitboard wait を動かしてもらうか、PITBOARD_SEND を設定してください (pitboard -h の "Send")`)
+var errNoTarget = errors.New(`AI に pitboard wait を動かしてもらうか、PITBOARD_SEND を設定してください (pitboard help send)`)
 
 // wakeMessage is the line typed into the AI's terminal. It stays in the
 // AI's conversation, so it is short; -h says what it means.

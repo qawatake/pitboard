@@ -127,7 +127,7 @@ func TestSendNowhere(t *testing.T) {
 	st.Append(board.Event{Op: "thought", Text: "a"})
 	a := testApp(t, st)
 	a.handle(key{r: 's'})
-	if a.msg != "送りました。ただ AI が待っていないので、チャットで一言伝えてください。\n"+`AI に pitboard wait を動かしてもらうか、PITBOARD_SEND を設定してください (pitboard -h の "Send")` {
+	if a.msg != "送りました。ただ AI が待っていないので、チャットで一言伝えてください。\n"+`AI に pitboard wait を動かしてもらうか、PITBOARD_SEND を設定してください (pitboard help send)` {
 		t.Errorf("msg %q", a.msg)
 	}
 	// The mark stays: the AI gets the thought from changes.
@@ -136,7 +136,7 @@ func TestSendNowhere(t *testing.T) {
 	}
 	// Wrapped, never cut: how to fix it can be read at any width.
 	a.t.w = 50
-	if b := plainLines(a.bottom()); strings.Contains(b, "…") || !strings.Contains(b, `"Send")`) {
+	if b := plainLines(a.bottom()); strings.Contains(b, "…") || !strings.HasSuffix(b, "help send)") {
 		t.Errorf("failure message lines: %q", b)
 	}
 }

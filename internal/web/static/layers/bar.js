@@ -164,7 +164,7 @@ export const variants = [
   { name: 'rewritten under the cursor', ui: at('hook'), locked: true },
   { name: 'a hidden line: x 表示に戻す', fixture: 'hidden', ui: at('h1') },
   { name: 'a message', ui: at('hook', { status: '答え a を付けました: ページの単位' }) },
-  { name: 'a message in two parts', ui: at('hook', { status: '送りました。ただ AI が待っていないので、チャットで一言伝えてください。\nAI に pitboard wait を動かしてもらうか、PITBOARD_SEND を設定してください (pitboard -h の "Send")' }) },
+  { name: 'a message in two parts', ui: at('hook', { status: '送りました。ただ AI が待っていないので、チャットで一言伝えてください。\nAI に pitboard wait を動かしてもらうか、PITBOARD_SEND を設定してください (pitboard help send)' }) },
   { name: 'sending', ui: at('hook', { busy: true, status: '送っています…' }) },
   { name: 'sent', ui: at('hook'), sent: true },
   { name: 'refusal: back', ui: at('hook'), refusal: 'back' },
