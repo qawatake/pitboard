@@ -138,6 +138,10 @@ const LinkHintMax = 16
 const (
 	MsgLinkHidden = "隠した行です。H で表示すると行けます"
 	WordBack      = "戻る"
+	// Why enter on a comment (the terminal's comments screen) does not go
+	// to its line: it is on none, or the line is gone from the report.
+	MsgGoNoLine = "宛先なしのコメントです。行はありません"
+	MsgGoGone   = "その行は報告にもうありません"
 )
 
 // LinkHintWord is the hint for a line with exactly one link: where g 1

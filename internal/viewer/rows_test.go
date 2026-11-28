@@ -98,12 +98,11 @@ func TestTitlesWrapAndRightPartsStayWhole(t *testing.T) {
 		for _, r := range a.rows(a.top()) {
 			lines = append(lines, r.line)
 		}
-		lines = append(lines, a.pane(400)...)
-		a.list = true
+		a.view = viewComments
 		for _, r := range a.listRows() {
 			lines = append(lines, r.line)
 		}
-		a.list = false
+		a.view = viewReport
 		for _, l := range lines {
 			if vw := visibleWidth(l); vw > w {
 				t.Fatalf("w %d: a line of %d columns: %q", w, vw, reEsc.ReplaceAllString(l, ""))

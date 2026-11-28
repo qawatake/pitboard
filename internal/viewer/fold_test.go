@@ -62,7 +62,7 @@ func TestCommentOnAFold(t *testing.T) {
 		if rowOf(ls, "✎") >= 0 || !strings.Contains(ls[rowOf(ls, "済んだこと (2)")], "未送信") {
 			t.Errorf("%q: closed fold:\n%s", attr, strings.Join(ls, "\n"))
 		}
-		// The pane says which line it is on; u takes it back.
+		// Opened on the comments screen, it says which line it is on.
 		if d := plainLines(func() []string {
 			var out []string
 			for _, r := range a.thoughtDetails(a.b.State.Thoughts[0], 0) {

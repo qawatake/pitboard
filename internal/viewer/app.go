@@ -56,8 +56,7 @@ type view struct {
 	// again is the line and key of a press dropped while settling: the
 	// same key pressed again there works (page.Touch.Again).
 	again string
-	// atEnd says whether the last frame showed the end of the page: j past
-	// the last stop then goes into the thoughts pane.
+	// atEnd says whether the last frame showed the end of the page.
 	atEnd bool
 	// viewH is how many rows of the page the last frame showed, of rowCount.
 	viewH, rowCount int
@@ -178,19 +177,15 @@ type app struct {
 	tauto   int
 	tautoAt time.Time
 
-	// inPane is set while the cursor is in the thoughts pane under the
-	// report (reached with j from the report's end): the pane grows to half
-	// the screen. pcur is the thought under the cursor, popen the thoughts
-	// opened there, ptop how far the pane is scrolled.
-	inPane bool
-	pcur   int
-	popen  map[int]bool
-	ptop   int
-	pfree  bool // the pane was scrolled by a scroll key: it need not show the cursor
+	// view is the screen shown (viewReport, viewComments): l and tab go to
+	// the next.
+	view int
 
-	list      bool        // the thoughts list instead of the report
-	lcur      int         // thought number under the cursor in the list
-	lends     map[int]int // where each thought's rows end in the list, from listRows
+	// The comments screen: the comment under the cursor (its number), where
+	// each comment's rows end (from listRows), those opened with o, how far
+	// it is scrolled.
+	lcur      int
+	lends     map[int]int
 	lopen     map[int]bool
 	ltop      int
 	lfollow   bool

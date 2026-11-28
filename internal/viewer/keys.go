@@ -45,11 +45,8 @@ func (a *app) handle(k key) (quit bool) {
 		a.undoLast()
 		return false
 	}
-	if a.list {
+	if a.onComments() {
 		return a.handleList(k)
-	}
-	if a.inPane {
-		return a.handlePane(k)
 	}
 	pv := a.top()
 	switch {
@@ -91,12 +88,6 @@ func (a *app) handle(k key) (quit bool) {
 			pv.lock, pv.placed = false, false
 			break
 		}
-		if pv.atEnd && len(a.paneOrder()) > 0 {
-			// Past the end of the page: into the thoughts under it. The
-			// report's cursor stays where it is for coming back.
-			a.inPane, a.pcur = true, a.paneOrder()[0].N
-			break
-		}
 		pv.lock, pv.placed = false, false
 		pv.top += max(pv.viewH/2, 1) // past the last stop: scroll the page
 	case k.r == ' ':
@@ -114,8 +105,8 @@ func (a *app) handle(k key) (quit bool) {
 		if !pv.step(-1) {
 			pv.top = max(pv.top-max(pv.viewH/2, 1), 0)
 		}
-	case k.name == "tab":
-		a.list, a.lfollow = true, true
+	case k.r == 'l' || k.name == "tab":
+		a.nextView()
 	case k.r == 'm' && a.canWrite():
 		a.openInput(newInput("", "", "宛先なしのコメント"))
 		a.in.at = pv.cur
@@ -226,11 +217,11 @@ func (a *app) enter(pv *view) {
 	}
 }
 
-// ---- the thoughts list ----
+// ---- the comments screen ----
 
-// listed is the thoughts, newest first.
-func (a *app) listed() []*board.Thought { return a.b.Newest() }
-
+// handleList is the keys on the comments screen: j k move, enter goes to
+// the comment's line in the report, o opens it, e x rewrite and take it
+// back, l tab q esc go back to the report.
 func (a *app) handleList(k key) (quit bool) {
 	ts := a.listed()
 	i := 0
@@ -240,8 +231,11 @@ func (a *app) handleList(k key) (quit bool) {
 		}
 	}
 	switch {
-	case k.name == "tab" || k.r == 'q' || k.name == "esc":
-		a.list = false
+	case k.r == 'l' || k.name == "tab":
+		a.nextView()
+	case k.r == 'q' || k.name == "esc":
+		a.view = viewReport
+		a.top().follow = true
 	case k.r == 'j':
 		if i+1 < len(ts) {
 			a.lcur, a.lfollow = ts[i+1].N, true
@@ -257,6 +251,8 @@ func (a *app) handleList(k key) (quit bool) {
 	case scrollKey(k, a.t.h) != 0:
 		a.ltop, a.lfollow = max(a.ltop+scrollKey(k, a.t.h), 0), false
 	case k.name == "enter" && len(ts) > 0 && a.lcurShown:
+		a.goToComment(ts[i])
+	case k.r == 'o' && len(ts) > 0 && a.lcurShown:
 		a.lopen[ts[i].N] = !a.lopen[ts[i].N]
 	case k.r == 'x' && len(ts) > 0 && a.lcurShown:
 		a.retract(ts, ts[i].N, func(n int) { a.lcur, a.lfollow = n, true })
@@ -270,74 +266,7 @@ func (a *app) handleList(k key) (quit bool) {
 	return false
 }
 
-// handlePane is the keys while the cursor is in the thoughts pane: j k move
-// (k on the first goes back to the report), enter opens a thought. Nothing
-// is recorded on a thought; m s tab q work as on the report.
-func (a *app) handlePane(k key) (quit bool) {
-	ts := a.paneOrder()
-	i := -1
-	for j, t := range ts {
-		if t.N == a.pcur {
-			i = j
-		}
-	}
-	if i < 0 {
-		if len(ts) == 0 {
-			a.inPane = false
-			return false
-		}
-		i, a.pcur = 0, ts[0].N
-	}
-	switch {
-	case k.r == 'q':
-		return true
-	case k.r == ' ':
-		a.inPane, a.ptop = false, 0
-		a.jump(a.top())
-	case k.r == 'A':
-		a.viewAll(a.top())
-	case scrollKey(k, a.t.h) != 0:
-		// The view moves; the cursor stays.
-		a.ptop, a.pfree = max(a.ptop+scrollKey(k, a.t.h), 0), true
-	case k.r == 'j':
-		a.pfree = false
-		if i+1 < len(ts) {
-			a.pcur = ts[i+1].N
-		}
-	case k.r == 'k':
-		a.pfree = false
-		if i == 0 {
-			// Back to the report's last stop: the person pressed k to get
-			// there, so it works at once.
-			a.inPane, a.ptop = false, 0
-			a.top().follow = true
-			break
-		}
-		a.pcur = ts[i-1].N
-	case k.name == "enter":
-		if a.popen == nil {
-			a.popen = map[int]bool{}
-		}
-		a.popen[a.pcur] = !a.popen[a.pcur]
-	case k.r == 'e':
-		a.rewrite(a.pcur)
-	case k.r == 'x':
-		a.retract(ts, a.pcur, func(n int) { a.pcur = n })
-		if len(a.paneOrder()) == 0 {
-			a.inPane, a.ptop = false, 0
-			a.top().follow = true
-		}
-	case k.name == "tab":
-		a.list, a.lfollow = true, true
-	case k.r == 'm' && a.canWrite():
-		a.openInput(newInput("", "", "宛先なしのコメント"))
-	case k.r == 's':
-		a.wake()
-	}
-	return false
-}
-
-// retract takes thought n back (x on a thought in the pane or the list).
+// retract takes comment n back (x on the comments screen).
 // The cursor goes to the next thought in order (or the one before), which
 // then waits settleDelay before x works on it, so x pressed twice does not
 // take back a thought the person has not seen. u undoes it.
@@ -384,16 +313,8 @@ func (a *app) undoLast() {
 	// A line hidden again, or a comment gone: the cursor goes to what is
 	// next, as when it is hidden or taken back with x.
 	pv.moveFrom(before, i)
-	if ts := a.paneOrder(); a.inPane && a.thoughtIn(ts, a.pcur) < 0 {
-		if len(ts) == 0 {
-			a.inPane, a.ptop = false, 0
-			pv.follow = true
-		} else {
-			a.pcur = ts[0].N
-		}
-	}
-	if ts := a.b.State.Thoughts; a.list && a.thoughtIn(ts, a.lcur) < 0 && len(ts) > 0 {
-		a.lcur = ts[len(ts)-1].N
+	if ts := a.listed(); a.onComments() && a.thoughtIn(ts, a.lcur) < 0 && len(ts) > 0 {
+		a.lcur = ts[0].N
 	}
 	a.msg = desc
 }

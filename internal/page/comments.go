@@ -7,18 +7,9 @@ import (
 	"github.com/qawatake/pitboard/internal/report"
 )
 
-// Newest is the comments, newest first (the list of all of them).
-func (b *Board) Newest() []*board.Thought {
-	ts := b.State.Thoughts
-	out := make([]*board.Thought, 0, len(ts))
-	for i := len(ts) - 1; i >= 0; i-- {
-		out = append(out, ts[i])
-	}
-	return out
-}
-
-// Pending is the comments in the order to show them under the report:
-// those the AI has not finished yet (newest first), then those finished
+// Pending is the comments in the order a list of them shows them (the
+// terminal's comments screen, the browser's panel): those the AI has not
+// finished yet (newest first), then those finished
 // (most recently settled first).
 func (b *Board) Pending() []*board.Thought {
 	var open, done []*board.Thought

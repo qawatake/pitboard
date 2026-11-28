@@ -28,8 +28,8 @@ const (
 func settleHead(state string) string { return page.SettleHead(state) }
 
 // statusOf is a comment's status in one word, and its color: only what
-// needs the person (not sent) is in color. What the AI wrote is read in the
-// list (tab, enter).
+// needs the person (not sent) is in color. What the AI wrote is read on the
+// comments screen (l; o for all of it).
 func (a *app) statusOf(t *board.Thought) (word, color string) {
 	w := a.b.ThoughtWord(t)
 	return w.Text, toneColor(w.Tone)

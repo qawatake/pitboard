@@ -83,11 +83,11 @@ func TestGoTo(t *testing.T) {
 			t.Errorf("%+v: jumping %v cur %q", k, a.jumping, pv.cur)
 		}
 	}
-	// Not in the list.
+	// Not on the comments screen.
 	a.handle(key{name: "tab"})
 	a.handle(key{r: 'g'})
 	if a.jumping {
-		t.Error("g works in the list")
+		t.Error("g works on the comments screen")
 	}
 }
 

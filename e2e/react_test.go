@@ -271,7 +271,7 @@ func TestCommentOnLine(t *testing.T) {
 	if !strings.Contains(v.Screen(), "ctrl+j 改行") {
 		t.Errorf("guide without ctrl+j 改行:\n%s", v.dump())
 	}
-	// The bottom row is empty while writing; the comments pane is not shown.
+	// The bottom row is empty while writing; the comments are not under the report.
 	if strings.TrimSpace(v.Bottom()) != "" {
 		t.Errorf("bottom row while writing: %q", v.Bottom())
 	}
@@ -293,10 +293,14 @@ func TestCommentOnLine(t *testing.T) {
 	if rs[0].str("id") != "hook" || rs[0].str("text") != "一行目\n二行目\n三行目\n四行目" || rs[0].str("title") != "hook を入れるか決める" {
 		t.Errorf("record: %v", rs[0])
 	}
-	// On the row's right end; in the comments pane (newlines as spaces);
+	// On the row's right end; on the comments screen (newlines as spaces);
 	// counted at the top right; under the line when it is opened, one row
 	// per line.
-	v.WaitFor("未送信 1", "コメント", "一行目 二行目 三行目 四行目")
+	v.WaitFor("未送信 1")
+	v.Keys("l")
+	v.WaitFor("一行目 二行目 三行目 四行目", "← hook を入れるか決める")
+	v.Keys("l")
+	v.WaitCursorOn("hook を入れるか決める")
 	v.Keys("enter")
 	v.WaitFor("✎ 一行目")
 	if r := rowOf(t, v, "二行目"); r != rowOf(t, v, "✎ 一行目")+1 {
@@ -306,7 +310,7 @@ func TestCommentOnLine(t *testing.T) {
 		t.Errorf("row's right end: %q", v.Line(row))
 	}
 	wantColor(t, v, "未送信 1", "yellow")
-	v.WaitBottom("s 送る  m 書く")
+	v.WaitBottom("s 送る")
 }
 
 // SPEC.md "コメント": m writes a thought without a line.
@@ -362,8 +366,9 @@ func TestCommentWithoutLine(t *testing.T) {
 	})
 }
 
-// SPEC.md "コメントを直す" and "コメントを取り消す": e and x in the pane.
-func TestEditAndRetractInPane(t *testing.T) {
+// SPEC.md "コメントを直す" and "コメントを取り消す": e and x on the comments
+// screen.
+func TestEditAndRetractOnComments(t *testing.T) {
 	t.Parallel()
 	v, ss := open(t, reactReport, 120, 30, "最初の項目")
 	v.Keys("m")
@@ -371,13 +376,9 @@ func TestEditAndRetractInPane(t *testing.T) {
 	v.Type("元の文")
 	v.Keys("enter")
 	ss.waitRecords(t, "thought", 1)
-	v.WaitFor("コメント")
-	// j past the last stop enters the pane.
-	for i := 0; i < 10 && !strings.Contains(v.Bottom(), "e 直す"); i++ {
-		v.Keys("j")
-		v.Sync()
-	}
-	for _, part := range []string{"enter 開く", "e 直す", "x 取り消す", "m 書く", "? キー"} {
+	v.WaitBottom("l コメント 1")
+	v.Keys("l")
+	for _, part := range []string{"o 開く", "e 直す", "x 取り消す", "m 書く", "? キー"} {
 		v.WaitBottom(part)
 	}
 	v.Keys("e")
@@ -404,7 +405,7 @@ func TestEditAndRetractInPane(t *testing.T) {
 		t.Errorf("retract record: %v", rs[0])
 	}
 	v.WaitFor("取り消しました (u で戻す)")
-	v.Until("the pane empties", func() bool { return !strings.Contains(v.Screen(), "直した文") })
+	v.Until("the comment goes", func() bool { return !strings.Contains(v.Screen(), "直した文") })
 
 	v.Keys("u")
 	ss.waitRecords(t, "undo", 1)
@@ -685,7 +686,8 @@ func TestSend(t *testing.T) {
 		w.waitExit(t)
 		wantLines(t, w.stdout(), "thought 1: hi")
 		v.WaitGone("AI 待機中")
-		// The AI read it: 既読.
+		// The AI read it: 既読 (on the comments screen).
+		v.Keys("l")
 		v.WaitFor("既読")
 	})
 
@@ -777,15 +779,11 @@ func TestCommentStates(t *testing.T) {
 	v.WaitFor("対応: やりました")
 	wantColor(t, v, "対応:", "dim")
 	wantColor(t, v, "やりました", "")
-	// Not in the pane: only the state word there.
-	if strings.Count(v.Screen(), "やりました") != 1 {
-		t.Errorf("the AI's text shows in the pane:\n%s", v.dump())
-	}
-	v.Keys("tab")
+	// On the comments screen: the first line of what the AI wrote.
+	v.Keys("l")
 	v.WaitFor("状態を見る")
 	v.MoveTo("状態を見る")
-	v.Keys("enter")
-	v.WaitFor("やりました")
+	v.WaitFor("対応: やりました")
 }
 
 // SPEC.md "報告の画面のカーソル": a changed cursor line takes no reaction

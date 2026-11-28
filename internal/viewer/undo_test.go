@@ -203,8 +203,8 @@ func TestUndoHint(t *testing.T) {
 	if s := hintLine(a); !strings.Contains(s, "u 元に戻す") {
 		t.Errorf("hints %q", s)
 	}
-	a.handle(key{r: 'u'}) // works in the list too
+	a.handle(key{r: 'u'}) // works on the comments screen too
 	if _, ok := a.b.State.React["unit"]; ok {
-		t.Error("u in the list did nothing")
+		t.Error("u on the comments screen did nothing")
 	}
 }

@@ -90,14 +90,14 @@ func TestUnsentMark(t *testing.T) {
 	if !strings.HasSuffix(ls[0], "未送信 3") {
 		t.Errorf("scrolled: %q", ls[0])
 	}
-	// The thoughts list shows it too; the editor's text is not counted.
-	a.list = true
+	// The comments screen shows it too; the editor's text is not counted.
+	a.view = viewComments
 	a.in = &input{label: "x", ed: newEdit("書きかけ")}
 	ls, _ = screen(t, a)
 	if !strings.HasSuffix(ls[0], "未送信 3") {
 		t.Errorf("list: %q", ls[0])
 	}
-	a.in, a.list = nil, false
+	a.in, a.view = nil, viewReport
 	// s clears it, and it is the AI's turn: no count of what was sent.
 	t.Setenv("PITBOARD_SEND", "true")
 	a.handle(key{r: 's'})
@@ -164,7 +164,7 @@ func TestHintsShowM(t *testing.T) {
 		}
 	}
 	a.t.w = 80
-	a.list = true
+	a.view = viewComments
 	if s := reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), ""); !strings.Contains(s, "m 書く  ? キー") {
 		t.Errorf("list hints: %q", s)
 	}

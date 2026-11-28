@@ -8,139 +8,60 @@ import (
 	"github.com/qawatake/pitboard/internal/page"
 )
 
-// ---- the thoughts at the bottom of the report ----
+// ---- the screens l cycles through ----
 
-// paneOrder is the thoughts the pane shows first: those not 対応済 yet
-// (newest first), then those 対応済 (most recently settled first).
-func (a *app) paneOrder() []*board.Thought { return a.b.Pending() }
-
+// The screens, in the order l (and tab) goes through them: the report,
+// then the comments, then the report again.
 const (
-	paneMax     = 3  // thoughts shown in the pane
-	paneRows    = 3  // rows a thought takes at most in the pane
-	paneMinH    = 20 // below this screen height, only the pane's heading
-	minBodyRows = 6  // the report keeps at least this many rows
+	viewReport = iota
+	viewComments
+	nViews
 )
 
-// pane is the thoughts, always in view under the report: a heading with
-// counts, and the first few. avail is the height left above the hints.
-func (a *app) pane(avail int) []string {
-	order := a.paneOrder()
-	if len(order) == 0 {
-		return nil
+// nextView goes to the next screen. The report's cursor, scroll and folds
+// stay as they are, for coming back.
+func (a *app) nextView() {
+	a.view = (a.view + 1) % nViews
+	if a.view == viewComments {
+		a.lfollow = true
+	} else {
+		a.top().follow = true
 	}
-	if a.inPane {
-		return a.openPane(order)
-	}
-	n := min(paneMax, len(order))
-	if a.t.h < paneMinH {
-		n = 0
-	}
-	// Each thought wraps to paneRows rows at most; its state is never cut.
-	var each [][]string
-	for _, t := range order[:n] {
-		word, color := a.statusOf(t)
-		base := ""
-		if t.Finished() {
-			base = dim
-		}
-		body := withImages(strings.Join(strings.Fields(t.Text), " "), base).capped(4 * a.textWidth())
-		var ls []string
-		for _, r := range a.titled(false, 2, 0, nil, body, plainText(word, color), paneRows) {
-			ls = append(ls, r.line)
-		}
-		each = append(each, ls)
-	}
-	height := func(n int) int {
-		h := 3 // the heading and the blank above and below
-		for _, ls := range each[:n] {
-			h += len(ls)
-		}
-		return h
-	}
-	for n > 0 && avail-height(n) < minBodyRows {
-		n--
-	}
-	// Quiet: how many are not sent is said at the top right (未送信), and
-	// how to send them in the hints (s 送る).
-	head := a.compose(false, 0, nil, plainText("コメント", bold+cStructure), nil)
-	if n == 0 {
-		return []string{head}
-	}
-	out := []string{"", head}
-	for _, ls := range each[:n] {
-		out = append(out, ls...)
-	}
-	return append(out, "")
 }
 
-// openPane is the pane while the cursor is in it: up to half the screen,
-// every thought in the pane's order, scrolled to keep the cursor's in view.
-func (a *app) openPane(order []*board.Thought) []string {
-	head := a.compose(false, 0, nil, plainText("コメント", bold+cStructure), nil)
-	rows, _ := a.paneAll(order)
-	room := max(a.t.h/2-3, 1) // less the heading and the blank above and below
-	// Keep the cursor's thought in view, and its opened lines as far as
-	// they fit.
-	ci, end := 0, len(rows)-1
-	for i, r := range rows {
-		if r.isCur {
-			ci, end = i, len(rows)-1
-		} else if r.key != "" && i > ci && end == len(rows)-1 && rows[ci].isCur {
-			end = i - 1
+// onComments says whether the comments screen is shown.
+func (a *app) onComments() bool { return a.view == viewComments }
+
+// ---- the comments screen ----
+
+// commentBodyRows is how many rows a comment's text takes at most on the
+// comments screen (o opens it whole).
+const commentBodyRows = 2
+
+// listed is the comments in the order the screen shows them: those the AI
+// has not finished (newest first), then those finished (most recently
+// settled first), as the browser's panel.
+func (a *app) listed() []*board.Thought { return a.b.Pending() }
+
+// openCount is how many comments the AI has not finished: the count the
+// comments screen and its key say (the browser's コメント N).
+func (a *app) openCount() int {
+	n := 0
+	for _, t := range a.b.State.Thoughts {
+		if !t.Finished() {
+			n++
 		}
 	}
-	end = min(end, ci+room-1)
-	if !a.pfree {
-		if ci < a.ptop {
-			a.ptop = ci
-		}
-		if end >= a.ptop+room {
-			a.ptop = min(end-room+1, ci)
-		}
-	}
-	a.ptop = max(min(a.ptop, len(rows)-room), 0)
-	out := []string{"", head}
-	for i := a.ptop; i < len(rows) && i < a.ptop+room; i++ {
-		out = append(out, rows[i].line)
-	}
-	return append(out, "")
+	return n
 }
 
-// paneAll is every thought of the pane as drawn while the cursor is in
-// it, and where each one's rows end.
-func (a *app) paneAll(order []*board.Thought) ([]row, map[int]int) {
-	var rows []row
-	ends := map[int]int{}
-	for _, t := range order {
-		word, color := a.statusOf(t)
-		base := ""
-		if t.Finished() {
-			base = dim
-		}
-		sel := t.N == a.pcur
-		mark := plainText(page.SignClosed, "")
-		if a.popen[t.N] {
-			mark = plainText(page.SignOpen, bold)
-		}
-		body := withImages(strings.Join(strings.Fields(t.Text), " "), base).capped(4 * a.textWidth())
-		r := a.titled(sel, 0, 0, mark, body, plainText(word, color), paneRows)
-		r[0].key = fmt.Sprint(t.N) // the first row of a thought
-		rows = append(rows, r...)
-		if a.popen[t.N] {
-			rows = append(rows, a.thoughtDetails(t, markW)...)
-		}
-		ends[t.N] = len(rows)
-	}
-	return rows, ends
-}
-
-// headed is a line with a faint head word ("理由: ", "対応: ") and the
+// headed is a line with a faint head word ("行: ", "対応: ") and the
 // rest in the normal color.
 func headed(head, s string) text {
 	return append(plainText(head, dim), plainText(s, "")...)
 }
 
-// thoughtDetails is what an opened thought shows: the line it was written
+// thoughtDetails is what an opened comment shows: the line it was written
 // on (and its title then), the whole text, and what the AI did with it.
 func (a *app) thoughtDetails(t *board.Thought, ind int) []row {
 	var rows []row
@@ -151,7 +72,13 @@ func (a *app) thoughtDetails(t *board.Thought, ind int) []row {
 		rows = append(rows, a.para(ind, withImages(l, ""))...)
 	}
 	if t.SettledState != "" {
-		rows = append(rows, a.para(ind, headed(settleHead(t.SettledState), t.Settled))...)
+		for i, l := range strings.Split(strings.TrimSpace(t.Settled), "\n") {
+			if i == 0 {
+				rows = append(rows, a.para(ind, headed(settleHead(t.SettledState), l))...)
+			} else {
+				rows = append(rows, a.para(ind, plainText(l, ""))...)
+			}
+		}
 	} else {
 		rows = append(rows, a.para(ind, plainText(a.b.ThoughtNote(t), dim))...)
 	}
@@ -172,34 +99,106 @@ func (a *app) listCur() *board.Thought {
 	return nil
 }
 
+// aboutLine is the faint line under a comment: the title of the line it is
+// about (← title; (宛先なし) for none, (報告にもうない行) for one gone),
+// and the first line of what the AI wrote on it, if it did.
+func (a *app) aboutLine(t *board.Thought) text {
+	about := "(宛先なし)"
+	if s := a.b.About(t); s != "" {
+		about = "← " + s
+	}
+	out := plainText(about, dim)
+	if t.SettledState != "" {
+		first, _, _ := strings.Cut(strings.TrimSpace(t.Settled), "\n")
+		out = append(out, plainText("   "+settleHead(t.SettledState), dim)...)
+		out = append(out, plainText(first, "")...)
+	}
+	return out
+}
+
+// listRows is the comments screen: a heading with how many the AI has not
+// finished, then each comment in two rows — its state in a column of its
+// own, its number and text (two rows at most), then faintly the line it is
+// about and the first line of what the AI wrote. Those finished come under
+// a rule. o opens a comment: its whole text and what the AI wrote in full.
 func (a *app) listRows() []row {
-	rows := []row{{}, {line: a.compose(false, 0, nil, plainText("コメント", bold+cStructure), nil)}}
+	head := plainText("コメント", bold+cStructure)
+	if n := a.openCount(); n > 0 {
+		head = append(head, plainText(fmt.Sprintf(" %d", n), bold)...)
+	}
+	rows := []row{{}, {line: a.compose(false, 0, nil, head, nil)}}
 	ts := a.listed()
 	if len(ts) == 0 {
 		return append(rows, a.para(0, plainText("コメントはまだありません。m で書けます", dim))...)
 	}
 	cur := a.listCur()
-	a.lends = map[int]int{}
+	// The columns: the state words, then the numbers, each as wide as the
+	// widest.
+	sw, nw := 0, 0
 	for _, t := range ts {
-		sel := t == cur
-		open := a.lopen[t.N]
-		word, color := a.statusOf(t)
-		first, _, _ := strings.Cut(strings.TrimSpace(t.Text), "\n")
-		body := append(plainText(fmt.Sprintf("%d  ", t.N), dim), withImages(first, "")...)
-		mark := plainText(page.SignClosed, "")
-		if open {
-			mark = plainText(page.SignOpen, bold)
+		w, _ := a.statusOf(t)
+		sw = max(sw, width(w))
+		nw = max(nw, len(fmt.Sprint(t.N)))
+	}
+	a.lends = map[int]int{}
+	ruled := false
+	for _, t := range ts {
+		if t.Finished() && !ruled {
+			ruled = true
+			rows = append(rows, row{line: a.compose(false, 0, plainText("─ 済んだもの ─", dim), nil, nil)})
 		}
-		// The first line of the thought wraps; its state is never cut.
-		st := plainText(word, color).capped(2 * a.textWidth())
-		rows = append(rows, a.line(sel, 0, mark, body.capped(4*a.textWidth()), st)...)
-		if open {
-			rows = append(rows, a.thoughtDetails(t, 0)...)
+		word, color := a.statusOf(t)
+		prefix := plainText(word, color)
+		prefix = append(prefix, plainText(strings.Repeat(" ", sw-width(word)+2), "")...)
+		prefix = append(prefix, plainText(fmt.Sprintf("%*d  ", nw, t.N), dim)...)
+		extra := max(prefix.width()-markW, 0)
+		base := ""
+		if t.Finished() {
+			base = dim
+		}
+		body := withImages(strings.Join(strings.Fields(t.Text), " "), base).capped(4 * a.textWidth())
+		rows = append(rows, a.titled(t == cur, 0, extra, prefix, body, nil, commentBodyRows)...)
+		if a.lopen[t.N] {
+			rows = append(rows, a.thoughtDetails(t, extra)...)
+		} else {
+			rows = append(rows, row{line: a.compose(false, extra, nil, a.aboutLine(t).trunc(a.room(extra, nil)), nil), cont: true})
 		}
 		a.lends[t.N] = len(rows)
-		if open {
+		if a.lopen[t.N] {
 			rows = append(rows, row{})
 		}
 	}
 	return rows
+}
+
+// goToComment goes from the comments screen to the line comment t is on:
+// back to the report, the Folds around the line open, the cursor on it.
+// A comment on no line, on a line gone from the report, or on one hidden
+// (while hidden lines are not shown) stays, and says why.
+func (a *app) goToComment(t *board.Thought) {
+	pv := a.top()
+	if t.ID == "" {
+		a.msg = page.MsgGoNoLine
+		return
+	}
+	f, ok := a.b.Follow(t.ID)
+	switch {
+	case !ok:
+		a.msg = page.MsgGoGone
+		return
+	case f.Hidden && !pv.showHidden:
+		a.msg = page.MsgLinkHidden
+		return
+	}
+	a.followLink(pv, page.Link{Target: t.ID})
+	a.view = viewReport
+}
+
+// canGo says whether enter takes comment t to its line.
+func (a *app) canGo(t *board.Thought) bool {
+	if t == nil || t.ID == "" {
+		return false
+	}
+	f, ok := a.b.Follow(t.ID)
+	return ok && (!f.Hidden || a.top().showHidden)
 }

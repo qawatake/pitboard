@@ -110,6 +110,7 @@ var Refusals = map[string]string{
 	"settlingReact": MsgSettlingReact, "settlingHide": MsgSettlingHide, "settlingShow": MsgSettlingShow,
 	"noMarked": MsgNoMarked, "changed": MsgChanged, "moved": MsgMoved,
 	"emptyComment": MsgEmptyComment, "tooLong": MsgTooLong,
+	"linkHidden": MsgLinkHidden, "goNoLine": MsgGoNoLine, "goGone": MsgGoGone,
 }
 
 // The order a screen leaves keys out in when its line of keys has no room,

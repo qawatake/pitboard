@@ -214,7 +214,6 @@ func TestSmallDisplayFixes(t *testing.T) {
 	if s := reEsc.ReplaceAllString(strings.Join(a.bottom(), "\n"), ""); !strings.Contains(s, "j k") || strings.Contains(s, "→") || (!strings.Contains(s, "動かすと答えられる") && strings.Contains(s, "↑↓")) {
 		t.Errorf("placed on an open Ask: %q", s)
 	}
-	// 9a: at width 40 the pane says there is more, and where.
 	for i := 0; i < 7; i++ {
 		st.Append(board.Event{Op: "thought", Text: "t"})
 	}
@@ -223,11 +222,8 @@ func TestSmallDisplayFixes(t *testing.T) {
 	st.Settle(1, "x")
 	st.Append(board.Event{Op: "thought", Text: "u"})
 	a.loadEvents()
-	p := reEsc.ReplaceAllString(strings.Join(a.pane(30), "\n"), "")
-	if strings.Contains(p, "s で送る") {
-		t.Errorf("pane at width 40:\n%s", p)
-	}
-	// 9d: a long destination does not squeeze the thought in the list.
+	// 9d: a long destination does not squeeze the comment on the comments
+	// screen.
 	a.t.w = 80
 	th, _ := st.Append(board.Event{Op: "thought", Text: "the thought itself"})
 	st.Settle(th.N, strings.Repeat("とても長い行き先 ", 20))

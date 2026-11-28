@@ -152,7 +152,10 @@ func TestCorruptEventsLine(t *testing.T) {
 	t.Parallel()
 	v, ss := open(t, "<Item id=\"a\">項目A</Item>\n<Item id=\"b\">項目B</Item>\n", 80, 30, "項目A",
 		ev(1, "thought", `"text":"前"`), `{"n":2,"op":`, "not json at all", ev(3, "thought", `"text":"後"`))
+	v.Keys("l")
 	v.WaitFor("前", "後")
+	v.Keys("l")
+	v.WaitFor("項目A")
 	v.MoveTo("項目B")
 	v.Keys("x")
 	ss.waitRecords(t, "hide", 1)

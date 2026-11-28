@@ -9,7 +9,7 @@ import (
 )
 
 // bottomLines is everything under the scrolling part: the editor while
-// writing, or the thoughts and the key hints. n is how many rows the
+// writing, or the key hints. n is how many rows the
 // scrolling part has (the list of keys scrolls only if it does not fit).
 func (a *app) bottomLines(n int) []string {
 	switch {
@@ -22,14 +22,10 @@ func (a *app) bottomLines(n int) []string {
 	case a.in != nil:
 		return a.editorLines(true)
 	}
-	hints := a.bottom()
-	if a.jumping && !a.list && !a.inPane {
-		hints = a.jumpLines(a.jumpTo)
+	if a.jumping && !a.onComments() {
+		return a.jumpLines(a.jumpTo)
 	}
-	if a.list {
-		return hints
-	}
-	return append(a.pane(a.t.h-len(hints)), hints...)
+	return a.bottom()
 }
 
 // msgRows is a message on the bottom lines: on one line with right (the
@@ -67,7 +63,6 @@ func (a *app) helpRows() []row {
 		{"j k", "上下の行へ動く (ctrl+n / ctrl+p も)。止まる行がその先になければ半画面スクロール。カーソルの行が画面の外にあれば、まずそこまで戻す"},
 		{"ctrl+d u", "画面だけを半画面ずつ下 / 上へ (カーソルは動かない。pgdn pgup・alt+↓ ↑ も)"},
 		{"ctrl+e y", "画面だけを 1 行ずつ下 / 上へ (↓ ↑ も。マウスのホイールやトラックパッドも、端末が ↓ ↑ に変えて送る)"},
-		{"", "報告の終わりからさらに j で、報告の下のコメントへ (欄が広がる)。コメントの 1 件目で k で報告へ"},
 		{"", "報告のいちばん上からさらに k で、上に固定されたお知らせへ"},
 		{"", "日本語入力のままでも、ctrl+n ctrl+p と全角の英字 (ｊ ｙ など) が効く"},
 		{"g", "節へ飛ぶ: お知らせ・節・いちばん外の折りたたみに a b c … が付く。その字で、そこの最初の行へ (見出しを画面の上に)。esc でやめる"},
@@ -77,7 +72,7 @@ func (a *app) helpRows() []row {
 		{"space", "カーソルより下で、いちばん近い印のある行 (黄の ●・人待ちの項目・緑の ●) へ。下に無ければ上から。折りたたみは開く"},
 		{"r", "読んだ: カーソルの行の緑の ● (右上の「未読」) を消す (カーソルを当てる・開くだけでは消えない。答え・コメント・x でも消える)"},
 		{"A", "いま報告にある行をすべて読んだことにする (緑の ● を消す)"},
-		{"enter", "開く・閉じる (コメントの欄でも)"},
+		{"enter", "開く・閉じる (コメントの画面では、そのコメントの行へ)"},
 		{"u", "元に戻す: 直前の操作を取り消す (答え・コメントを置く / 直す / 取り消す・隠す / 表示に戻す・r・A。新しい順に 1 つずつ。送ったあとなら、取り消しを次に送る)"},
 		{"a b …", "問いに答える (選択肢のキー。問いを開いているときだけ。閉じていれば開く)"},
 		{"c", "この行にコメントを書く"},
@@ -85,11 +80,12 @@ func (a *app) helpRows() []row {
 		{"s", "AI に送る: 未送信のものをまとめて送る (AI が pitboard wait で待っていればそれが起こす。いなければ AI の端末に 1 行打ち込んで起こす)"},
 		{"x", "この行を隠す (隠した行の上では表示に戻す)"},
 		{"H", "隠した行を表示する / しない"},
-		{"tab", "コメントの一覧 / 報告へ"},
-		{"x (コメント)", "コメントの欄と一覧では、そのコメントを取り消す"},
-		{"e (コメント)", "コメントの欄と一覧で、そのコメントを直す (enter で置き換える。esc でやめる)"},
+		{"l", "コメントの画面 / 報告へ (押すたびに切り替わる。tab も)。報告のカーソルと開閉はそのまま"},
+		{"o (コメント)", "コメントの画面で、そのコメントを開く・閉じる (全文と AI の対応)"},
+		{"x (コメント)", "コメントの画面で、そのコメントを取り消す"},
+		{"e (コメント)", "コメントの画面で、そのコメントを直す (enter で置き換える。esc でやめる)"},
 		{"?", "このキーの一覧"},
-		{"q", "終了 (一覧からは報告へ。ctrl+c はどこでも終了)"},
+		{"q", "終了 (コメントの画面からは報告へ。ctrl+c はどこでも終了)"},
 		{"", ""},
 		{"書いているとき", ""},
 		{"enter", "pitboard に置く (s で送るまで AI には届かない)"},
@@ -179,40 +175,30 @@ func (a *app) bottom() []string {
 			p = "…" + tail(p, max(room-1, 4))
 		}
 		right = plainText(p, dim)
-	case !a.list:
+	case !a.onComments():
 		right = a.hiddenCount()
 	}
 	say := func(msg string) []string { return a.msgRows(msg, right) }
 	switch {
 	case a.msg != "":
 		return say(a.msg)
-	case !a.list && a.top().lock:
+	case !a.onComments() && a.top().lock:
 		return say(msgMoved)
 	}
 	var keys []hint
-	if a.list {
+	if a.onComments() {
 		if t := a.listCur(); t != nil && a.lcurShown {
-			if a.lopen[t.N] {
-				keys = append(keys, hint{k: "enter", d: "閉じる", rank: rankEnter})
-			} else {
-				keys = append(keys, hint{k: "enter", d: "開く", rank: rankEnter})
+			if a.canGo(t) {
+				keys = append(keys, hint{k: "enter", d: page.WordGo, rank: rankEnter})
 			}
-		}
-		if len(keys) > 0 {
+			if a.lopen[t.N] {
+				keys = append(keys, hint{k: "o", d: page.WordClose, rank: rankEnter})
+			} else {
+				keys = append(keys, hint{k: "o", d: "開く", rank: rankEnter})
+			}
 			keys = append(keys, commentHints(a.canWrite())...)
 		}
-		if len(keys) == 0 {
-			keys = append(keys, hint{k: "tab", d: "報告へ", rank: rankX})
-		}
-		return a.oneLine(keys, nil)
-	}
-	if a.inPane {
-		if a.popen[a.pcur] {
-			keys = append(keys, hint{k: "enter", d: "閉じる", rank: rankEnter})
-		} else {
-			keys = append(keys, hint{k: "enter", d: "開く", rank: rankEnter})
-		}
-		keys = append(keys, commentHints(a.canWrite())...)
+		keys = append(keys, hint{k: "l", d: "報告へ"})
 		return a.oneLine(keys, nil)
 	}
 	pv := a.top()
@@ -250,7 +236,7 @@ func (a *app) bottom() []string {
 		}
 		keys = append(keys, x)
 	}
-	// m tab q H work everywhere: the list of keys (?) tells them; m is also
+	// m q H work everywhere: the list of keys (?) tells them; m is also
 	// shown, since writing works wherever the cursor is.
 	return a.oneLine(keys, right)
 }
@@ -319,23 +305,30 @@ func (a *app) oneLineKeep(keys []hint, keep, right text) []string {
 		}
 		tail = append(tail, x)
 	}
-	if !a.list && !a.inPane && a.top().taller() {
+	if !a.onComments() && a.top().taller() {
 		// The page is taller than the screen: how to move the view alone.
 		keys = append(append([]hint{}, keys...), hint{k: "^d ^u", d: "スクロール", rank: rankU})
 	}
 	q := tail[len(tail)-1] // "? キー" (Bar ends with it)
+	if !a.onComments() && a.st != nil && !a.b.NoSession && len(a.b.State.Thoughts) > 0 {
+		// The comments screen, with how many the AI has not finished (the
+		// browser's コメント N): before "? キー"; on a narrow line it goes with
+		// m, before "? キー" does.
+		l := hint{k: "l", d: fmt.Sprintf("コメント %d", a.openCount()), rank: page.RankPage}
+		tail = append(append(tail[:len(tail)-1:len(tail)-1], l), q)
+	}
 	for _, h := range more {
 		switch h.Do {
 		case "undo":
 			// Something to take back: dropped first when narrow.
 			keys = append(append([]hint{}, keys...), hint{k: h.Key, d: h.Word, rank: page.DropRank(h.Do)})
 		case "next":
-			if !a.list && !a.inPane {
+			if !a.onComments() {
 				// Where to go next: before "m 書く", dropped first when narrow.
 				keys = append(append([]hint{}, keys...), hint{k: h.Key, d: h.Word, rank: page.DropRank(h.Do)})
 			}
 		case "jump":
-			if !a.list && !a.inPane && len(a.jumpTargets(a.top())) > 0 {
+			if !a.onComments() && len(a.jumpTargets(a.top())) > 0 {
 				keys = append(append([]hint{}, keys...), hint{k: h.Key, d: h.Word, rank: page.DropRank(h.Do)})
 			}
 		}

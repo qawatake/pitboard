@@ -124,7 +124,7 @@ func (a *app) write(text string) bool {
 // thoughtN is the thought numbered n on the board, or nil.
 func (a *app) thoughtN(n int) *board.Thought { return a.b.Thought(n) }
 
-// rewrite opens the editor on thought n's text (e in the pane or the list).
+// rewrite opens the editor on comment n's text (e on the comments screen).
 func (a *app) rewrite(n int) {
 	t := a.thoughtN(n)
 	if t == nil || !a.canWrite() {
@@ -282,7 +282,7 @@ func (a *app) editorAt(rows []row, ends map[string]int, key string) (at, head, i
 // drawEditing draws the screen while the editor is open. The editor and
 // its hints go among the lines, right under what they are about: the line
 // a comment is written on (c), the cursor's line (m), the comment being
-// rewritten (e, in the pane or the list). They are kept in the upper two
+// rewritten (e, on the comments screen). They are kept in the upper two
 // thirds of the screen, scrolling what is above if need be, without moving
 // the page's own scroll position: closing the editor puts back the screen
 // as it was. The last line stays empty.
@@ -298,11 +298,11 @@ func (a *app) drawEditing() {
 		key = a.in.at
 	}
 	pinned := false
-	if !a.list {
+	if !a.onComments() {
 		pv := a.top()
 		pv.settleCursor()
 		must := ""
-		if !a.inPane && a.in.edit == 0 {
+		if a.in.edit == 0 {
 			must = key
 		}
 		pins = a.pin(pv, a.t.h, must)
@@ -352,7 +352,7 @@ func (a *app) drawEditing() {
 	case pinned:
 		pv := a.top()
 		rows, top = a.rows(pv), pv.top
-	case a.list:
+	case a.onComments():
 		rows, top = a.listRows(), a.ltop
 		n := a.in.edit
 		if n == 0 {
@@ -366,25 +366,6 @@ func (a *app) drawEditing() {
 				}
 			}
 		}
-	case a.inPane:
-		// The pane, in full, under the page.
-		pv := a.top()
-		rows, top = a.rows(pv), pv.top
-		rows = append(rows, row{}, row{line: a.compose(false, 0, nil, plainText("コメント", bold+cStructure), nil)})
-		prows, ends := a.paneAll(a.paneOrder())
-		n := a.in.edit
-		if n == 0 {
-			n = a.pcur
-		}
-		if e, ok := ends[n]; ok {
-			at = len(rows) + e
-			for i, r := range prows {
-				if r.key == fmt.Sprint(n) {
-					headRow = len(rows) + i
-				}
-			}
-		}
-		rows = append(rows, prows...)
 	default:
 		pv := a.top()
 		rows, top = a.rows(pv), pv.top

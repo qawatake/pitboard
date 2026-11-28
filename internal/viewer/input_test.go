@@ -43,7 +43,7 @@ func TestInputStateOnTheLine(t *testing.T) {
 			t.Errorf("step %d: %q, want %q", i, got, s.want)
 		}
 	}
-	// The comment's state in the list too, and what the AI wrote.
+	// The comment's state on the comments screen too, and what the AI wrote.
 	a.handle(key{name: "tab"})
 	a.lcur = 4
 	a.lopen[4] = true
@@ -159,7 +159,7 @@ func TestEditorRewriteInPlace(t *testing.T) {
 		st.Append(board.Event{Op: "thought", Text: fmt.Sprintf("コメント文 %d", i+1)})
 	}
 	a := testApp(t, st)
-	a.handle(key{name: "tab"})
+	a.handle(key{r: 'l'})
 	a.draw()
 	a.handle(key{r: 'j'})
 	a.handle(key{r: 'j'})
@@ -172,28 +172,10 @@ func TestEditorRewriteInPlace(t *testing.T) {
 	ls, _ := screen(t, a)
 	line := rowOf(ls, fmt.Sprintf("コメント文 %d", n))
 	label := rowOf(ls, fmt.Sprintf("コメント %d を直す", n))
-	if line < 0 || label != line+2 {
-		t.Errorf("e in the list: line %d label %d:\n%s", line, label, strings.Join(ls, "\n"))
+	if line < 0 || label != line+3 {
+		t.Errorf("e on the comments screen: line %d label %d:\n%s", line, label, strings.Join(ls, "\n"))
 	}
 	a.handle(key{name: "esc"})
-	a.list = false
-	// In the pane.
-	a.draw()
-	for range 10 {
-		a.handle(key{r: 'j'})
-	}
-	if !a.inPane {
-		t.Fatal("not in the pane")
-	}
-	a.draw()
-	a.handle(key{r: 'e'})
-	ls, _ = screen(t, a)
-	n = a.in.edit
-	line = rowOf(ls, fmt.Sprintf("コメント文 %d", n))
-	label = rowOf(ls, fmt.Sprintf("コメント %d を直す", n))
-	if line < 0 || label != line+2 {
-		t.Errorf("e in the pane: line %d label %d:\n%s", line, label, strings.Join(ls, "\n"))
-	}
 }
 
 func TestEditKey(t *testing.T) {
@@ -202,8 +184,8 @@ func TestEditKey(t *testing.T) {
 	a := testApp(t, st)
 	a.handle(key{name: "tab"})
 	a.render()
-	if s := hintLine(a); !strings.Contains(s, "enter 開く  e 直す  x 取り消す") {
-		t.Errorf("list hints %q", s)
+	if s := hintLine(a); !strings.Contains(s, "o 開く  e 直す  x 取り消す") {
+		t.Errorf("comments screen hints %q", s)
 	}
 	a.handle(key{r: 'e'})
 	if a.in == nil || a.in.ed.String() != "途中で出し" {

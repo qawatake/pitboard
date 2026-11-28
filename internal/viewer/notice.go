@@ -26,7 +26,7 @@ type pinning struct {
 // that many rows, ending in …, for a screen too low for it). Its mark is
 // ▸ / ▾ (cNeed) when it opens, as an Item's, and ! when it does not.
 func (a *app) noticeHead(pv *view, n *report.Node, most int) []row {
-	sel := n.Key != "" && n.Key == pv.cur && !a.inPane
+	sel := n.Key != "" && n.Key == pv.cur
 	mark, base := plainText("!", cNeed+bold), cNeed
 	switch {
 	case pv.isHidden(n):
@@ -71,7 +71,7 @@ func (a *app) pin(pv *view, h int, must string) pinning {
 	if a.st == nil || a.b.NoSession || pv.Missing {
 		return out
 	}
-	if must == "" && !a.inPane {
+	if must == "" {
 		must = pv.cur
 	}
 	room := max(h/3, 1)

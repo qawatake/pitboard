@@ -7,272 +7,284 @@ import (
 	"testing"
 
 	"github.com/qawatake/pitboard/internal/board"
+	"github.com/qawatake/pitboard/internal/page"
 )
 
-// ---- j / k into the thoughts pane ----
-
-func TestPaneByJK(t *testing.T) {
-	st := testStore(t)
-	for i := 1; i <= 4; i++ {
-		st.Append(board.Event{Op: "thought", Text: fmt.Sprintf("思いつき%d\n二行目", i)})
+func listText(a *app) string {
+	var out []string
+	for _, r := range a.listRows() {
+		out = append(out, reEsc.ReplaceAllString(r.line, ""))
 	}
+	return strings.Join(out, "\n")
+}
+
+// ---- l: the report, the comments, the report ----
+
+func TestLCyclesTheScreens(t *testing.T) {
+	st := testStore(t)
+	st.Append(board.Event{Op: "thought", ID: "hook", Text: "コメント一"})
 	a := testApp(t, st)
 	pv := a.top()
 	a.render()
-	a.handle(key{r: 'j'}) // the Item, the last stop
-	a.render()
-	if a.inPane || pv.cur != "hook" {
-		t.Fatalf("cursor %q inPane %v", pv.cur, a.inPane)
-	}
 	a.handle(key{r: 'j'})
 	a.render()
-	if !a.inPane || a.pcur != 4 {
-		t.Fatalf("j past the end must go into the pane: inPane %v pcur %d", a.inPane, a.pcur)
-	}
-	if s := hintLine(a); s != "      enter 開く  e 直す  x 取り消す  s 送る  m 書く  ? キー" {
-		t.Errorf("pane hints %q", s)
-	}
-	p := plainLines(a.pane(30))
-	for _, w := range []string{">   ▸ 思いつき4", "思いつき3", "思いつき2", "思いつき1"} {
-		if !strings.Contains(p, w) {
-			t.Errorf("open pane lacks %q:\n%s", w, p)
-		}
-	}
-	if s := shown(a); strings.Contains(s, ">") {
-		t.Errorf("the report must not show its cursor while in the pane:\n%s", s)
-	}
-	a.handle(key{r: 'j'})
 	a.handle(key{name: "enter"})
 	a.render()
-	p = plainLines(a.pane(30))
-	if a.pcur != 3 || !strings.Contains(p, "▾ 思いつき3 二行目") || !strings.Contains(p, "まだ送っていません (s で送る)") {
-		t.Errorf("enter opens the thought:\n%s", p)
+	if pv.cur != "hook" || !pv.open["hook"] {
+		t.Fatalf("cursor %q open %v", pv.cur, pv.open)
 	}
-	if s := hintLine(a); s != "      enter 閉じる  e 直す  x 取り消す  s 送る  m 書く  ? キー" {
-		t.Errorf("open thought hints %q", s)
+	// The comments are not under the report any more.
+	if s := shown(a); strings.Count(s, "コメント一") > 1 || strings.Contains(s, "↓ あと") {
+		t.Errorf("the report shows the comments under it:\n%s", s)
 	}
-	// Nothing is recorded on a thought (x takes it back: tested apart).
-	for _, r := range "yncHa" {
-		a.handle(key{r: r})
+	for i, k := range []key{{r: 'l'}, {r: 'l'}, {name: "tab"}, {name: "tab"}, {r: 'l'}, {r: 'q'}} {
+		quit := a.handle(k)
+		a.render()
+		want := []int{viewComments, viewReport, viewComments, viewReport, viewComments, viewReport}[i]
+		if quit || a.view != want {
+			t.Fatalf("key %d %+v: quit %v view %d, want %d", i, k, quit, a.view, want)
+		}
 	}
-	if n := len(st.Events()); n != 4 {
-		t.Errorf("keys recorded something in the pane: %d events", n)
+	if pv.cur != "hook" || !pv.open["hook"] || !pv.curShown {
+		t.Errorf("back on the report: cursor %q open %v shown %v", pv.cur, pv.open, pv.curShown)
 	}
-	// k back to the first, then out to the report's last stop.
-	a.handle(key{r: 'k'})
-	a.handle(key{r: 'k'})
-	a.render()
-	if a.inPane || pv.cur != "hook" || !pv.curShown {
-		t.Fatalf("k from the first thought: inPane %v cur %q", a.inPane, pv.cur)
-	}
-	a.handle(key{r: 'x'}) // the person pressed k to get here: it works
-	if evs := st.Events(); len(evs) != 5 || evs[4].Op != "hide" {
-		t.Errorf("x after coming back: %+v", evs[len(evs)-1])
-	}
-	// Back to three.
-	if p := plainLines(a.pane(30)); strings.Contains(p, "思いつき1") {
-		t.Errorf("the pane must shrink back:\n%s", p)
-	}
-}
-
-func TestPaneScrollsAndLowScreen(t *testing.T) {
-	st := testStore(t)
-	for i := 1; i <= 20; i++ {
-		st.Append(board.Event{Op: "thought", Text: fmt.Sprintf("t%02d", i)})
-	}
-	a := testApp(t, st)
-	a.t.h = 14
-	a.render()
-	if p := plainLines(a.pane(14)); strings.Contains(p, "t20") {
-		t.Errorf("a low screen shows the heading only:\n%s", p)
-	}
-	a.handle(key{r: 'j'})
-	a.render()
-	a.handle(key{r: 'j'})
-	a.render()
-	if !a.inPane {
-		t.Fatal("j must enter the pane on a low screen too")
-	}
-	p := a.pane(14)
-	if len(p) > a.t.h/2 || !strings.Contains(plainLines(p), ">   ▸ t20") {
-		t.Errorf("open pane on a low screen (%d lines):\n%s", len(p), plainLines(p))
-	}
-	for range 15 {
-		a.handle(key{r: 'j'})
-	}
-	a.render()
-	p = a.pane(14)
-	if !strings.Contains(plainLines(p), ">   ▸ t05") || strings.Contains(plainLines(p), "t20") || len(p) > a.t.h/2 {
-		t.Errorf("scrolled pane:\n%s", plainLines(p))
-	}
-	ls, _ := screen(t, a)
-	if !strings.Contains(strings.Join(ls, "\n"), ">   ▸ t05") {
-		t.Errorf("the cursor's thought must be on screen:\n%s", strings.Join(ls, "\n"))
-	}
-}
-
-func TestPaneAfterTextWithoutStops(t *testing.T) {
-	st := testStore(t)
-	var b strings.Builder
-	for i := range 40 {
-		fmt.Fprintf(&b, "段落 %d\n\n", i)
-	}
-	os.WriteFile(st.ReportPath(), []byte(b.String()), 0o644)
-	st.Append(board.Event{Op: "thought", Text: "x"})
-	a := testApp(t, st)
-	a.render()
-	presses := 0
-	for !a.inPane && presses < 200 {
+	// j at the end of the report stays on the report.
+	for range 5 {
 		a.handle(key{r: 'j'})
 		a.render()
-		presses++
 	}
-	if !a.inPane || presses < 3 {
-		t.Errorf("j must scroll the text to its end, then enter the pane (%d presses)", presses)
+	if a.view != viewReport {
+		t.Error("j past the end left the report")
 	}
-	if ls, _ := screen(t, a); !strings.Contains(strings.Join(ls, "\n"), "段落 39") {
-		t.Error("the end of the text must have been shown")
+	// q on the report quits.
+	if !a.handle(key{r: 'q'}) {
+		t.Error("q on the report did not quit")
 	}
 }
 
-func TestRetractInPaneAndUndo(t *testing.T) {
+func TestCommentsKeyOnTheReport(t *testing.T) {
+	st := testStore(t)
+	a := testApp(t, st)
+	a.render()
+	if s := hintLine(a); strings.Contains(s, "l コメント") {
+		t.Errorf("no comments, no l: %q", s)
+	}
+	st.Append(board.Event{Op: "thought", Text: "一"})
+	st.Append(board.Event{Op: "thought", Text: "二"})
+	sendAll(st)
+	st.Changes()
+	st.Settle(1, "やった")
+	a.loadEvents()
+	a.render()
+	// The count is of those the AI has not finished (the browser's コメント N).
+	if s := hintLine(a); !strings.Contains(s, "m 書く  l コメント 1  ? キー") {
+		t.Errorf("report hints %q", s)
+	}
+	// Narrow: it goes with m, before "? キー".
+	a.t.w = 30
+	if s := hintLine(a); strings.Contains(s, "l コメント") || !strings.Contains(s, "? キー") {
+		t.Errorf("narrow report hints %q", s)
+	}
+}
+
+// ---- the comments screen ----
+
+func TestCommentsScreen(t *testing.T) {
+	st := testStore(t)
+	a := testApp(t, st)
+	if s := listText(a); !strings.Contains(s, "コメントはまだありません") {
+		t.Errorf("no comments:\n%s", s)
+	}
+	st.Append(board.Event{Op: "thought", ID: "hook", Title: "hook を入れるか決める", Text: "hook は Stop でいい？"})      // 1
+	st.Append(board.Event{Op: "thought", Text: "画面の色は後で"})                                                   // 2
+	st.Append(board.Event{Op: "thought", ID: "gone", Title: "消えた行", Text: strings.Repeat("とても長いコメント ", 30)}) // 3
+	sendAll(st)
+	st.Changes()
+	st.SettleAll([]board.Settlement{{N: 2, State: "", Text: "あとで決めることにした\n二行目"}})
+	last, _ := st.Append(board.Event{Op: "thought", ID: "unit", Text: "aqua はどうしているか"}) // not sent
+	a.loadEvents()
+	a.handle(key{r: 'l'})
+	ls, _ := screen(t, a)
+	s := strings.Join(ls, "\n")
+	// The heading counts those the AI has not finished.
+	if !strings.Contains(s, "コメント 3") {
+		t.Errorf("heading:\n%s", s)
+	}
+	// Pending order: not finished (newest first), then a rule, then finished.
+	order := []string{fmt.Sprintf("未送信  %d  aqua", last.N), " はどうしているか", "← ページの単位", "3  とても長いコメント", "← (報告にもうない行) (書いたときは: 消えた行)",
+		"既読    1  hook は Stop でいい？", "← hook を入れるか決める", "─ 済んだもの ─", "対応済  2  画面の色は後で", "(宛先なし)   対応: あとで決めることにした"}
+	at := -1
+	for _, w := range order {
+		i := strings.Index(s, w)
+		if i < 0 || i < at {
+			t.Fatalf("%q missing or out of order:\n%s", w, s)
+		}
+		at = i
+	}
+	if strings.Contains(s, "二行目") {
+		t.Errorf("only the first line of what the AI wrote:\n%s", s)
+	}
+	// The cursor on the first; a long text takes two rows at most.
+	if r := rowOf(ls, "とても長いコメント"); r < 0 || !strings.Contains(ls[r+1], "とても長いコメント") || !strings.HasSuffix(strings.TrimSpace(ls[r+1]), "…") || !strings.Contains(ls[r+2], "←") {
+		t.Errorf("a long comment:\n%s", s)
+	}
+	if r := rowOf(ls, "aqua"); r < 0 || !strings.HasPrefix(ls[r], ">") {
+		t.Errorf("cursor:\n%s", s)
+	}
+	// Its continuation rows start where the text starts.
+	if r := rowOf(ls, "とても長いコメント"); r >= 0 && width(ls[r+1]) - width(strings.TrimLeft(ls[r+1], " ")) != width(ls[r][:strings.Index(ls[r], "とても")]) {
+		t.Errorf("not aligned:\n%s", s)
+	}
+	if s := hintLine(a); s != "      enter 行へ  o 開く  e 直す  x 取り消す  l 報告へ  s 送る  m 書く  ? キー" {
+		t.Errorf("hints %q", s)
+	}
+	// o opens the whole text and what the AI wrote in full.
+	for _, k := range "jjj" {
+		a.handle(key{r: k})
+		a.render()
+	}
+	if a.lcur != 2 {
+		t.Fatalf("lcur %d", a.lcur)
+	}
+	if s := hintLine(a); s != "      o 開く  e 直す  x 取り消す  l 報告へ  s 送る  m 書く  ? キー" {
+		t.Errorf("no line, no enter: %q", s)
+	}
+	a.handle(key{r: 'o'})
+	a.render()
+	if s := listText(a); !strings.Contains(s, "対応: あとで決めることにした") || !strings.Contains(s, "二行目") {
+		t.Errorf("o:\n%s", s)
+	}
+	if s := hintLine(a); !strings.Contains(s, "o 閉じる") {
+		t.Errorf("open hints %q", s)
+	}
+	// Nothing is recorded on a comment by other letters.
+	n := len(st.Events())
+	for _, r := range "ycHa" {
+		a.handle(key{r: r})
+	}
+	if len(st.Events()) != n {
+		t.Errorf("keys recorded something on the comments screen")
+	}
+}
+
+// enter goes to the comment's line in the report: the Folds around it
+// open, the cursor on it. A comment on no line, a line gone, or a hidden
+// one stays, and says why.
+func TestEnterGoesToTheCommentsLine(t *testing.T) {
+	st := testStore(t)
+	os.WriteFile(st.ReportPath(), []byte(`<Item id="top">上の行</Item>
+<Fold title="中">
+<Item id="deep">奥の行</Item>
+</Fold>
+<Item id="bye">消す行</Item>
+`), 0o644)
+	st.Append(board.Event{Op: "thought", ID: "deep", Text: "奥へ"})    // 1
+	st.Append(board.Event{Op: "thought", Text: "どこでもない"})            // 2
+	st.Append(board.Event{Op: "thought", ID: "nosuch", Text: "消えた"}) // 3
+	st.Append(board.Event{Op: "thought", ID: "bye", Text: "隠す行へ"})   // 4
+	a := testApp(t, st)
+	pv := a.top()
+	a.render()
+	// Hide the last line.
+	for range 3 {
+		a.handle(key{r: 'j'})
+		a.render()
+	}
+	if pv.cur == "" || pv.nodeAt(pv.cur).ID != "bye" {
+		t.Fatalf("cursor %q", pv.cur)
+	}
+	a.handle(key{r: 'x'})
+	a.render()
+	wait(t, settleDelay*2)
+	a.msg = ""
+	a.handle(key{r: 'l'})
+	a.render()
+	tries := []struct {
+		n   int
+		msg string
+	}{{4, page.MsgLinkHidden}, {3, page.MsgGoGone}, {2, page.MsgGoNoLine}}
+	for _, c := range tries {
+		a.lcur, a.lfollow = c.n, true
+		a.render()
+		if strings.Contains(hintLine(a), "enter") {
+			t.Errorf("%d: enter offered: %q", c.n, hintLine(a))
+		}
+		a.handle(key{name: "enter"})
+		a.render()
+		if a.view != viewComments || a.msg != c.msg {
+			t.Errorf("%d: view %d msg %q, want %q", c.n, a.view, a.msg, c.msg)
+		}
+		// Said as a refusal.
+		if _, ok := refusalWord(c.msg); !ok {
+			t.Errorf("%q is not among page.Refusals", c.msg)
+		}
+	}
+	a.lcur, a.lfollow = 1, true
+	a.render()
+	a.handle(key{name: "enter"})
+	a.render()
+	if a.view != viewReport || pv.nodeAt(pv.cur) == nil || pv.nodeAt(pv.cur).ID != "deep" || !pv.curShown {
+		t.Fatalf("enter: view %d cursor %q shown %v", a.view, pv.cur, pv.curShown)
+	}
+	if s := shown(a); !strings.Contains(s, "> ") || !strings.Contains(s, "奥の行") {
+		t.Errorf("the Fold did not open:\n%s", s)
+	}
+	// g - goes back where it was.
+	if len(pv.back) != 1 {
+		t.Errorf("back %v", pv.back)
+	}
+}
+
+func refusalWord(msg string) (string, bool) {
+	for k, v := range page.Refusals {
+		if v == msg {
+			return k, true
+		}
+	}
+	return "", false
+}
+
+func TestRetractOnTheCommentsScreen(t *testing.T) {
 	st := testStore(t)
 	for _, s := range []string{"one", "two", "three"} {
 		st.Append(board.Event{Op: "thought", Text: s})
 	}
 	a := testApp(t, st)
+	a.handle(key{r: 'l'})
 	a.render()
-	a.handle(key{r: 'j'})
-	a.render()
-	a.handle(key{r: 'j'}) // into the pane, on "three"
-	a.render()
-	if !a.inPane || a.pcur != 3 {
-		t.Fatalf("pane %v pcur %d", a.inPane, a.pcur)
-	}
-	if s := hintLine(a); s != "      enter 開く  e 直す  x 取り消す  s 送る  m 書く  ? キー" {
-		t.Errorf("hints %q", s)
+	if a.lcur != 3 {
+		t.Fatalf("lcur %d", a.lcur)
 	}
 	a.handle(key{r: 'x'})
-	if a.msg != "取り消しました (u で戻す)" || a.pcur != 2 {
-		t.Fatalf("msg %q pcur %d", a.msg, a.pcur)
+	if a.msg != "取り消しました (u で戻す)" || a.lcur != 2 {
+		t.Fatalf("msg %q lcur %d", a.msg, a.lcur)
 	}
 	a.render()
-	if p := plainLines(a.pane(30)); strings.Contains(p, "three") {
-		t.Errorf("taken back, still shown:\n%s", p)
+	if s := listText(a); strings.Contains(s, "three") {
+		t.Errorf("taken back, still shown:\n%s", s)
 	}
 	// x again at once: the viewer moved the cursor, so it waits.
 	a.handle(key{r: 'x'})
 	if len(a.b.State.Thoughts) != 2 {
-		t.Fatal("x pressed twice took back the next thought")
-	}
-	// u takes it back, even after other keys; the cursor stays.
-	a.handle(key{r: 'k'})
-	a.handle(key{r: 'u'})
-	if len(a.b.State.Thoughts) != 3 || a.pcur != 2 || a.msg != "取り消したコメントを戻しました: three" {
-		t.Errorf("u must undo: thoughts %d pcur %d msg %q", len(a.b.State.Thoughts), a.pcur, a.msg)
-	}
-	evs := st.Events()
-	if e := evs[len(evs)-1]; e.Op != "undo" || e.Undo != evs[len(evs)-2].N {
-		t.Errorf("last event %+v", e)
+		t.Fatal("x pressed twice took back the next comment")
 	}
 	a.handle(key{r: 'u'})
-	if a.msg != "取り消せる操作がありません" {
-		t.Errorf("nothing left: %q", a.msg)
+	if len(a.b.State.Thoughts) != 3 || a.msg != "取り消したコメントを戻しました: three" {
+		t.Errorf("u must undo: comments %d msg %q", len(a.b.State.Thoughts), a.msg)
 	}
-	// ✎ on the line goes too.
-	th, _ := st.Append(board.Event{Op: "thought", ID: "hook", Text: "on hook"})
-	a.loadEvents()
-	if c := len(a.b.State.On("hook")); c != 1 {
-		t.Fatalf("on hook %d", c)
+	// All taken back: the screen says so, and l goes back.
+	for range 3 {
+		wait(t, settleDelay*2)
+		a.render()
+		a.handle(key{r: 'x'})
+		a.render()
 	}
-	st.Append(board.Event{Op: "retract", Thought: th.N})
-	a.loadEvents()
-	if c := len(a.b.State.On("hook")); c != 0 {
-		t.Errorf("✎ still counts a taken-back thought")
-	}
-}
-
-func TestRetractInList(t *testing.T) {
-	st := testStore(t)
-	st.Append(board.Event{Op: "thought", Text: "one"})
-	a := testApp(t, st)
-	a.handle(key{name: "tab"})
-	a.render()
-	if s := hintLine(a); s != "      enter 開く  e 直す  x 取り消す  s 送る  m 書く  ? キー" {
-		t.Errorf("list hints %q", s)
-	}
-	a.handle(key{r: 'x'})
-	a.render()
 	if len(a.b.State.Thoughts) != 0 {
-		t.Fatal("x in the list must take the thought back")
+		t.Fatalf("comments left: %d", len(a.b.State.Thoughts))
 	}
-	msg := a.msg
 	a.msg = ""
-	if s := hintLine(a); !strings.Contains(s, "tab 報告へ") {
-		t.Errorf("empty list hints %q", s)
-	}
-	a.msg = msg
-	a.handle(key{r: 'u'})
-	if len(a.b.State.Thoughts) != 1 || a.lcur != 1 {
-		t.Errorf("u in the list: %d lcur %d", len(a.b.State.Thoughts), a.lcur)
-	}
-}
-
-// ---- the thoughts pane ----
-
-func TestThoughtsPane(t *testing.T) {
-	st := testStore(t)
-	a := testApp(t, st)
-	if p := a.pane(30); p != nil {
-		t.Errorf("no thoughts, no pane: %q", p)
-	}
-	for i, txt := range []string{"一\n二", "settled one", "three", "four", "five", "six"} {
-		e := board.Event{Op: "thought", Text: txt}
-		if i == 0 {
-			e.ID, e.Title = "hook", "hook を入れるか決める"
-		}
-		st.Append(e)
-	}
-	sendAll(st)
-	st.Changes() // thoughts 1-6 received
-	st.Settle(2, "todo にした")
-	st.Append(board.Event{Op: "thought", Text: "new"}) // 9, not sent
-	a.loadEvents()
-	var p []string
-	for _, l := range a.pane(30) {
-		p = append(p, reEsc.ReplaceAllString(l, ""))
-	}
-	s := strings.Join(p, "\n")
-	for _, w := range []string{"コメント", "new", "six", "five", "既読"} {
-		if !strings.Contains(s, w) {
-			t.Errorf("pane lacks %q:\n%s", w, s)
-		}
-	}
-	for _, w := range []string{"行き先待ち", "ほか", "✎", "←", "→", "four"} {
-		if strings.Contains(s, w) {
-			t.Errorf("pane has %q:\n%s", w, s)
-		}
-	}
-	if len(p) != 6 { // blank, heading, 3 thoughts, blank
-		t.Errorf("pane has %d lines:\n%s", len(p), s)
-	}
-	// Screens under 20 rows: the heading only.
-	a.t.h = 19
-	if p := a.pane(17); len(p) != 1 {
-		t.Errorf("low screen pane: %q", p)
-	}
-	// The settled one comes after those waiting, with its destination.
-	a.t.h = 40
-	order := a.paneOrder()
-	if order[0].N != 9 || order[len(order)-1].N != 2 {
-		t.Errorf("order: first %d last %d", order[0].N, order[len(order)-1].N)
-	}
-	if w, _ := a.statusOf(order[len(order)-1]); w != "対応済" {
-		t.Errorf("settled status %q", w)
-	}
-	// The report keeps 6 rows: with 10 rows above the hints, one thought.
-	if p := a.pane(10); len(p) != 4 {
-		t.Errorf("pane in 10 rows has %d lines", len(p))
+	if s := hintLine(a); !strings.HasPrefix(s, "      l 報告へ") {
+		t.Errorf("empty screen hints %q", s)
 	}
 }
 
@@ -290,28 +302,32 @@ func TestThoughtShowsTheTitleItWasWrittenOn(t *testing.T) {
 	if s := strings.Join(screen, "\n"); !strings.Contains(s, "(書いたときは: hook を入れるか決める)") {
 		t.Errorf("under the line:\n%s", s)
 	}
-	a.lopen[1] = true
-	screen = nil
-	for _, r := range a.listRows() {
-		screen = append(screen, reEsc.ReplaceAllString(r.line, ""))
+	if s := listText(a); !strings.Contains(s, "← まったく別の物 (書いたときは: hook を入れるか決める)") {
+		t.Errorf("on the comments screen:\n%s", s)
 	}
-	if s := strings.Join(screen, "\n"); !strings.Contains(s, "行: まったく別の物 (書いたときは: hook を入れるか決める)") {
-		t.Errorf("in the list:\n%s", s)
+	a.lopen[1] = true
+	if s := listText(a); !strings.Contains(s, "行: まったく別の物 (書いたときは: hook を入れるか決める)") {
+		t.Errorf("opened:\n%s", s)
 	}
 }
 
-// 16: the end of the report under the comments is said.
-func TestMoreUnderTheComments(t *testing.T) {
+// The comments screen scrolls to keep the cursor's comment in view.
+func TestCommentsScreenScrolls(t *testing.T) {
 	st := testStore(t)
-	src := ""
-	for i := range 40 {
-		src += fmt.Sprintf("<Item id=\"i%d\">項目 %d</Item>\n", i, i)
+	for i := 1; i <= 20; i++ {
+		st.Append(board.Event{Op: "thought", Text: fmt.Sprintf("t%02d", i)})
 	}
-	os.WriteFile(st.ReportPath(), []byte(src), 0o644)
-	st.Append(board.Event{Op: "thought", Text: "a"})
 	a := testApp(t, st)
+	a.t.h = 14
+	a.handle(key{r: 'l'})
+	a.render()
+	for range 15 {
+		a.handle(key{r: 'j'})
+		a.render()
+	}
 	ls, _ := screen(t, a)
-	if !strings.Contains(strings.Join(ls, "\n"), "↓ あと") {
-		t.Errorf("no sign of more:\n%s", strings.Join(ls, "\n"))
+	s := strings.Join(ls, "\n")
+	if r := rowOf(ls, "t05"); r < 0 || !strings.HasPrefix(ls[r], ">") || strings.Contains(s, "t20") {
+		t.Errorf("scrolled:\n%s", s)
 	}
 }

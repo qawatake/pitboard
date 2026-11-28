@@ -3,7 +3,6 @@ package e2e_test
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -68,11 +67,9 @@ func TestUndoEachAction(t *testing.T) {
 		t.Parallel()
 		v, ss := open(t, report, 100, 30, "項目A",
 			ev(1, "thought", `"text":"元の文"`), ev(2, "hide", `"key":"-|ただの行","title":"ただの行"`))
-		// Into the pane, then e.
-		for i := 0; i < 10 && !strings.Contains(v.Bottom(), "e 直す"); i++ {
-			v.Keys("j")
-			v.Sync()
-		}
+		// On the comments screen, then e.
+		v.Keys("l")
+		v.WaitBottom("e 直す")
 		v.Keys("e")
 		v.WaitFor("コメント 1 を直す")
 		v.Keys("ctrl+u")
@@ -81,8 +78,8 @@ func TestUndoEachAction(t *testing.T) {
 		ss.waitRecords(t, "edit", 1)
 		v.Keys("u")
 		v.WaitForJoined("コメントの直しを取り消しました")
-		// Unhide, then u.
-		v.Keys("k")
+		// Back on the report: unhide, then u.
+		v.Keys("l")
 		v.Keys("H")
 		v.WaitFor("ただの行")
 		v.MoveTo("ただの行")
@@ -124,6 +121,8 @@ func TestImagePaste(t *testing.T) {
 	if di, _ := os.Stat(filepath.Dir(img)); di.Mode().Perm() != 0o700 {
 		t.Errorf("images/ mode %v, want 0700", di.Mode().Perm())
 	}
+	v.Keys("l")
+	v.WaitBottom("l 報告へ")
 	wantColor(t, v, "[Image #1]", "dim")
 	v.Keys("s")
 	v.WaitFor("送りました")

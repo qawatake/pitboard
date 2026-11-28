@@ -211,47 +211,62 @@ func TestJump(t *testing.T) {
 	})
 }
 
-// SPEC.md "画面": j past the last stop enters the comments pane; k from
-// its first item goes back.
-func TestIntoCommentsPane(t *testing.T) {
+// SPEC.md "コメントの画面": l goes to the comments screen and back; the
+// report's cursor stays. The comments are not under the report.
+func TestLCyclesToComments(t *testing.T) {
 	t.Parallel()
 	v, _ := open(t, "<Item id=\"a\">項目A</Item>\n<Item id=\"b\">項目B</Item>\n", 80, 24, "項目A",
 		ev(1, "thought", `"text":"コメント一"`), ev(2, "thought", `"text":"コメント二"`))
 	v.MoveTo("項目B")
-	v.Keys("j")
+	v.Keys("j", "j")
+	v.Sync()
+	if strings.Contains(v.Screen(), "コメント二") {
+		t.Fatalf("the comments are under the report:\n%s", v.dump())
+	}
+	v.WaitBottom("l コメント 2")
+	v.Keys("l")
 	v.WaitCursorOn("コメント二") // newest first
 	v.Keys("j")
 	v.WaitCursorOn("コメント一")
-	v.Keys("k", "k")
+	v.Keys("l")
 	v.WaitCursorOn("項目B")
-	// The person came back with k: keys work at once.
+	// Back where it was: keys work at once.
 	v.WaitBottom("c 行に書く")
+	v.Keys("tab")
+	v.WaitCursorOn("コメント")
+	v.Keys("q")
+	v.WaitCursorOn("項目B")
 }
 
-// SPEC.md "画面": the tab list.
-func TestTabList(t *testing.T) {
+// SPEC.md "コメントの画面": each comment with the line it is about; o opens
+// it, enter goes to its line.
+func TestCommentsScreen(t *testing.T) {
 	t.Parallel()
 	v, ss := open(t, "<Item id=\"a\">項目A</Item>\n", 80, 24, "項目A")
-	v.Keys("tab")
-	v.WaitBottom("tab 報告へ  m 書く  ? キー")
-	v.Keys("tab")
+	v.Keys("l")
+	v.WaitBottom("l 報告へ  m 書く  ? キー")
+	v.WaitFor("コメントはまだありません")
+	v.Keys("l")
 	v.WaitFor("項目A")
 	ss.appendEvents(ev(1, "thought", `"id":"a","title":"古い題","text":"古いコメント"`), ev(2, "thought", `"text":"新しいコメント\n二行目"`))
-	v.WaitFor("新しいコメント")
-	v.Keys("tab")
+	v.WaitBottom("l コメント 2")
+	v.Keys("l")
 	v.WaitBottom("e 直す")
+	v.WaitFor("← 項目A (書いたときは: 古い題)", "(宛先なし)")
 	v.Until("newest first", func() bool {
 		r1, _ := v.Find("新しいコメント")
 		r2, _ := v.Find("古いコメント")
 		return r1 >= 0 && r2 > r1
 	})
-	if strings.Contains(v.Screen(), "二行目") {
-		t.Errorf("the list shows more than the first line:\n%s", v.dump())
-	}
 	v.MoveTo("古いコメント")
+	v.WaitBottom("enter 行へ  o 開く")
+	v.Keys("o")
+	// Opened: the line's title (and the title when written), and how far
+	// it got.
+	v.WaitFor("行: 項目A (書いたときは: 古い題)", "まだ送っていません")
 	v.Keys("enter")
-	// Opened: the line's title (and the title when written).
-	v.WaitFor("項目A", "古い題")
+	v.WaitCursorOn("項目A")
+	v.WaitBottom("c 行に書く")
 }
 
 // SPEC.md "画面": ? lists every key; q, esc or ? close it, nothing else.
@@ -261,14 +276,14 @@ func TestHelpScreen(t *testing.T) {
 	for _, closer := range []string{"?", "esc", "q"} {
 		v.Keys("?")
 		v.WaitFor(helpMarker)
-		// Had x, y or tab closed it, the closer would open it again (?)
+		// Had x, y, tab or l closed it, the closer would open it again (?)
 		// or act on the report (esc, q quits), and this would fail.
-		v.Keys("x", "y", "tab", closer)
+		v.Keys("x", "y", "tab", "l", closer)
 		v.WaitGone(helpMarker)
 		v.WaitFor("項目A")
 		v.Sync()
-		if strings.Contains(v.Bottom(), "tab 報告へ") {
-			t.Fatalf("tab reached the report through the ? list")
+		if strings.Contains(v.Bottom(), "l 報告へ") {
+			t.Fatalf("tab or l reached the report through the ? list")
 		}
 	}
 	// It mentions what the spec asks it to (a tall screen: all of it).

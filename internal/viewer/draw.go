@@ -1,7 +1,6 @@
 package viewer
 
 import (
-	"fmt"
 	"strings"
 	"unicode/utf8"
 
@@ -35,7 +34,7 @@ func (a *app) draw() {
 	var top *int
 	var follow *bool
 	var shown *bool
-	if a.list {
+	if a.onComments() {
 		rows = a.listRows()
 		top, follow, shown = &a.ltop, &a.lfollow, &a.lcurShown
 	} else {
@@ -68,7 +67,7 @@ func (a *app) draw() {
 	// scrolled. The cursor on one is always on screen.
 	var banner []string
 	onNotice := false
-	if !a.list && !a.help {
+	if !a.onComments() && !a.help {
 		for _, r := range pins.rows {
 			if len(banner) < max(a.t.h-2, 0) {
 				banner = append(banner, r.line)
@@ -155,11 +154,8 @@ func (a *app) draw() {
 	}
 	if a.tauto != 0 {
 		on, shown := 0, true
-		switch {
-		case a.list:
+		if a.onComments() {
 			on, shown = a.lcur, a.lcurShown
-		case a.inPane:
-			on = a.pcur
 		}
 		switch {
 		case on != a.tauto:
@@ -174,18 +170,6 @@ func (a *app) draw() {
 	}
 	for len(lines) < h {
 		lines = append(lines, "")
-	}
-	if more := len(rows) - (*top + h); more > 0 && !a.list && !a.help && a.in == nil && len(a.paneOrder()) > 0 && len(bottom) > 0 {
-		// The comments below cover the end of the report: say there is
-		// more, faintly, on the blank line above them (or the last line).
-		say := func(n int) string {
-			return a.compose(false, 0, nil, plainText(fmt.Sprintf("↓ あと %d 行", n), dim), nil)
-		}
-		if bottom[0] == "" {
-			bottom[0] = say(more)
-		} else if len(lines) > 1 {
-			lines[len(lines)-1] = say(more + 1)
-		}
 	}
 	if head > 0 {
 		lines = append([]string{a.overlayRight("", mark)}, lines...)

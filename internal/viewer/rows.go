@@ -154,7 +154,7 @@ func (a *app) rows(pv *view) []row {
 	var curAsk *report.Node
 	pv.ends = map[string]int{}
 	pv.walk(func(n *report.Node) {
-		sel := n.Key != "" && n.Key == pv.cur && !a.inPane
+		sel := n.Key != "" && n.Key == pv.cur
 		ind := indentOf(n)
 		open := pv.open[n.Key]
 		switch n.Kind {

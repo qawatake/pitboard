@@ -55,8 +55,8 @@ type Page struct {
 	Next []Next
 	// Summary is the counts at the top right, in order (Board.Summary).
 	Summary []Word
-	// Comments are all the person's comments, in the order to show them
-	// under the report (Board.Pending); Newest is the same, newest first.
+	// Comments are all the person's comments, in the order a list of
+	// them shows them (Board.Pending).
 	Comments []*Comment
 }
 
