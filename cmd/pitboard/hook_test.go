@@ -62,6 +62,26 @@ func TestHookPointsAtHelpChanges(t *testing.T) {
 	}
 }
 
+// Hooks fire inside subagents too, with the parent's session id and an
+// agent_id: the subagent gets nothing and the send stays undelivered for the
+// main AI, which gets it as before.
+func TestHookSkipsSubagents(t *testing.T) {
+	for _, ev := range []string{"post-tool", "stop"} {
+		t.Run(ev, func(t *testing.T) {
+			st := testStore(t)
+			st.Append(board.Event{Op: "thought", Text: "for the main AI"})
+			sendAll(st)
+			sub := hookInput(st.Base, "s1", `"agent_id":"a123","agent_type":"general-purpose"`)
+			if got := runHook(t, ev, sub); got != "" {
+				t.Errorf("subagent got %q", got)
+			}
+			if got := runHook(t, ev, hookInput(st.Base, "s1", `"agent_id":""`)); !strings.Contains(got, "thought 1: for the main AI") {
+				t.Errorf("main AI got %q", got)
+			}
+		})
+	}
+}
+
 // ---- hook ----
 
 func hookInput(cwd, session string, extra string) string {
