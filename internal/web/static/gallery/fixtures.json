@@ -7102,7 +7102,7 @@
      {
       "Kind": "section",
       "Key": "h1:箇条",
-      "Target": "Line|\n箇条",
+      "Target": "Line#2|\n箇条",
       "Title": [
        {
         "Text": "箇条",
@@ -7117,7 +7117,7 @@
        "Hide": false,
        "Read": false
       },
-      "Token": "tok-Line|\n箇条",
+      "Token": "tok-Line#2|\n箇条",
       "Kids": [
        {
         "Kind": "item",

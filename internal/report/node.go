@@ -62,6 +62,9 @@ type Node struct {
 	// line.
 	Up    *Node
 	Inner bool
+	// nth is which line n is among the lines of text with the same target
+	// (the same text in the same row), 1 for the first: see Target.
+	nth int
 }
 
 func (n *Node) item() bool {
@@ -201,6 +204,17 @@ func assignKeys(nodes []*Node) {
 		}
 	}
 	rec(nil, nodes)
+	// Lines of text with the same text in the same row: each its own
+	// target (Target), counted in the order they are drawn.
+	seen := map[string]int{}
+	WalkDeep(nodes, func(n *Node) {
+		if Line(n) || n.Kind == KindPlain {
+			n.nth = 0
+			t := Target(n)
+			seen[t]++
+			n.nth = seen[t]
+		}
+	})
 }
 
 // lineKey is a line of text's kind letter and what it says, for its key.
@@ -308,9 +322,10 @@ const foldTarget = "Fold|title="
 // Target is what reactions and comments on n are recorded against: its id,
 // or for a Fold without one, its title (as hiding goes by: see HideKey),
 // which can never be an id. A line of text (Line, and a "- " line) is
-// recorded by the row it is in and what it says: "Line|", the target of the nearest row around
-// it ("" for none), a newline, its text (a code block's first line). ""
-// when n takes none.
+// recorded by the row it is in and what it says: "Line|", the target of
+// the nearest row around it ("" for none), a newline, its text (a code
+// block's first line). A second line with the same text in the same row
+// is "Line#2|…", a third "Line#3|…", and so on. "" when n takes none.
 func Target(n *Node) string {
 	switch {
 	case n.ID != "":
@@ -322,7 +337,11 @@ func Target(n *Node) string {
 		if n.Kind == KindCode {
 			text = codeHead(n.Code)
 		}
-		return lineTarget + Anchor(n) + "\n" + text
+		pre := lineTarget
+		if n.nth > 1 {
+			pre = fmt.Sprintf("Line#%d|", n.nth)
+		}
+		return pre + Anchor(n) + "\n" + text
 	}
 	return ""
 }
@@ -342,14 +361,24 @@ func Anchor(n *Node) string {
 }
 
 // LineOf is, for the target of a line of text, the target of the row it
-// is in ("" for none) and its text; ok false when target is not one.
-func LineOf(target string) (anchor, text string, ok bool) {
+// is in ("" for none), its text, and which line it is among those with the
+// same text in that row (1 for the first); ok false when target is not one.
+func LineOf(target string) (anchor, text string, nth int, ok bool) {
 	rest, ok := strings.CutPrefix(target, lineTarget)
+	nth = 1
 	if !ok {
-		return "", "", false
+		head, tail, found := strings.Cut(target, "|")
+		num, isLine := strings.CutPrefix(head, "Line#")
+		if !found || !isLine {
+			return "", "", 0, false
+		}
+		if _, err := fmt.Sscanf(num, "%d", &nth); err != nil || nth < 2 || fmt.Sprint(nth) != num {
+			return "", "", 0, false
+		}
+		rest = tail
 	}
 	anchor, text, _ = strings.Cut(rest, "\n")
-	return anchor, text, true
+	return anchor, text, nth, true
 }
 
 // FoldTitle is the title in the target of a Fold without an id, and

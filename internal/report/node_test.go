@@ -83,11 +83,16 @@ func TestLineKeysAndTargets(t *testing.T) {
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Errorf("got\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
-	anchor, text, ok := LineOf("Line|Fold|title=畳み\n下")
-	if !ok || anchor != "Fold|title=畳み" || text != "下" {
-		t.Errorf("LineOf: %q %q %v", anchor, text, ok)
+	anchor, text, nth, ok := LineOf("Line|Fold|title=畳み\n下")
+	if !ok || anchor != "Fold|title=畳み" || text != "下" || nth != 1 {
+		t.Errorf("LineOf: %q %q %d %v", anchor, text, nth, ok)
 	}
-	if _, _, ok := LineOf("a"); ok {
-		t.Error("an id is a line")
+	if anchor, text, nth, ok := LineOf("Line#2|a\n下"); !ok || anchor != "a" || text != "下" || nth != 2 {
+		t.Errorf("LineOf #2: %q %q %d %v", anchor, text, nth, ok)
+	}
+	for _, id := range []string{"a", "Line#1|a\nx", "Line#x|a\nx", "Line#02|a\nx"} {
+		if _, _, _, ok := LineOf(id); ok {
+			t.Errorf("%q is a line", id)
+		}
 	}
 }
