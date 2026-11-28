@@ -126,9 +126,13 @@ function frame(cx, t, open, opts, jump) {
   b.appendChild(markOf(t));
   b.appendChild(signOf(cx, open ? t.OpenSign : t.Sign));
   const title = el('span', 'title');
-  // A list line one points at keeps its head word run-in (page.HeadWord).
-  if (t.HeadWord) title.append(el('strong', '', t.HeadWord), ': ');
-  spans(title, t.Title, true);
+  // A head word (page.HeadWord): run-in, or a definition when it does not
+  // fit on one line (render.fit), as a line of text is.
+  if (t.HeadWord) {
+    title.classList.add('hasHead');
+    title.append(el('strong', 'hw', t.HeadWord), el('span', 'hsep', ': '));
+    title.appendChild(spans(el('span', 'hb'), t.Title, true));
+  } else spans(title, t.Title, true);
   if (t.Hidden) title.appendChild(el('span', 'sr', ' (隠した行)'));
   b.appendChild(title);
   b.appendChild(rightOf(t, open));

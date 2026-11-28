@@ -201,6 +201,14 @@ h2.section { position: relative; font-size: 1.1em; line-height: 1.4; color: var(
 .hasHead.def > .hw { display: block; }
 .hasHead.def > .hsep { display: none; }
 .hasHead.def > .hb { display: block; padding-left: var(--step); }
+/* What is at a line's right end never changes its layout: it is left out
+   while render.fit measures, and on a definition it sits at the end of the
+   head's line, over the room the short head leaves, so the body keeps the
+   whole width. */
+.measure .line > .right, .measure .rowbtn > .right { display: none; }
+.line.hasHead.def > .right, .line:has(> .hasHead.def) > .right { position: absolute; top: 0; right: 0; }
+.rowbtn > .title.hasHead.def { grid-column: 5 / 7; grid-row: 1; }
+.rowbtn:has(> .title.hasHead.def) > .right { grid-column: 6; grid-row: 1; }
 /* Narrow: the body goes back under the head (the loose gap stays). */
 @container app (max-width: 30em) { .hasHead.def > .hb { padding-left: 0; } }
 .subs { padding-left: var(--step); }

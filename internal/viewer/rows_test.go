@@ -438,7 +438,7 @@ func TestLowNoticeRightOneRow(t *testing.T) {
 func TestCodeWrapHangs(t *testing.T) {
 	a := &app{t: &term{w: 40, h: 20, out: io.Discard}}
 	n := &report.Node{Kind: report.KindCode, Lang: "diff", Code: []string{"-  .row.cur { outline: 1px solid var(--accent); }"}}
-	rows := a.code(n, 4)
+	rows := a.code(n, 4, nil)
 	if len(rows) < 2 {
 		t.Fatalf("not wrapped: %v", rows)
 	}
@@ -455,7 +455,7 @@ func TestCodeWrapHangsTab(t *testing.T) {
 	for _, w := range []int{80, 40} {
 		a := &app{t: &term{w: w, h: 20, out: io.Discard}}
 		n := &report.Node{Kind: report.KindCode, Lang: "diff", Code: []string{" \tif err := doSomethingRatherLong(ctx, withAnArgument, andAnotherOne, andYetAnotherOne); err != nil {"}}
-		rows := a.code(n, 4)
+		rows := a.code(n, 4, nil)
 		if len(rows) < 2 {
 			t.Fatalf("%d: not wrapped: %v", w, rows)
 		}

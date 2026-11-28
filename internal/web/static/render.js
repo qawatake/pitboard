@@ -264,16 +264,20 @@ function lines(e) {
 // word run-in when "head: body" fits on one line, else a definition; a
 // list (the list lines of one parent, up to a blank line) loose, a gap
 // between all of its lines, when any of them takes more than one line.
+// Both are measured with the right ends left out (.measure): a comment on
+// a line does not change how it is laid out.
 function lists(app) {
-  for (const e of app.querySelectorAll('.hasHead')) {
-    e.classList.remove('def');
-    if (e.getClientRects().length && lines(e) > 1) e.classList.add('def');
-  }
+  app.classList.add('measure');
+  const heads = [...app.querySelectorAll('.hasHead')];
+  for (const e of heads) e.classList.remove('def');
+  const def = heads.map((e) => e.getClientRects().length && lines(e) > 1);
+  heads.forEach((e, i) => e.classList.toggle('def', !!def[i]));
+  const looks = [];
   for (const parent of new Set([...app.querySelectorAll('.li')].map((x) => x.parentElement))) {
     let group = [];
     const done = () => {
       const loose = group.some((li) => { const t = li.querySelector(':scope > .list > .lt'); return t && lines(t) > 1; });
-      group.forEach((li, i) => li.classList.toggle('loose', loose && i > 0));
+      group.forEach((li, i) => looks.push([li, loose && i > 0]));
       group = [];
     };
     for (const c of parent.children) {
@@ -282,6 +286,8 @@ function lists(app) {
     }
     done();
   }
+  app.classList.remove('measure');
+  for (const [li, loose] of looks) li.classList.toggle('loose', loose);
 }
 
 // pad gives the page room at its end for what covers it at the bottom:

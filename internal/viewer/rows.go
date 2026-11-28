@@ -190,7 +190,7 @@ func (a *app) rows(pv *view) []row {
 			rows = append(rows, row{})
 		case report.KindCode:
 			blank()
-			rows = append(rows, a.lineRows(pv, n, a.code(n, ind+2))...)
+			rows = append(rows, a.codeRows(pv, n, ind+2)...)
 			rows = append(rows, row{})
 		case report.KindChoice:
 			defer func() {
@@ -264,7 +264,7 @@ func (a *app) rows(pv *view) []row {
 				if !hidden {
 					mark = nil // the list's own mark
 				}
-				lns = a.listItem(pv, sel, ind, n, base, mark, right)
+				lns = a.listItem(pv, ind, n, base, mark, right)
 			} else {
 				lns = a.line(sel, ind, mark, body, right)
 			}
@@ -371,26 +371,21 @@ func cursorRow(rows []row, key string) {
 // listItem draws a list line and the lines nested under it. Its text
 // wraps to where it starts (past a number wider than the mark field), and
 // each level is indented 2 more. mark replaces the list's own mark if set.
-func (a *app) listItem(pv *view, sel bool, ind int, n *report.Node, base string, mark, right text) []row {
-	rows, _ := a.listItemOwn(pv, sel, ind, n, base, mark, right)
+func (a *app) listItem(pv *view, ind int, n *report.Node, base string, mark, right text) []row {
+	rows, _ := a.listItemOwn(pv, ind, n, base, mark, right)
 	return rows
 }
 
 // listItemOwn is listItem, and how many rows its own text takes (its
 // sub-items left out): what makes its list loose (page.Loose).
-func (a *app) listItemOwn(pv *view, sel bool, ind int, n *report.Node, base string, mark, right text) ([]row, int) {
+func (a *app) listItemOwn(pv *view, ind int, n *report.Node, base string, mark, right text) ([]row, int) {
 	if len(mark) == 0 {
 		mark = listMark(n)
 	}
 	extra := max(mark.width()-markW, 0)
-	// The cursor never changes how a line is laid out (it only puts its >
-	// in the gutter: cursorRow).
-	var out []row
-	if len(right) > 0 {
-		out = a.titled(sel, ind, extra, mark, a.inline(n.Text, base), right, 0)
-	} else {
-		out = a.measured(ind, extra, mark, n.Text, base)
-	}
+	// Neither the cursor (it only puts its > in the gutter: cursorRow) nor
+	// what is at the right end changes how a line is laid out.
+	out := a.measured(ind, extra, mark, n.Text, base, right)
 	own := len(out)
 	if n.Inner {
 		out = a.lineRows(pv, n, out) // a row's own key is set by rows
@@ -405,7 +400,7 @@ func (a *app) listLines(pv *view, ind int, ls []*report.Node, base string) []row
 	var parts [][]row
 	var lines []int
 	for _, s := range ls {
-		r, own := a.listItemOwn(pv, false, ind, s, base, nil, a.right(pv, s))
+		r, own := a.listItemOwn(pv, ind, s, base, nil, a.right(pv, s))
 		parts, lines = append(parts, r), append(lines, own)
 	}
 	loose := page.Loose(lines)
@@ -423,28 +418,72 @@ func (a *app) listLines(pv *view, ind int, ls []*report.Node, base string) []row
 // after mark, wrapped at the room left but no wider than page.TextMeasure.
 // A line written "**head**: body" that does not fit on one row is drawn
 // as a definition: the head alone on the first row (bold, no colon), the
-// body under it, one step in (page.HeadWord).
-func (a *app) measured(indent, extra int, mark text, s, base string) []row {
+// body under it, one step in (page.HeadWord). Neither that nor where the
+// text wraps depends on right (what the person wrote on the line), so a
+// comment does not change how the line is laid out: right goes at the end
+// of the first row (the head's, for a definition) when it fits beside it,
+// else on rows of its own under the line.
+func (a *app) measured(indent, extra int, mark text, s, base string, right text) []row {
 	w := max(min(a.room(indent, nil)-extra, page.TextMeasure), 4)
 	all := a.inline(s, base)
 	lns := all.wrap(w)
+	// right beside the first row t, or (below) on rows of its own.
+	var below []row
+	beside := func(t text) text {
+		if len(right) == 0 || (a.rightFits(indent, right) && t.width() <= a.room(indent, right)-extra) {
+			return right
+		}
+		below = a.rightRows(right)
+		return nil
+	}
 	if head, body, ok := page.HeadWord(s); ok && len(lns) > 1 {
-		out := []row{{line: a.compose(false, indent, mark, a.inline("**"+head+"**", base), nil)}}
+		ht := a.inline("**"+head+"**", base)
+		out := []row{{line: a.compose(false, indent, mark, ht, beside(ht))}}
 		for _, ln := range a.inline(body, base).wrap(max(w-markW, 4)) {
 			out = append(out, row{line: a.compose(false, indent+extra+markW, nil, ln, nil), cont: true})
 		}
-		return out
+		return append(out, below...)
 	}
-	out := []row{{line: a.compose(false, indent, mark, lns[0], nil)}}
+	out := []row{{line: a.compose(false, indent, mark, lns[0], beside(lns[0]))}}
 	for _, ln := range lns[1:] {
 		out = append(out, row{line: a.compose(false, indent+extra, nil, ln, nil), cont: true})
 	}
-	return out
+	return append(out, below...)
 }
 
-// code draws a fenced block. Long lines wrap; a diff is colored.
-func (a *app) code(n *report.Node, ind int) []row {
-	var rows []row
+// codeRows is code block n as a line the cursor stops at: its stop (and
+// so the cursor) on its first row that is not blank, what the person
+// wrote on it at that row's end (code).
+func (a *app) codeRows(pv *view, n *report.Node, ind int) []row {
+	rs := a.code(n, ind, a.right(pv, n))
+	if len(rs) == 0 || !pv.lines[n.Key] {
+		return rs
+	}
+	first := 0
+	for i, r := range rs {
+		if strings.TrimSpace(r.line) != "" {
+			first = i
+			break
+		}
+	}
+	rs[first].key = n.Key
+	for i := first + 1; i < len(rs); i++ {
+		rs[i].cont = true
+	}
+	return rs
+}
+
+// code draws a fenced block. Long lines wrap; a diff is colored. right
+// goes at the end of the first row that is not blank when it fits there
+// beside the code, else on rows of its own under that row: the code is
+// wrapped the same either way.
+func (a *app) code(n *report.Node, ind int, right text) []row {
+	type piece struct {
+		ind int
+		t   text
+	}
+	var ps []piece
+	add := func(ind int, t text) { ps = append(ps, piece{ind, t}) }
 	for _, ln := range n.Code {
 		// Tabs as they are drawn (clean: 4 spaces each), so the hang below
 		// is counted in the columns the line takes on screen.
@@ -470,20 +509,33 @@ func (a *app) code(n *report.Node, ind int) []row {
 		first := t.wrap(room)
 		if len(first) <= 1 || hang == 0 {
 			for _, w := range first {
-				rows = append(rows, row{line: a.compose(false, ind, nil, w, nil)})
+				add(ind, w)
 			}
 			continue
 		}
-		rows = append(rows, row{line: a.compose(false, ind, nil, first[0], nil)})
+		add(ind, first[0])
 		rest := t[len(first[0]):]
 		for len(rest) > 0 && rest[0].r == ' ' {
 			rest = rest[1:] // the space the line broke at
 		}
 		for _, w := range rest.wrap(room - hang) {
-			rows = append(rows, row{line: a.compose(false, ind+hang, nil, w, nil)})
+			add(ind+hang, w)
 		}
 	}
-	return rows
+	var rows, below []row
+	for _, p := range ps {
+		var r text
+		if len(right) > 0 && strings.TrimSpace(p.t.plain()) != "" {
+			if a.rightFits(p.ind, right) && p.t.width() <= a.room(p.ind, right) {
+				r = right
+			} else {
+				below = a.rightRows(right)
+			}
+			right = nil
+		}
+		rows = append(rows, row{line: a.compose(false, p.ind, nil, p.t, r)})
+	}
+	return append(rows, below...)
 }
 
 // codeHang is where a code line's own text starts: past its leading
@@ -525,16 +577,13 @@ func (a *app) contents(pv *view, n *report.Node, ind int) []row {
 		}
 		switch b.Kind {
 		case report.KindPara:
-			switch right := a.right(pv, b); {
-			case b.Head:
+			if b.Head {
 				rows = append(rows, a.textRows(pv, b, ind, a.paraText(b, base))...)
-			case len(right) > 0:
-				rows = append(rows, a.lineRows(pv, b, a.titled(false, ind, 0, nil, a.inline(b.Text, base), right, 0))...)
-			default:
-				rows = append(rows, a.lineRows(pv, b, a.measured(ind, 0, nil, b.Text, base))...)
+			} else {
+				rows = append(rows, a.lineRows(pv, b, a.measured(ind, 0, nil, b.Text, base, a.right(pv, b)))...)
 			}
 		case report.KindCode:
-			rows = append(rows, a.lineRows(pv, b, a.code(b, ind+markW))...)
+			rows = append(rows, a.codeRows(pv, b, ind+markW)...)
 		default: // list lines: the run of them up to the next blank line is one list
 			j := i + 1
 			for j < len(n.Body) && n.Body[j].Kind == b.Kind && !n.Body[j].Gap && !n.Body[j].Head {
