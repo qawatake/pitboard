@@ -57,6 +57,11 @@ export function intentOf(e, ui, page) {
     case 'H': return ui.panel ? null : { do: 'showHidden' };
     case 'A': return ui.panel ? null : { do: 'readAll' };
     case 'g': return canGoto(ui, page) ? { do: 'startGoto' } : null;
+    // l opens the comment panel and closes it again (the terminal's l
+    // goes to its comments screen and back), as the bar's コメント N.
+    case 'l':
+      if (ui.panel) return { do: 'closePanel' };
+      return ui.conn === 'live' ? { do: 'openPanel' } : { do: 'none' };
     case 'Escape': return null;
   }
   const c = cursorComment(page, ui);

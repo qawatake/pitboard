@@ -585,6 +585,7 @@ function run(it, e) {
     case 'showHidden': toggleHidden(); return;
     case 'readAll': readAll(); return;
     case 'startGoto': set(S.startGoto(ui, page)); return;
+    case 'openPanel': openPanel(); return;
     case 'editComment': editComment(it.n); return;
     case 'retract': retract(it.n); return;
     case 'press': press(it.key); return;
