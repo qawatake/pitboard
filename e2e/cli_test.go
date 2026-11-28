@@ -41,9 +41,15 @@ func TestHelpMentionsEveryCommand(t *testing.T) {
 	s := newSandbox(t)
 	out := s.mustRun("-h")
 	for _, cmd := range []string{"view", "serve", "path", "changes", "settle", "open", "check", "wait", "hook", "--skill", "-h",
-		"prompt-submit", "post-tool", "stop", "PITBOARD_SEND", "A layout to start from", "Manners"} {
+		"post-tool", "hook stop", `"asyncRewake": true, "timeout": 86400`, stopHookNote, "PITBOARD_SEND", "A layout to start from", "Manners"} {
 		if !strings.Contains(out, cmd) {
 			t.Errorf("-h does not mention %q", cmd)
+		}
+	}
+	// What is gone: the prompt-submit hook, and 'wait' as the cheapest way.
+	for _, w := range []string{"prompt-submit", "UserPromptSubmit", "cheapest"} {
+		if strings.Contains(out, w) {
+			t.Errorf("-h still says %q", w)
 		}
 	}
 }

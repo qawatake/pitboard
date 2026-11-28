@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 
 	"github.com/qawatake/pitboard/internal/board"
@@ -12,19 +14,18 @@ import (
 // hook handles a Claude Code hook event: it delivers what the person did on
 // the board that the AI has not been given yet, as `changes` does.
 //
-//	prompt-submit  with the user's prompt (plain stdout)
-//	post-tool      while the AI is working, after its next tool call
-//	stop           when the AI is about to stop: it is kept going to read them
+//	post-tool  while the AI is working, after its next tool call (stdout)
+//	stop       after the AI stopped: it waits for the person's send, as
+//	           `wait` does, and wakes the AI with it (see stopHook)
 //
 // The hook runs in every session of every project, so a session without a
 // board (no .pitboard/ directory named by the session id or its head in the
 // hook's cwd or above it), or input that is
 // not what Claude Code sends, gets nothing: no output, no files, exit 0.
-func hook(event string, stdin io.Reader, stdout io.Writer) error {
+func hook(ctx context.Context, event string, stdin io.Reader, stdout, stderr io.Writer) error {
 	var in struct {
-		SessionID      string `json:"session_id"`
-		Cwd            string `json:"cwd"`
-		StopHookActive bool   `json:"stop_hook_active"`
+		SessionID string `json:"session_id"`
+		Cwd       string `json:"cwd"`
 	}
 	// A hook's input can be large (a tool's whole output); past the limit it
 	// is not read at all.
@@ -43,41 +44,72 @@ func hook(event string, stdin io.Reader, stdout io.Writer) error {
 	}
 	st := board.Open(base, name)
 	switch event {
-	case "prompt-submit", "post-tool", "stop":
-	default:
-		return fmt.Errorf("hook: unknown event %q (prompt-submit, post-tool or stop)", event)
+	case "post-tool":
+		// A board that cannot be read or written gets nothing either: a hook
+		// failing on every tool call would make the session hard to use.
+		lines, err := st.Changes()
+		if err != nil || len(lines) == 0 {
+			return nil
+		}
+		return json.NewEncoder(stdout).Encode(map[string]any{"hookSpecificOutput": map[string]any{
+			"hookEventName": "PostToolUse", "additionalContext": hookMessage(st, name, lines)}})
+	case "stop":
+		return stopHook(ctx, st, name, stderr)
 	}
-	// The AI was already kept from stopping once for this stop: let it stop,
-	// and leave what is new for the next delivery.
-	if event == "stop" && in.StopHookActive {
+	return fmt.Errorf("hook: unknown event %q (post-tool or stop)", event)
+}
+
+// stopHook is the Stop hook, meant to run with "asyncRewake": true: Claude
+// Code leaves it running after the AI stopped, and when it exits with code 2
+// wakes the AI with what it wrote to stderr. It delivers at once what was
+// sent and not delivered yet, or else waits for the next send as `wait`
+// does (the same waiting file). Hidden lines need nothing from the AI: a
+// send of only those does not wake it, and they go with the next delivery.
+//
+// It ends silently (exit 0) when another `wait` or hook waits on the session
+// already, on a signal (Claude Code ends it at the hook's timeout), and when
+// the board cannot be read or written.
+//
+// Each run leaves the marker that tells `wait` it is not needed here.
+func stopHook(ctx context.Context, st *board.Store, name string, stderr io.Writer) error {
+	st.MarkStopHook()
+	if f, err := os.Open(st.EventsPath()); err == nil {
+		f.Close()
+	} else if !os.IsNotExist(err) {
 		return nil
 	}
-	// Hidden lines need nothing from the AI: they do not keep it from
-	// stopping, and wait to go with the next delivery.
-	if event == "stop" && !needsAI(st.Pending()) {
+	var msg string
+	end, _, err := st.Await(ctx, 0, nil, func() (bool, error) {
+		if !needsAI(st.Pending()) {
+			return false, nil
+		}
+		lines, err := st.Changes()
+		if err != nil {
+			return false, err
+		}
+		// Delivered by someone else meanwhile (the post-tool hook, `changes`).
+		if len(lines) == 0 {
+			return false, nil
+		}
+		msg = hookMessage(st, name, lines)
+		return true, nil
+	})
+	if err != nil || end != board.WaitDone {
 		return nil
 	}
-	// A board that cannot be read or written gets nothing either: a hook
-	// failing on every tool call would make the session hard to use.
-	lines, err := st.Changes()
-	if err != nil || len(lines) == 0 {
-		return nil
-	}
+	fmt.Fprintln(stderr, msg)
+	return exitError(2)
+}
+
+// hookMessage is what a hook tells the AI: the lines of `changes`, how to
+// settle, and the problem note if there is one.
+func hookMessage(st *board.Store, name string, lines []string) string {
 	msg := "pitboard (the person acted on the board):\n" + strings.Join(lines, "\n") + "\n" +
 		fmt.Sprintf("Settle each thought with \"pitboard -s %s settle N [--doing|--hold|--done] TEXT\" (several: --STATE N TEXT --STATE N TEXT ...) once you know what to do with it.", name)
 	if n := st.ProblemNote(); n != "" {
 		msg += "\n" + n
 	}
-	enc := json.NewEncoder(stdout)
-	switch event {
-	case "prompt-submit":
-		_, err = fmt.Fprintln(stdout, msg)
-	case "post-tool":
-		err = enc.Encode(map[string]any{"hookSpecificOutput": map[string]any{"hookEventName": "PostToolUse", "additionalContext": msg}})
-	case "stop":
-		err = enc.Encode(map[string]any{"decision": "block", "reason": msg})
-	}
-	return err
+	return msg
 }
 
 // hookInputLimit is the most of a hook's input that is read (1 MiB).

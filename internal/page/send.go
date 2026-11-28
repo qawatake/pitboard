@@ -36,7 +36,7 @@ func (b *Board) Send(progress func(msg string)) (string, error) {
 		return "", fmt.Errorf("送れませんでした: %w", err)
 	}
 	b.Load()
-	// A 'pitboard wait' waiting for this send wakes the AI by ending: no
+	// A Stop hook or 'pitboard wait' waiting for this send wakes the AI by ending: no
 	// terminal is typed into.
 	if b.Store.Waiter() != 0 {
 		return "送りました", nil
@@ -54,8 +54,8 @@ func (b *Board) Send(progress func(msg string)) (string, error) {
 	return "送りました", nil
 }
 
-// Sending wakes the AI from the board. A hook can only deliver while the AI
-// is working; when it has stopped, what the person wrote waits until they
+// Sending wakes the AI from the board. When nothing waits for the send (no
+// Stop hook, no 'pitboard wait'), what the person wrote waits until they
 // type something in the chat. Sending types one line into the AI's terminal
 // saying there is something to read; the AI reads it with 'changes', so what
 // has been delivered is still kept in one place (seen).

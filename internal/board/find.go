@@ -37,6 +37,8 @@ func ShortSession(st *Store) string {
 //	report.md     written by the AI only (with its usual file edits)
 //	events.jsonl  written by the viewer (and `pitboard settle`), append-only
 //	seen          the last event number `pitboard changes` has delivered
+//	waiting       the pid of the process waiting for the person's send
+//	stophook      left by `pitboard hook stop`: the Stop hook is installed
 type Store struct {
 	Base    string // the directory holding .pitboard/; Link paths are relative to it
 	Session string

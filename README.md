@@ -43,8 +43,8 @@ pitboard -s ID      # セッションを選ぶ (id は先頭数文字でよい)
 
 `s` で送っても AI が待っていないと、そのままでは届かない (画面にそう出る。チャットで一言伝えれば読む)。
 
-- **止まっている AI を起こす**: `PITBOARD_SEND` を設定すると、AI の端末に 1 行打ち込んで起こす (tmux の例は `pitboard -h` の "Send")。herdr の中で AI を動かしていれば設定は要らない
-- **作業中の AI に届ける**: Claude Code の hook に入れると、AI がツールを使うたびに届く (`s` で起こしはしない)。設定例は `pitboard -h` の "Hooks"
+- **Claude Code の hook に入れる** (おすすめ): 止まっている AI は `s` で起き、作業中の AI にはツールを使うたびに届く。AI は何も動かさなくてよい。設定例は `pitboard -h` の "Hooks"
+- **hook を入れないとき**: AI が止まる前に `pitboard wait` を裏で動かして待つ。それも無いときは、`PITBOARD_SEND` を設定すると AI の端末に 1 行打ち込んで起こす (tmux の例は `pitboard -h` の "Send")。herdr の中で AI を動かしていれば設定は要らない
 
 ## 文書
 

@@ -9,7 +9,7 @@ Before using pitboard, run `pitboard -h` and read all of it.
 It is the manual of the version installed now: how to start a board, the report format,
 the manners, how to read what the person did, hooks, and sending.
 In short: the person answers on the board and then sends it all at once.
-Before you end your turn, run `pitboard -s SESSION wait` in the background; it ends with what was sent, and you are woken.
+With the Claude Code hooks it reaches you by itself; you cannot tell beforehand, so before you stop, run `pitboard -s SESSION wait` in the background (it ends with what was sent, and you are woken) until its output tells you the Stop hook waits instead.
 When a line starting with "pitboard:" arrives in the chat instead, run the command it gives.
 Settle every thought (the board calls them comments), with `--doing` / `--hold` while it is not done.
 The board shows the person "AI の番" (your turn) from their send until you rewrite the report or settle (--done or --hold) every thought it carried, and while a thought is --doing; so settle --doing at once when work takes long, and --done when it is finished. It is also "AI の番" whenever report.md fails `pitboard check` or is missing: fix it.

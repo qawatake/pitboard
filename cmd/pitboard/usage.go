@@ -3,12 +3,13 @@ package main
 import (
 	"strings"
 
+	"github.com/qawatake/pitboard/internal/board"
 	"github.com/qawatake/pitboard/internal/report"
 )
 
-// usage is pitboard -h. The keys an Option cannot use come from report.ViewerKeys,
-// so the two never disagree.
-var usage = strings.ReplaceAll(usageText, "{viewerKeys}", report.ViewerKeyList())
+// usage is pitboard -h. The keys an Option cannot use come from report.ViewerKeys
+// and the line 'wait' prints from board.StopHookNote, so they never disagree.
+var usage = strings.NewReplacer("{viewerKeys}", report.ViewerKeyList(), "{stopHookNote}", board.StopHookNote).Replace(usageText)
 
 const usageText = `pitboard - a board beside an AI session: the AI reports, the person answers
 
@@ -29,10 +30,10 @@ Usage:
                                    and warnings about removed rows (they do not change the exit code)
   pitboard -s SESSION wait [--timeout DURATION]
                                    wait until the person sends, then print what
-                                   'changes' prints (run it in the background
-                                   before you stop; see Send)
+                                   'changes' prints (without the hooks: run it
+                                   in the background before you stop; see Send)
   pitboard -h                      this help
-  pitboard hook prompt-submit|post-tool|stop   for Claude Code hooks: delivers 'changes' (see Hooks)
+  pitboard hook post-tool|stop     for Claude Code hooks: deliver what the person sent (see Hooks)
   pitboard --skill                 print the Claude Code skill (SKILL.md); it points here
 
 The board is a place for what must not scroll away in the chat: where things
@@ -332,12 +333,12 @@ Manners:
     hides) and then sends them all at once (Send, below). You
     need not call 'changes' often yourself: it prints only what was sent,
     and nothing twice.
-  - Before you end your turn, run 'pitboard -s SESSION wait' in the
-    background (in Claude Code: Bash with run_in_background). When the
-    person sends from the board, it prints what was sent and ends, and you
-    are woken. Act on it, and run 'wait' again before you stop. You may
-    start it before you begin working, too: what the person sends midway
-    reaches you then. Once it has ended, start it again.
+  - With the Claude Code hooks (see Hooks), what the person sends reaches
+    you by itself. You cannot tell beforehand whether they are installed:
+    before your first stop, run 'pitboard -s SESSION wait' in the
+    background (in Claude Code: Bash with run_in_background). It ends with
+    what was sent, and you are woken. Run it again before each stop, until
+    its output tells you not to (see Send).
 
 'changes' prints lines like:
     answer unit = a (per session)
@@ -452,22 +453,24 @@ Browser:
   It does not change what you do: write report.md, read 'changes'.
 
 Hooks:
-  (A second way, when 'wait' cannot be used.) With hooks, what the person
-  has sent reaches you while you work (after your next tool call) and just
-  before you stop, without waiting for the line in the chat. In
+  (The way to use in Claude Code.) With the hooks, what the person sends
+  reaches you by itself, with no command of yours: while you work (after
+  your next tool call), and once you have stopped (the Stop hook waits for
+  the send in the background and wakes you with it). In
   ~/.claude/settings.json:
 
     "hooks": {
-      "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "pitboard hook prompt-submit" }] }],
-      "PostToolUse":      [{ "hooks": [{ "type": "command", "command": "pitboard hook post-tool" }] }],
-      "Stop":             [{ "hooks": [{ "type": "command", "command": "pitboard hook stop" }] }]
+      "PostToolUse": [{ "hooks": [{ "type": "command", "command": "pitboard hook post-tool" }] }],
+      "Stop":        [{ "hooks": [{ "type": "command", "command": "pitboard hook stop", "asyncRewake": true, "timeout": 86400 }] }]
     }
 
   - The hooks do nothing in a session without a board (no output, no
     files), and stay silent when the board cannot be read or written.
-  - The stop hook does not keep you from stopping when all there is to
-    deliver is hide / unhide (they go with the next delivery).
-  - You cannot tell whether the hooks are installed.
+  - Claude Code ends the Stop hook after "timeout" seconds (the default is
+    far too short: give it). After that, any chat message or your next
+    stop starts the waiting again.
+  - A send of only hide / unhide does not wake you through the Stop hook
+    (they go with the next delivery).
 
 Send:
   Nothing the person does on the board reaches you until they send it: s on
@@ -476,19 +479,19 @@ Send:
   what the person does after it waits for the next send. How you are woken,
   in order:
 
-  1. 'pitboard -s SESSION wait [--timeout DURATION]' (the way to use; it
-     needs nothing from the terminal). Run it in the background before you
-     stop. If a send has not been delivered yet, it prints what 'changes'
-     prints and ends at once; otherwise it waits for the next send, then
-     prints and ends (exit 0). With --timeout (e.g. 30m; default: none) or
-     on SIGINT / SIGTERM it ends quietly, printing nothing. While it waits,
-     .pitboard/SESSION/waiting holds its pid, and the board shows "AI 待機中"
-     at the top right: sending then only records the send, and 'wait' wakes
-     you. A second 'wait' on the same session prints "already waiting (pid
-     N)" and ends (exit 0), leaving it to the first.
-  2. The hooks (above), while you work and before you stop. (s does not
-     wake you through them; they deliver while you work.)
-  3. Typing into your terminal, when no 'wait' is waiting. The viewer types:
+  1. The hooks (above), when installed: there is nothing for you to run.
+  2. 'pitboard -s SESSION wait [--timeout DURATION]', when they are not.
+     Run it in the background before your first stop, and again before
+     each stop. If a send has not been delivered yet, it prints what
+     'changes' prints and ends at once; otherwise it waits for the next
+     send, then prints and ends (exit 0). With --timeout (e.g. 30m;
+     default: none) or on SIGINT / SIGTERM it ends quietly. Once the Stop
+     hook has run in this session, 'wait' no longer waits, and its output
+     ends with the line that tells you the hooks are installed:
+
+       {stopHookNote}
+
+  3. Typing into your terminal, when nothing is waiting. The viewer types:
 
     pitboard: N sent. Run: pitboard -s SESS changes
 
@@ -496,10 +499,12 @@ Send:
   characters or more, that is unique on this board.) When a line starting
   with "pitboard: N sent." arrives, run the command it gives and act on
   what it prints.
-  'wait' is the cheapest: what was sent arrives as its output, with no line
-  typed into the chat and no extra command to run. Its output is the same
-  as 'changes'. If waking you fails, the send is still recorded, and the
-  person is asked to tell you in the chat.
+  While the Stop hook or 'wait' waits, .pitboard/SESSION/waiting holds its
+  pid, and the board shows "AI 待機中" at the top right: sending then only
+  records the send. A second waiter on the same session ends at once (exit
+  0; 'wait' prints "already waiting (pid N)"), leaving it to the first. If
+  waking you fails, the send is still recorded, and the person is asked to
+  tell you in the chat.
   To type it, the viewer runs $PITBOARD_SEND if set (with sh -c, given
   $PITBOARD_SESSION and $PITBOARD_MESSAGE), or else, when herdr is on PATH,
   'herdr agent prompt' to the agent whose session is SESSION (found with

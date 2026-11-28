@@ -1,18 +1,23 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/qawatake/pitboard/internal/board"
 )
 
 func TestHookTellsProblems(t *testing.T) {
 	st := badStore(t)
-	for _, ev := range []string{"prompt-submit", "post-tool", "stop"} {
+	for _, ev := range []string{"post-tool", "stop"} {
 		st.Append(board.Event{Op: "thought", Text: ev})
 		sendAll(st)
 		got := runHook(t, ev, hookInput(st.Base, "s1", ""))
@@ -31,7 +36,7 @@ func TestStopHookIgnoresTakenBack(t *testing.T) {
 	th, _ := st.Append(board.Event{Op: "thought", Text: "x"})
 	st.Append(board.Event{Op: "retract", Thought: th.N})
 	if got := runHook(t, "stop", hookInput(st.Base, "s1", "")); got != "" {
-		t.Errorf("stop blocked for nothing: %q", got)
+		t.Errorf("stop woke the AI for nothing: %q", got)
 	}
 }
 
@@ -46,14 +51,44 @@ func hookInput(cwd, session string, extra string) string {
 	return s
 }
 
+// runHook runs a hook that ends by itself and returns what it gives the AI:
+// post-tool's stdout, or what stop wrote to stderr when it woke the AI (exit
+// 2). stop gets a context that is already done: it delivers what is there
+// now, or ends quietly instead of waiting.
 func runHook(t *testing.T, event, input string) string {
 	t.Helper()
-	var out strings.Builder
-	if err := hook(event, strings.NewReader(input), &out); err != nil {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	out, err := hookOut(ctx, event, input)
+	if err != nil {
 		t.Fatalf("hook %s: %v", event, err)
 	}
-	return out.String()
+	return out
 }
+
+// hookOut runs a hook. What stop writes to stderr comes with exit code 2
+// and nothing on stdout, and nothing is written without it: anything else
+// is an error.
+func hookOut(ctx context.Context, event, input string) (string, error) {
+	var out, errOut strings.Builder
+	err := hook(ctx, event, strings.NewReader(input), &out, &errOut)
+	var ex exitError
+	switch {
+	case errors.As(err, &ex):
+		if event != "stop" || int(ex) != 2 || out.Len() != 0 || errOut.Len() == 0 {
+			return "", errors.New("exit " + strconv.Itoa(int(ex)) + ", stdout " + strconv.Quote(out.String()) + ", stderr " + strconv.Quote(errOut.String()))
+		}
+		return errOut.String(), nil
+	case err != nil:
+		return "", err
+	case errOut.Len() != 0:
+		return "", errors.New("exit 0 with stderr " + strconv.Quote(errOut.String()))
+	}
+	return out.String(), nil
+}
+
+// waitingPath is the board's waiting file.
+func waitingPath(st *board.Store) string { return filepath.Join(st.Dir, "waiting") }
 
 func TestHookWithoutBoardDoesNothing(t *testing.T) {
 	dir := t.TempDir()
@@ -65,7 +100,7 @@ func TestHookWithoutBoardDoesNothing(t *testing.T) {
 		hookInput(dir, "../x", ""),
 		hookInput("", "s1", ""),
 	} {
-		for _, ev := range []string{"prompt-submit", "post-tool", "stop", "bogus"} {
+		for _, ev := range []string{"post-tool", "stop", "prompt-submit", "bogus"} {
 			if got := runHook(t, ev, in); got != "" {
 				t.Errorf("%s with %q printed %q", ev, in, got)
 			}
@@ -83,13 +118,179 @@ func TestHookWithoutBoardDoesNothing(t *testing.T) {
 	}
 }
 
+// The whole command, as Claude Code runs it: the stop hook wakes the AI by
+// exit code 2 with the message on stderr, and prints no error line of its
+// own (main exits with an exitError's code without a word).
+func TestStopHookExitsTwo(t *testing.T) {
+	st := testStore(t)
+	st.Append(board.Event{Op: "thought", Text: "x"})
+	sendAll(st)
+	var errBuf strings.Builder
+	hookStdin, hookStderr = strings.NewReader(hookInput(st.Base, "s1", "")), &errBuf
+	defer func() { hookStdin, hookStderr = os.Stdin, os.Stderr }()
+	var out strings.Builder
+	err := run([]string{"hook", "stop"}, &out)
+	var ex exitError
+	if !errors.As(err, &ex) || int(ex) != 2 || out.Len() != 0 {
+		t.Fatalf("run hook stop: %v, stdout %q", err, out.String())
+	}
+	if !strings.HasPrefix(errBuf.String(), "pitboard (the person acted on the board):\nthought 1: x\n") {
+		t.Errorf("stderr %q", errBuf.String())
+	}
+}
+
+// prompt-submit is gone: nothing is delivered through it.
+func TestHookPromptSubmitIsGone(t *testing.T) {
+	st := testStore(t)
+	st.Append(board.Event{Op: "thought", Text: "x"})
+	sendAll(st)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if out, err := hookOut(ctx, "prompt-submit", hookInput(st.Base, "s1", "")); err == nil || !strings.Contains(err.Error(), "unknown event") || out != "" {
+		t.Errorf("prompt-submit: %v %q", err, out)
+	}
+	if got := runHook(t, "post-tool", hookInput(st.Base, "s1", "")); !strings.Contains(got, "thought 1: x") {
+		t.Errorf("the thought must still be there: %q", got)
+	}
+	if err := run([]string{"hook"}, new(strings.Builder)); err == nil || strings.Contains(err.Error(), "prompt-submit") {
+		t.Errorf("hook usage: %v", err)
+	}
+	if strings.Contains(usage, "prompt-submit") || strings.Contains(usage, "UserPromptSubmit") {
+		t.Error("-h still names prompt-submit")
+	}
+}
+
+// With nothing sent, the stop hook waits as `wait` does (the waiting file is
+// its own) and wakes the AI with the next send that needs it.
+func TestStopHookWaitsForSend(t *testing.T) {
+	st := testStore(t)
+	type res struct {
+		out string
+		err error
+	}
+	done := make(chan res, 1)
+	go func() {
+		out, err := hookOut(context.Background(), "stop", hookInput(st.Base, "s1", ""))
+		done <- res{out, err}
+	}()
+	waitFor(t, "the hook to wait", func() bool { return st.Waiter() == os.Getpid() })
+	// What is not sent yet does not wake the AI.
+	st.Append(board.Event{Op: "thought", Text: "later"})
+	st.Append(board.Event{Op: "hide", Key: "-|x", Title: "x"})
+	select {
+	case r := <-done:
+		t.Fatalf("ended before the send: %q %v", r.out, r.err)
+	default:
+	}
+	sendAll(st)
+	select {
+	case r := <-done:
+		if r.err != nil || !strings.Contains(r.out, "thought 1: later") || !strings.Contains(r.out, "hide (1): x") {
+			t.Errorf("delivered %q %v", r.out, r.err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("the send did not end the hook")
+	}
+	if _, err := os.Stat(waitingPath(st)); !os.IsNotExist(err) {
+		t.Error("waiting file left behind")
+	}
+}
+
+// A signal (Claude Code ends the hook at its timeout) ends it quietly, with
+// no waiting file left.
+func TestStopHookEndsQuietlyOnSignal(t *testing.T) {
+	st := testStore(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	var out string
+	go func() {
+		var err error
+		out, err = hookOut(ctx, "stop", hookInput(st.Base, "s1", ""))
+		done <- err
+	}()
+	waitFor(t, "the hook to wait", func() bool { return st.Waiter() == os.Getpid() })
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil || out != "" {
+			t.Errorf("ended with %q %v", out, err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("the hook did not end")
+	}
+	if _, err := os.Stat(waitingPath(st)); !os.IsNotExist(err) {
+		t.Error("waiting file left behind")
+	}
+}
+
+// Another `wait` or hook waits on the session already: the stop hook ends
+// silently and leaves what was sent to it, but still leaves its marker.
+func TestStopHookLeavesItToAnotherWaiter(t *testing.T) {
+	st := testStore(t)
+	cmd := exec.Command("sleep", "30")
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { cmd.Process.Kill(); cmd.Wait() }()
+	os.WriteFile(waitingPath(st), []byte(strconv.Itoa(cmd.Process.Pid)+"\n"), 0o644)
+	st.Append(board.Event{Op: "thought", Text: "x"})
+	sendAll(st)
+	// Not cancelled: it must end by itself.
+	out, err := hookOut(context.Background(), "stop", hookInput(st.Base, "s1", ""))
+	if err != nil || out != "" {
+		t.Errorf("stop beside another waiter: %q %v", out, err)
+	}
+	if !st.StopHook() {
+		t.Error("no marker")
+	}
+	if b, _ := os.ReadFile(waitingPath(st)); strings.TrimSpace(string(b)) != strconv.Itoa(cmd.Process.Pid) {
+		t.Errorf("the waiting file was touched: %q", b)
+	}
+	if got := runHook(t, "post-tool", hookInput(st.Base, "s1", "")); !strings.Contains(got, "thought 1: x") {
+		t.Errorf("the thought must still be there: %q", got)
+	}
+}
+
+// Each run of the stop hook on a session with a board leaves the marker
+// that tells `wait` it is not needed; post-tool does not.
+func TestStopHookLeavesMarker(t *testing.T) {
+	st := testStore(t)
+	in := hookInput(st.Base, "s1", "")
+	runHook(t, "post-tool", in)
+	if st.StopHook() {
+		t.Error("post-tool left the marker")
+	}
+	runHook(t, "stop", in)
+	if !st.StopHook() {
+		t.Error("stop left no marker")
+	}
+	// The marker is nothing to the board: no problem, nothing to deliver.
+	t.Chdir(st.Base)
+	for _, cmd := range []string{"check", "changes"} {
+		var out strings.Builder
+		if err := run([]string{"-s", "s1", cmd}, &out); err != nil || out.Len() != 0 {
+			t.Errorf("%s with the marker: %v %q", cmd, err, out.String())
+		}
+	}
+}
+
+func waitFor(t *testing.T, what string, ok func() bool) {
+	t.Helper()
+	for end := time.Now().Add(10 * time.Second); !ok(); {
+		if time.Now().After(end) {
+			t.Fatalf("timed out waiting for %s", what)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
 func TestHookOutputs(t *testing.T) {
 	st := testStore(t)
 	in := hookInput(st.Base, "s1", "")
 	const settleLine = `Settle each thought with "pitboard -s s1 settle N [--doing|--hold|--done] TEXT" (several: --STATE N TEXT --STATE N TEXT ...) once you know what to do with it.`
 
 	// Nothing to deliver: nothing printed.
-	for _, ev := range []string{"prompt-submit", "post-tool", "stop"} {
+	for _, ev := range []string{"post-tool", "stop"} {
 		if got := runHook(t, ev, in); got != "" {
 			t.Errorf("%s with nothing new: %q", ev, got)
 		}
@@ -97,17 +298,24 @@ func TestHookOutputs(t *testing.T) {
 
 	st.Append(board.Event{Op: "react", ID: "hook", Value: "a", Title: "hook を入れるか決める", Option: "入れる"})
 	// Not sent yet: nothing is delivered.
-	if got := runHook(t, "prompt-submit", in); got != "" {
-		t.Errorf("delivered before send: %q", got)
+	for _, ev := range []string{"post-tool", "stop"} {
+		if got := runHook(t, ev, in); got != "" {
+			t.Errorf("%s delivered before send: %q", ev, got)
+		}
 	}
 	sendAll(st)
-	got := runHook(t, "prompt-submit", in)
+	// Sent and not delivered: stop wakes the AI at once, with the message
+	// as it is (stderr, exit 2: see hookOut).
+	got := runHook(t, "stop", in)
 	want := "pitboard (the person acted on the board):\nanswer hook = a (入れる)\n" + settleLine + "\n"
 	if got != want {
-		t.Errorf("prompt-submit:\n%q\nwant\n%q", got, want)
+		t.Errorf("stop:\n%q\nwant\n%q", got, want)
 	}
-	if again := runHook(t, "prompt-submit", in); again != "" {
+	if again := runHook(t, "stop", in); again != "" {
 		t.Errorf("delivered twice: %q", again)
+	}
+	if _, err := os.Stat(waitingPath(st)); !os.IsNotExist(err) {
+		t.Error("waiting file left behind")
 	}
 
 	st.Append(board.Event{Op: "thought", Text: "経過は要らないかも"})
@@ -126,24 +334,13 @@ func TestHookOutputs(t *testing.T) {
 		t.Errorf("post-tool: %+v", post)
 	}
 
-	st.Append(board.Event{Op: "thought", Text: "止まる前に"})
+	// stop_hook_active means nothing to the stop hook: it wakes an AI that
+	// has stopped, and keeps none from stopping.
+	st.Append(board.Event{Op: "thought", Text: "止まったあとに"})
 	sendAll(st)
-	// Already kept from stopping once: no block, and nothing is used up.
-	if got := runHook(t, "stop", hookInput(st.Base, "s1", `"stop_hook_active":true`)); got != "" {
+	got = runHook(t, "stop", hookInput(st.Base, "s1", `"stop_hook_active":true`))
+	if !strings.Contains(got, "thought 5: 止まったあとに") || strings.Contains(got, "decision") {
 		t.Errorf("stop with stop_hook_active: %q", got)
-	}
-	var stop struct {
-		Decision string `json:"decision"`
-		Reason   string `json:"reason"`
-	}
-	if err := json.Unmarshal([]byte(runHook(t, "stop", in)), &stop); err != nil {
-		t.Fatal(err)
-	}
-	if stop.Decision != "block" || !strings.Contains(stop.Reason, "thought 5: 止まる前に") {
-		t.Errorf("stop: %+v", stop)
-	}
-	if got := runHook(t, "stop", in); got != "" {
-		t.Errorf("stop delivered twice: %q", got)
 	}
 }
 
@@ -202,39 +399,47 @@ func TestHookOnUnwritableBoard(t *testing.T) {
 	st := testStore(t)
 	os.Chmod(st.Dir, 0o555)
 	defer os.Chmod(st.Dir, 0o755)
-	for _, ev := range []string{"prompt-submit", "post-tool", "stop"} {
-		if got := runHook(t, ev, hookInput(st.Base, "s1", "")); got != "" {
-			t.Errorf("%s: %q", ev, got)
+	// Not cancelled: an unwritable board ends the stop hook by itself.
+	for _, ev := range []string{"post-tool", "stop"} {
+		if got, err := hookOut(context.Background(), ev, hookInput(st.Base, "s1", "")); got != "" || err != nil {
+			t.Errorf("%s: %q %v", ev, got, err)
 		}
 	}
-	if _, err := os.Stat(st.EventsPath()); err == nil {
-		t.Error("events.jsonl was created")
+	for _, p := range []string{st.EventsPath(), st.StopHookPath(), waitingPath(st)} {
+		if _, err := os.Stat(p); err == nil {
+			t.Errorf("%s was created", filepath.Base(p))
+		}
 	}
-	// Written but unreadable: still nothing, and no error.
+	// Written but unreadable: still nothing, and no error; the stop hook
+	// does not wait on it.
 	os.Chmod(st.Dir, 0o755)
 	st.Append(board.Event{Op: "thought", Text: "x"})
+	sendAll(st)
 	os.Chmod(st.EventsPath(), 0o000)
 	defer os.Chmod(st.EventsPath(), 0o644)
-	if got := runHook(t, "post-tool", hookInput(st.Base, "s1", "")); got != "" {
-		t.Errorf("unreadable events: %q", got)
+	for _, ev := range []string{"post-tool", "stop"} {
+		if got, err := hookOut(context.Background(), ev, hookInput(st.Base, "s1", "")); got != "" || err != nil {
+			t.Errorf("%s with unreadable events: %q %v", ev, got, err)
+		}
+	}
+	if _, err := os.Stat(waitingPath(st)); !os.IsNotExist(err) {
+		t.Error("waiting file left behind")
 	}
 }
 
-func TestStopDoesNotBlockForHides(t *testing.T) {
+func TestStopDoesNotWakeForHides(t *testing.T) {
 	st := testStore(t)
 	in := hookInput(st.Base, "s1", "")
 	st.Append(board.Event{Op: "hide", Key: "-|x", Title: "x"})
 	sendAll(st)
 	if got := runHook(t, "stop", in); got != "" {
-		t.Errorf("stop blocked for a hide: %q", got)
+		t.Errorf("stop woke the AI for a hide: %q", got)
 	}
-	if got := runHook(t, "prompt-submit", in); !strings.Contains(got, "hide (1): x") {
-		t.Errorf("the hide must wait for the next delivery: %q", got)
-	}
+	// The hide waits for the next delivery.
 	st.Append(board.Event{Op: "hide", Key: "-|y", Title: "y"})
 	st.Append(board.Event{Op: "react", ID: "hook", Value: "a", Option: "入れる"})
 	sendAll(st)
-	if got := runHook(t, "stop", in); !strings.Contains(got, "block") || !strings.Contains(got, "hide (1): y") {
+	if got := runHook(t, "stop", in); !strings.Contains(got, "answer hook = a") || !strings.Contains(got, "hide (2): x / y") {
 		t.Errorf("stop with an answer: %q", got)
 	}
 }
@@ -251,7 +456,7 @@ func TestHookFindsBoardNamedByIDHead(t *testing.T) {
 		os.WriteFile(st.ReportPath(), []byte("<Title>t</Title>\n"), 0o644)
 		return st
 	}
-	for _, ev := range []string{"prompt-submit", "post-tool", "stop"} {
+	for _, ev := range []string{"post-tool", "stop"} {
 		base := t.TempDir()
 		st := mk(base, "0a1b2c3d")
 		st.Append(board.Event{Op: "thought", Text: "by head"})
@@ -279,7 +484,7 @@ func TestHookFindsBoardNamedByIDHead(t *testing.T) {
 		st.Append(board.Event{Op: "thought", Text: "other"})
 		sendAll(st)
 	}
-	if got := runHook(t, "prompt-submit", hookInput(base, id, "")); got != "" {
+	if got := runHook(t, "post-tool", hookInput(base, id, "")); got != "" {
 		t.Errorf("delivered another board's: %q", got)
 	}
 
@@ -290,13 +495,13 @@ func TestHookFindsBoardNamedByIDHead(t *testing.T) {
 	long := mk(base, "0a1b2c3d-4e5f")
 	long.Append(board.Event{Op: "thought", Text: "long head"})
 	sendAll(long)
-	if got := runHook(t, "prompt-submit", hookInput(base, id, "")); !strings.Contains(got, "long head") || strings.Contains(got, "short head") {
+	if got := runHook(t, "post-tool", hookInput(base, id, "")); !strings.Contains(got, "long head") || strings.Contains(got, "short head") {
 		t.Errorf("longest head: %q", got)
 	}
 	whole := mk(base, id)
 	whole.Append(board.Event{Op: "thought", Text: "whole id"})
 	sendAll(whole)
-	if got := runHook(t, "prompt-submit", hookInput(base, id, "")); !strings.Contains(got, "whole id") {
+	if got := runHook(t, "post-tool", hookInput(base, id, "")); !strings.Contains(got, "whole id") {
 		t.Errorf("whole id: %q", got)
 	}
 }

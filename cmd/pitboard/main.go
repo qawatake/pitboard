@@ -17,8 +17,12 @@ import (
 	"github.com/qawatake/pitboard/internal/viewer"
 )
 
-// hookStdin is where `pitboard hook` reads the hook's JSON (tests replace it).
-var hookStdin io.Reader = os.Stdin
+// hookStdin is where `pitboard hook` reads the hook's JSON, and hookStderr
+// where the stop hook writes what wakes the AI (tests replace them).
+var (
+	hookStdin  io.Reader = os.Stdin
+	hookStderr io.Writer = os.Stderr
+)
 
 func main() {
 	if err := run(os.Args[1:], os.Stdout); err != nil {
@@ -100,7 +104,8 @@ func settleArgs(args []string) ([]board.Settlement, error) {
 	return out, nil
 }
 
-// exitError ends the program with a code, its message already printed.
+// exitError ends the program with a code, its message already printed
+// (check: 1 when the report has problems; hook stop: 2 to wake the AI).
 type exitError int
 
 func (e exitError) Error() string { return "exit " + strconv.Itoa(int(e)) }
@@ -141,9 +146,13 @@ func run(args []string, out io.Writer) error {
 		// The session and directory come from the hook's input, never from
 		// -s, $PITBOARD_SESSION or the working directory.
 		if len(args) != 2 {
-			return errors.New("usage: pitboard hook prompt-submit|post-tool|stop (reads the hook's JSON on stdin)")
+			return errors.New("usage: pitboard hook post-tool|stop (reads the hook's JSON on stdin)")
 		}
-		return hook(args[1], hookStdin, out)
+		// The stop hook waits; a signal ends it quietly (Claude Code ends
+		// it at the hook's timeout), leaving no waiting file.
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
+		defer stop()
+		return hook(ctx, args[1], hookStdin, out, hookStderr)
 	}
 	if len(args) > 0 {
 		if s, n, ok := sflag(args[1:]); ok {

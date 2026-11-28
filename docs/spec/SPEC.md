@@ -115,9 +115,9 @@ AI のセッションの横のペインに置く報告の画面。
 
 - 報告の画面 (と欄・`tab` の一覧) で `s`: まだ送っていない操作があれば、events.jsonl に `{"n":N,"t":"...","op":"send"}` を追記し、それから AI を起こす。
   無ければ `send` を追記せず、下の行に「未送信のものはありません」
-- 起こし方の順: (1) **待っている `pitboard wait` がいれば何もしない** (それが終わって AI が起きる)。知らせは「送りました」。(2) いなければ、端末への打ち込み (`PITBOARD_SEND` → herdr。下)。
+- 起こし方の順: (1) **待っているもの (Stop hook か `pitboard wait`) がいれば何もしない** (それが終わって AI が起きる)。知らせは「送りました」。(2) いなければ、端末への打ち込み (`PITBOARD_SEND` → herdr。下)。
   (3) どれも無ければ「送りました。ただ AI が待っていないので、チャットで一言伝えてください。」+「AI に pitboard wait を動かしてもらうか、PITBOARD_SEND を設定してください (pitboard -h の "Send")」
-- 待っている `wait` がいる (`.pitboard/<session>/waiting` の pid のプロセスが生きている) ときは、いちばん上の行の右端に薄く `AI 待機中` (`未送信` の左)。いないときは何も出さない。tick (0.5 秒) ごとに見直す
+- 待っているもの (Stop hook か `wait`) がいる (`.pitboard/<session>/waiting` の pid のプロセスが生きている) ときは、いちばん上の行の右端に薄く `AI 待機中` (`未送信` の左)。いないときは何も出さない。tick (0.5 秒) ごとに見直す
 - エディタの中では送らない (`enter` は書くだけ、`ctrl+s` は何もしない)。書き終えてから `s`
 - 案内の行 (いちばん下) に、未送信があるときだけ `s 送る` を `m 書く` の手前に出す (報告・欄・一覧で)。幅が狭くても `s 送る` `m 書く` `? キー` は最後まで残す
 - `changes` と hook が届けるのは、**いちばん新しい `send` より前の操作だけ**。それより後の操作は次の `send` まで届けない。`changes` は `seen` をその `send` まで進める
@@ -432,31 +432,43 @@ AI が報告を書き直して、人がまだ用のある行を消したら、�
 
 ### wait
 
-端末に依存しない「送る」: AI のほうが待つ。AI は止まる前に `pitboard -s SESSION wait` をバックグラウンドで動かす (Claude Code なら Bash の run_in_background)。人が `s` を押すとこのコマンドが終わり、AI が起こされる。
+端末に依存しない「送る」: AI のほうが待つ。Claude Code では Stop hook (下の「hook」) が待つので、AI は何も動かさない。hook を入れていないときは、AI が止まる前に `pitboard -s SESSION wait` をバックグラウンドで動かす (Claude Code なら Bash の run_in_background)。人が `s` を押すとこのコマンドが終わり、AI が起こされる。
 
 - まだ届けていない `send` があれば (いちばん新しい `send` > `seen`)、すぐに `changes` と同じ出力をして終わる (`seen` も進める)
 - 無ければ、0.3 秒ごとに events.jsonl の大きさと更新時刻を見て、変わったときだけ読む。届けていない `send` があれば `changes` と同じ出力をして終了コード 0 (hook が先に届けたら、また待つ)
 - `--timeout` (既定は無し。例 `30m`、`--timeout=30m` も可) を過ぎたら、何も出さず終了コード 0。SIGINT / SIGTERM でも何も出さず終了コード 0
 - 待っている間は `.pitboard/<session>/waiting` に自分の pid と開始時刻 (`ps -o lstart=`。取れなければ pid だけ) を書き (`O_EXCL` で作る)、終わるときに (自分の pid のままなら) 消す。プロセスがもういない pid、開始時刻が違う pid (別のプロセスに使い回された) は無いものとして扱い、上書きする。viewer の見直しで `ps` を呼ぶのは同じ pid につき 5 秒に 1 回まで
 - 同じセッションで 2 つめの `wait` が起動したら、古いほうに任せて `already waiting (pid N)` と出して終了コード 0
-- 届く道は wait、hook、端末への打ち込み。`s` が起こすのは wait か打ち込み (上の「送る」)。hook は `s` では起こさず、作業中に届ける
+- Stop hook が動いたセッション (`.pitboard/<session>/stophook` がある) では `wait` は要らないので、AI にそう伝える。`wait` の出力の最後に 1 行 `The Stop hook now waits for the person's sends: they arrive by themselves. Do not run 'wait' again in this session.` を足す (報告の誤りの行より後)
+  - `wait` が待っている間に hook が動いたとき (hook は黙って終わり、印だけ残す): 届いて終わるとき・タイムアウトで終わるときの出力の最後に足す。シグナルで終わるときは何も出さない
+  - 印がすでにあるときに起動した `wait` は待たない: 届けていない `send` があれば `changes` と同じ出力をし、その 1 行を出して、すぐ終了コード 0
+  - 印が無ければ `wait` は上のとおり。`changes` の出力には足さない
+- 届く道は hook、wait、端末への打ち込み。`s` が起こすのは待っているもの (Stop hook か wait) か打ち込み (上の「送る」)。`post-tool` の hook は `s` では起こさず、作業中に届ける
 
 ### hook
 
-    pitboard hook prompt-submit   ユーザーがプロンプトを送ったとき (UserPromptSubmit)
     pitboard hook post-tool       ツール実行のあと (PostToolUse。AI の作業中に届ける)
-    pitboard hook stop            AI が止まろうとしたとき (Stop)
+    pitboard hook stop            AI が止まったあと (Stop。`"asyncRewake": true` で入れる。人が送るまで待ち、AI を起こす)
+
+Claude Code ではこれが勧める届け方 (AI はコマンドを 1 つも動かさない)。設定は `-h` の "Hooks":
+
+    "PostToolUse": [{ "hooks": [{ "type": "command", "command": "pitboard hook post-tool" }] }],
+    "Stop":        [{ "hooks": [{ "type": "command", "command": "pitboard hook stop", "asyncRewake": true, "timeout": 86400 }] }]
 
 - stdin に hook の JSON が来る。`session_id` と `cwd` を使う。`-s` `$PITBOARD_SESSION` と作業ディレクトリは見ない。stdin は 1 MiB までしか読まず、超えたら何もせず終了コード 0
-- `.pitboard/<session_id>/` は `cwd` から親へさかのぼって探す (コマンドと同じ。AI が `cd` しても届く)。`session_id` は先頭一致ではなく完全一致
-- やることは `changes` と同じ: まだ届けていない人の操作を出し、届けた位置を覚える
-- **`.pitboard/<session_id>/` が無いセッションでは何も出さず、何も作らず、終了コード 0** (`cwd` から上に `.pitboard/<session_id>/` が無い、stdin が JSON でない、`session_id` が無いか使えない文字、のどれでも)。hook は全セッションで走るので、使っていないセッションに一切影響しない
+- ボードは `cwd` から親へさかのぼって探す (コマンドと同じ。AI が `cd` しても届く)。`session_id` そのものの名前か、その先頭 (8 字以上) の名前のボード。同じディレクトリでは id そのもの、次にいちばん長い先頭
+- **ボードが無いセッションでは何も出さず、何も作らず、終了コード 0** (`cwd` から上にボードが無い、stdin が JSON でない、`session_id` が無いか使えない文字、のどれでも)。hook は全セッションで走るので、使っていないセッションに一切影響しない
 - それがあっても、読めない・書けないときは何も出さず終了コード 0 (毎回エラーを出すとセッションが使いづらくなる)。events.jsonl がまだ無ければ作らない
-- 届けるものが無いときも何も出さず終了コード 0
-- 文面は `pitboard (the person acted on the board):` の 1 行、`changes` の行、最後に `Settle each thought with "pitboard -s <session_id> settle N [--doing|--hold|--done] TEXT" (several: --STATE N TEXT --STATE N TEXT ...) once you know what to do with it.`
-  - `prompt-submit`: stdout にそのまま
-  - `post-tool`: `{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"..."}}`
-  - `stop`: `{"decision":"block","reason":"..."}` (止まらずに読ませる)。`stop_hook_active` が true のときは block しない。届けずに残す (同じ停止で 2 回止めない)。届けるものが `hide` / `unhide` だけのときも block しない (届けずに残し、次の機会に一緒に届ける)
+- 文面は `pitboard (the person acted on the board):` の 1 行、`changes` の行、最後に `Settle each thought with "pitboard -s <ボードの名前> settle N [--doing|--hold|--done] TEXT" (several: --STATE N TEXT --STATE N TEXT ...) once you know what to do with it.`
+- `post-tool`: `changes` と同じく、まだ届けていない人の操作を届け、届けた位置を覚える。出力は stdout に `{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"..."}}`。届けるものが無ければ何も出さず終了コード 0
+- `stop`: `asyncRewake` の hook は AI が止まったあとも裏で動き続け、終了コード 2 で終わると Claude Code が AI を起こして標準エラーの文を読ませる (終了コード 0 なら何も起きない)
+  - AI の対応が要るもの (`hide` / `unhide` 以外) がすでに送られていて届けていなければ、すぐ届ける。無ければ `wait` と同じに待ち (同じ `waiting` ファイル、同じ `AI 待機中`、同じ見張り方)、次に送られたら届ける
+  - 届ける: 文面を標準エラーに出し、終了コード 2 (stdout には何も出さない。pitboard 自身のエラーの行も出さない)。届けた位置を覚える
+  - 送られたものが `hide` / `unhide` だけのときは起こさず、待ち続ける (次に届けるものと一緒に届く)
+  - 同じセッションでほかの `wait` か hook がすでに待っていれば、任せて、何も出さず終了コード 0
+  - SIGINT / SIGTERM / SIGHUP では何も出さず終了コード 0 (`waiting` を消す)。Claude Code は設定の `timeout` 秒で hook を終わらせる (既定は短すぎるので 86400 を書く)。そのあとは、チャットに何か書かれるか AI が次に止まったときに、また待ち始める
+  - `stop_hook_active` は見ない
+  - ボードのあるセッションで起動するたびに、印 `.pitboard/<session>/stophook` (空のファイル) を書く: このセッションには Stop hook が入っている。`wait` がこれを見て、もう要らないと AI に伝える (上の「wait」)。印は消さない
 
 ### 組み込み skill
 

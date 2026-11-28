@@ -15,14 +15,16 @@ import (
 	"time"
 )
 
-// Waiting is sending that does not depend on the terminal: the AI runs
-// 'pitboard wait' in the background before it stops, and its agent wakes it
-// when the command ends. The command ends when the person sends from the
-// board, printing what 'changes' prints.
+// Waiting is sending that does not depend on the terminal: a process waits
+// for the person's send and its ending wakes the AI. It is the Stop hook
+// ('pitboard hook stop', started by Claude Code each time the AI stops), or
+// 'pitboard wait', which the AI runs in the background before it stops when
+// the hook is not installed. Either ends when the person sends from the
+// board, with what 'changes' prints.
 //
 // While it waits, .pitboard/<session>/waiting holds its pid: the viewer
 // sees from it that sending will reach the AI (and wakes no terminal), and a
-// second 'wait' leaves the waiting to the first.
+// second waiter leaves the waiting to the first.
 
 func (s *Store) waitingPath() string { return filepath.Join(s.Dir, "waiting") }
 
@@ -139,20 +141,33 @@ func (s *Store) sentPending() bool {
 	return lastSend(s.Events()) > s.Seen()
 }
 
-// Wait waits until the person sends, then prints what 'changes' prints. It
-// ends quietly at timeout (0: never) or when ctx is done (a signal).
-func (s *Store) Wait(ctx context.Context, timeout time.Duration, out io.Writer) error {
-	other, err := s.claimWaiting()
+// How an Await ended.
+type WaitEnd int
+
+const (
+	WaitDone      WaitEnd = iota // try said it was done
+	WaitOther                    // another process is waiting already
+	WaitTimeout                  // the timeout passed
+	WaitCancelled                // ctx was done (a signal)
+)
+
+// Await holds the waiting file and calls try at once and then every time
+// events.jsonl has changed, until try says it is done. It ends without it
+// when another process waits on this board already (other is its pid), at
+// timeout (0: never) or when ctx is done. started, if given, is called once
+// the waiting file is ours.
+func (s *Store) Await(ctx context.Context, timeout time.Duration, started func(), try func() (bool, error)) (end WaitEnd, other int, err error) {
+	other, err = s.claimWaiting()
 	if err != nil {
-		return err
+		return 0, 0, err
 	}
 	if other != 0 {
-		fmt.Fprintf(out, "already waiting (pid %d)\n", other)
-		return nil
+		return WaitOther, other, nil
 	}
 	defer s.releaseWaiting()
-	// Waiting goes on, but the AI hears now that the report needs fixing.
-	s.NoteReportProblems(errOut)
+	if started != nil {
+		started()
+	}
 	var deadline <-chan time.Time
 	if timeout > 0 {
 		t := time.NewTimer(timeout)
@@ -167,28 +182,90 @@ func (s *Store) Wait(ctx context.Context, timeout time.Duration, out io.Writer) 
 		// Read only when events.jsonl has changed (or the first time).
 		if fi, err := os.Stat(s.EventsPath()); err == nil && (fi.Size() != size || !fi.ModTime().Equal(mod)) {
 			size, mod = fi.Size(), fi.ModTime()
-			if s.sentPending() {
-				lines, err := s.Changes()
-				if err != nil {
-					return err
-				}
-				for _, l := range lines {
-					fmt.Fprintln(out, l)
-				}
-				s.NoteOpen(out)
-				s.NoteProblems(out)
-				return nil
+			if done, err := try(); err != nil || done {
+				return WaitDone, 0, err
 			}
 		}
 		select {
 		case <-ctx.Done():
-			return nil
+			return WaitCancelled, 0, nil
 		case <-deadline:
-			s.NoteProblems(out)
-			return nil
+			return WaitTimeout, 0, nil
 		case <-tick.C:
 		}
 	}
+}
+
+// Wait waits until the person sends, then prints what 'changes' prints. It
+// ends quietly at timeout (0: never) or when ctx is done (a signal).
+//
+// Once the Stop hook has run for this session (see MarkStopHook) the hook
+// does the waiting: Wait then never waits, and whatever it prints ends with
+// StopHookNote.
+func (s *Store) Wait(ctx context.Context, timeout time.Duration, out io.Writer) error {
+	deliver := func() error {
+		lines, err := s.Changes()
+		if err != nil {
+			return err
+		}
+		for _, l := range lines {
+			fmt.Fprintln(out, l)
+		}
+		s.NoteOpen(out)
+		return nil
+	}
+	if s.StopHook() {
+		if s.sentPending() {
+			if err := deliver(); err != nil {
+				return err
+			}
+		}
+		s.NoteProblems(out)
+		fmt.Fprintln(out, StopHookNote)
+		return nil
+	}
+	end, other, err := s.Await(ctx, timeout, func() {
+		// Waiting goes on, but the AI hears now that the report needs fixing.
+		s.NoteReportProblems(errOut)
+	}, func() (bool, error) {
+		if !s.sentPending() {
+			return false, nil
+		}
+		return true, deliver()
+	})
+	if err != nil {
+		return err
+	}
+	switch end {
+	case WaitOther:
+		fmt.Fprintf(out, "already waiting (pid %d)\n", other)
+	case WaitDone, WaitTimeout:
+		s.NoteProblems(out)
+	case WaitCancelled:
+		return nil
+	}
+	// The hook started while this was waiting (it left the waiting to us).
+	if s.StopHook() {
+		fmt.Fprintln(out, StopHookNote)
+	}
+	return nil
+}
+
+// StopHookNote is the line 'wait' ends its output with once the Stop hook
+// has run for the session.
+const StopHookNote = "The Stop hook now waits for the person's sends: they arrive by themselves. Do not run 'wait' again in this session."
+
+// StopHookPath is the marker 'pitboard hook stop' leaves: the Stop hook is
+// installed for this session, so 'wait' is not needed.
+func (s *Store) StopHookPath() string { return filepath.Join(s.Dir, "stophook") }
+
+// MarkStopHook records that the Stop hook ran for this session.
+func (s *Store) MarkStopHook() error { return os.WriteFile(s.StopHookPath(), nil, 0o644) }
+
+// StopHook says whether the Stop hook has run for this session.
+func (s *Store) StopHook() bool {
+	_, err := os.Stat(s.StopHookPath())
+	return err == nil
 }
 
 // ProcessStart is when process pid started, as ps(1) says it ("" when it
