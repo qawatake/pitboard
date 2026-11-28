@@ -188,13 +188,15 @@ func (a *app) bottom() []string {
 	var keys []hint
 	if a.onComments() {
 		if t := a.listCur(); t != nil && a.lcurShown {
+			// enter and g, what a comment is for here (read it, go to its
+			// line), outlast e and x.
 			if a.lopen[t.N] {
-				keys = append(keys, hint{k: "enter", d: page.WordClose, rank: rankEnter})
+				keys = append(keys, hint{k: "enter", d: page.WordClose, rank: rankC})
 			} else {
-				keys = append(keys, hint{k: "enter", d: "開く", rank: rankEnter})
+				keys = append(keys, hint{k: "enter", d: "開く", rank: rankC})
 			}
 			if a.canGo(t) {
-				keys = append(keys, hint{k: "g", d: page.WordGo, rank: rankEnter})
+				keys = append(keys, hint{k: "g", d: page.WordGo, rank: rankC})
 			}
 			keys = append(keys, commentHints(a.canWrite())...)
 		}
