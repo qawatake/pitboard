@@ -331,3 +331,48 @@ func TestCommentsScreenScrolls(t *testing.T) {
 		t.Errorf("scrolled:\n%s", s)
 	}
 }
+
+// enter reaches a Fold without an id: its comments go by its title.
+func TestEnterGoesToAFoldWithoutID(t *testing.T) {
+	st := testStore(t)
+	os.WriteFile(st.ReportPath(), []byte("<Item id=\"top\">上の行</Item>\n<Fold title=\"外\">\n<Fold title=\"題なしの内\">\n<Item id=\"deep\">奥</Item>\n</Fold>\n</Fold>\n"), 0o644)
+	st.Append(board.Event{Op: "thought", ID: "Fold|title=題なしの内", Title: "題なしの内", Text: "内へ"})
+	a := testApp(t, st)
+	pv := a.top()
+	a.render()
+	a.handle(key{r: 'l'})
+	a.render()
+	if s := listText(a); !strings.Contains(s, "← 題なしの内") {
+		t.Fatalf("comments screen:\n%s", s)
+	}
+	if s := hintLine(a); !strings.Contains(s, "enter 行へ") {
+		t.Errorf("hints %q", s)
+	}
+	a.handle(key{name: "enter"})
+	a.render()
+	if n := pv.nodeAt(pv.cur); a.view != viewReport || n == nil || n.Text != "題なしの内" || !pv.curShown {
+		t.Fatalf("enter: view %d cursor %q msg %q", a.view, pv.cur, a.msg)
+	}
+}
+
+// At 80 columns x stays when a comment is opened (o 閉じる is wider).
+func TestRetractKeyStaysWhenOpened(t *testing.T) {
+	st := testStore(t)
+	st.Append(board.Event{Op: "thought", ID: "hook", Text: "一"})
+	a := testApp(t, st)
+	a.render()
+	a.handle(key{r: 'l'})
+	a.render()
+	if a.t.w != 80 {
+		t.Fatalf("width %d", a.t.w)
+	}
+	for _, open := range []bool{false, true} {
+		if open {
+			a.handle(key{r: 'o'})
+			a.render()
+		}
+		if s := hintLine(a); !strings.Contains(s, "x 取り消す") || !strings.Contains(s, "l 報告へ") {
+			t.Errorf("open %v: hints %q", open, s)
+		}
+	}
+}

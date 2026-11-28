@@ -252,7 +252,9 @@ func commentHints(canWrite bool) []hint {
 	for _, h := range page.CommentHints(canWrite) {
 		x := hint{k: h.Key, d: h.Word, rank: rankAnswer}
 		if h.Do == "retract" {
-			x.rank = rankX
+			// x is the comment's own key here: it outlasts m (a page-wide
+			// key), going with enter and o.
+			x.rank = rankEnter
 		}
 		out = append(out, x)
 	}

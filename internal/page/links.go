@@ -98,14 +98,15 @@ type Follow struct {
 	Hidden bool
 }
 
-// Follow is how to go to the row with id target (false: no such row).
+// Follow is how to go to the row whose target (report.Target: its id, or
+// for a Fold without one, its title) is target (false: no such row).
 func (b *Board) Follow(target string) (Follow, bool) {
 	var f Follow
 	var path []*report.Node
 	var find func(ns []*report.Node) bool
 	find = func(ns []*report.Node) bool {
 		for _, n := range ns {
-			if n.ID == target && Stops(n) {
+			if report.Target(n) == target && Stops(n) {
 				f.Key = n.Key
 				for _, a := range path {
 					if a.Kind == report.KindDetails {
