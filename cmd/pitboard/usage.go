@@ -25,9 +25,9 @@ type helpTopic struct {
 var topics = []helpTopic{
 	{"format", "every part and attribute, colors, ids, text rules; read when check reports a problem", formatText},
 	{"changes", "every line 'changes' prints: retract, edit, unretract, \"→ now:\"; read when one arrives", changesText},
-	{"send", "how a send wakes you: wait in detail, PITBOARD_SEND, herdr, tmux", sendText},
-	{"hooks", "the Claude Code hooks (~/.claude/settings.json)", hooksText},
-	{"browser", "pitboard serve: the board in a browser", browserText},
+	{"send", "wait in detail, PITBOARD_SEND, herdr, tmux; read when a send does not reach you or the person asks how it does", sendText},
+	{"hooks", "the Claude Code hooks (~/.claude/settings.json); read when the person wants them installed", hooksText},
+	{"browser", "pitboard serve; read when the person would rather see the board in a browser", browserText},
 }
 
 var filler = strings.NewReplacer("{viewerKeys}", report.ViewerKeyList(), "{stopHookNote}", board.StopHookNote)
@@ -209,9 +209,11 @@ Manners:
     decisions, answers and requests to the person go in the report too.
   - A Notice is for what the person must know first: the tools or the
     environment need something from them (reopen the viewer, set something
-    up), or your work is stuck. Its title says what they are to do; steps
-    go in its contents. Give it at="..." from date '+%Y-%m-%d %H:%M' (a new
-    time when you rewrite it to tell something anew). Remove it once done.
+    up), or your work is stuck; not for ordinary questions or answers. Its
+    title says what they are to do; steps go in its contents. Give it
+    at="..." from date '+%Y-%m-%d %H:%M' (a new time when you rewrite it to
+    tell something anew; a new at alone does not show a hidden Notice
+    again: change its title too). Remove it once done.
   - Write a status only to say something else than 作業中 (a doing Item
     shows it itself), never "done". Drop a done line from "In progress"
     (git keeps the history).
@@ -219,9 +221,13 @@ Manners:
     bottom of "For you" with <Item id="a-..." look="y">, titled "> " and
     their question (shortened at a clause boundary, never mid-sentence).
     Its first line of contents is your conclusion in one sentence; details
-    follow. Settle the thought with "answered (in For you)". When an answer
+    follow. One answer Item may cover several thoughts asking the same
+    thing. Settle the thought with "answered (in For you)". You may drop an
+    answer the person replied to once you judge it settled. When an answer
     says work is queued or in progress, link to that row ([Add the CLI](#cli))
     instead of restating it.
+  - Put a link in the line that needs it (in its contents, or a Link right
+    under it); never make a section of links.
   - What arrives from the board is answered in the report; in the chat say
     only a line or two ("Answered in the report; now doing X"). What the
     person writes in the chat is answered in the chat.
@@ -234,12 +240,13 @@ Manners:
     person still had business with it is warned of once ("warning: row
     ... was removed but ..."): put it back if removing it was wrong.
   - Edit report.md with the Edit tool, its old_string unique: include the
-    row's id (<Item id="x"), never a bare close tag like </Item> or </Fold>,
-    which matches every row. Run 'pitboard check' after every rewrite.
+    row's id (<Item id="x"). A bare close tag (</Item>, </Fold>) or an
+    Option line (<Option key="a">, repeated in every Ask) matches many
+    places. Run 'pitboard check' after every rewrite.
   - A report that fails check is not shown: the person keeps seeing the last
     one that passed, with a line saying you are fixing it, and it is your
-    turn until you fix it. Every other command (and the hooks) ends with
-    "report.md has N problem(s). Run: pitboard -s ID check" meanwhile.
+    turn until you fix it. Meanwhile 'changes', 'settle', 'wait' and the
+    hooks end with "report.md has N problem(s). Run: pitboard -s ID check".
 
 Reading 'changes':
   It prints only what the person sent, and nothing twice:
@@ -249,10 +256,14 @@ Reading 'changes':
       continues here (the following lines of a thought are indented)
     thought 9: like this one? [Image #3]
       image 3: /abs/path/.pitboard/ID/images/3.png
+    thought 10 on fold "Decided (1)": keep this rule
     hide (2): Drop the log / Implement the vie…
+    unhide (1): Drop the log
   answer: the option chosen, with its text. thought N: "on ID" when written
-  on that row (with its title then). An image's path follows its thought:
-  open it (Read). hide: the person no longer needs to see that line. The
+  on that row (with its title then), 'on fold "TITLE"' on a Fold without
+  an id. An image's path follows its thought: open it (Read). hide: the
+  person no longer needs to see that line; unhide: they want to see it
+  again (nothing to do but keep it). The
   text in parentheses is the title the person saw: "→ now: ..." after it
   means you rewrote the line since; think about which one they meant.
   Lines starting with retract, edit or unretract, and every detail:
@@ -264,8 +275,10 @@ Thoughts:
     pitboard -s ID settle N TEXT        (e.g. "made it a todo", "answered",
                                          "noted", "not doing it")
   A state goes before TEXT: --done (the default), --doing (working on it)
-  or --hold (put off, say why); the latest settle counts. Several in one
-  call only with a state before each number:
+  or --hold (put off, say why); the latest settle counts. Without a state
+  first, every word after N is its text ('settle 9 fixed 5 bugs' settles 9
+  with "fixed 5 bugs"). Several in one call only with a state before each
+  number (two states for one thought are an error):
     pitboard -s ID settle --doing 50 "looking into it" --done 51 "answered"
   The board shows the person "AI の番" (your turn) from their send until
   you rewrite the report or settle (--done or --hold) every thought it
@@ -274,7 +287,8 @@ Thoughts:
   its answer line too). It is also "AI の番" whenever report.md fails
   'pitboard check' or is missing: fix it.
   What 'changes' and 'wait' print ends with the numbers still --doing or
-  --hold (open: 186 201 (oldest 2h)); 'pitboard -s ID open' lists them.
+  --hold (open: 186 201 (oldest 2h)); 'pitboard -s ID open' lists them,
+  one a line: doing 186 (12m): the comments pane sits too low…
 
 Send:
   The person answers at their own pace, then sends it all at once (s on the

@@ -23,7 +23,7 @@ func TestHelpListsViewerKeys(t *testing.T) {
 // -h is what every session reads in full: it stays small, starts with its
 // contents and ends with the topics, each of which 'pitboard help' prints.
 func TestHelpIsThinAndEndsWithTopics(t *testing.T) {
-	if len(usage) > 14000 {
+	if len(usage) > 15000 {
 		t.Errorf("-h is %d bytes; keep what only some sessions need in a topic", len(usage))
 	}
 	if !strings.Contains(usage[:400], "Contents:") {
@@ -74,6 +74,41 @@ func TestHelpTopicsHoldWhatMovedOut(t *testing.T) {
 	for _, w := range []string{"herdr agent prompt", "asyncRewake", "--rotate", "unretract thought N"} {
 		if strings.Contains(usage, w) {
 			t.Errorf("-h still has %q (it belongs in a topic)", w)
+		}
+	}
+}
+
+// What every session needs stays in -h, in substance.
+func TestHelpKeepsWhatEverySessionNeeds(t *testing.T) {
+	for _, w := range []string{
+		// Editing report.md safely: unique old_string, and what is not unique.
+		"old_string unique", `include the
+    row's id (<Item id="x")`, "</Item>, </Fold>", `<Option key="a">, repeated in every Ask`,
+		"Run 'pitboard check' after every rewrite",
+		// The commands that end with the problem line (not path or open).
+		"'changes', 'settle', 'wait' and the\n    hooks end with \"report.md has N problem(s)",
+		// Notices.
+		"not for ordinary questions", "a new at alone does not show a hidden Notice",
+		// Settling.
+		"'settle 9 fixed 5 bugs' settles 9", "two states for one thought are an error",
+		"doing 186 (12m):",
+		// Answers and links.
+		"One answer Item may cover several thoughts", "drop an\n    answer the person replied to",
+		"never make a section of links",
+		// Lines of 'changes' every session sees.
+		`'on fold "TITLE"' on a Fold without`, "unhide: they want to see it",
+	} {
+		if !strings.Contains(usage, w) {
+			t.Errorf("-h lacks %q", w)
+		}
+	}
+	if strings.Contains(usage, "Every other command") {
+		t.Error("-h says every other command ends with the problem line (path and open do not)")
+	}
+	// Every topic in the list says when to read it.
+	for _, tp := range topics {
+		if !strings.Contains(tp.summary, "read when") {
+			t.Errorf("topic %s does not say when to read it: %q", tp.name, tp.summary)
 		}
 	}
 }
