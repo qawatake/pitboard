@@ -243,8 +243,8 @@ func TestLCyclesToComments(t *testing.T) {
 	v.WaitCursorOn("項目B")
 }
 
-// SPEC.md "コメントの画面": each comment with the line it is about; o opens
-// it, enter goes to its line.
+// SPEC.md "コメントの画面": each comment with the line it is about; enter
+// opens it, g goes to its line.
 func TestCommentsScreen(t *testing.T) {
 	t.Parallel()
 	v, ss := open(t, "<Item id=\"a\">項目A</Item>\n", 80, 24, "項目A")
@@ -264,12 +264,13 @@ func TestCommentsScreen(t *testing.T) {
 		return r1 >= 0 && r2 > r1
 	})
 	v.MoveTo("古いコメント")
-	v.WaitBottom("enter 行へ  o 開く")
-	v.Keys("o")
+	v.WaitBottom("enter 開く  g 行へ")
+	v.Keys("enter")
 	// Opened: the line's title (and the title when written), and how far
 	// it got.
 	v.WaitFor("行: 項目A (書いたときは: 古い題)", "まだ送っていません")
-	v.Keys("enter")
+	v.WaitBottom("enter 閉じる  g 行へ")
+	v.Keys("g")
 	v.WaitCursorOn("項目A")
 	v.WaitBottom("c 行に書く")
 }

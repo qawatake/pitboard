@@ -378,7 +378,7 @@ func TestEditAndRetractOnComments(t *testing.T) {
 	ss.waitRecords(t, "thought", 1)
 	v.WaitBottom("l コメント 1")
 	v.Keys("l")
-	for _, part := range []string{"o 開く", "e 直す", "x 取り消す", "m 書く", "? キー"} {
+	for _, part := range []string{"enter 開く", "e 直す", "x 取り消す", "m 書く", "? キー"} {
 		v.WaitBottom(part)
 	}
 	v.Keys("e")

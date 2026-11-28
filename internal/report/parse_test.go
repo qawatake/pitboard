@@ -213,14 +213,15 @@ func TestLowercaseClosingTagOnTheSameLine(t *testing.T) {
 	}
 }
 
-// l goes to the comments screen and o opens a comment there: neither can
-// answer an Ask.
-func TestLAndOAreViewerKeys(t *testing.T) {
-	for _, k := range []string{"l", "o"} {
-		_, probs, _ := Parse("<Ask id=\"q\">q\n<Option key=\"" + k + "\">a</Option>\n<Option key=\"b\">b</Option>\n</Ask>")
-		if len(probs) != 1 || !strings.Contains(probs[0].Msg, "viewer key") {
-			t.Errorf("%s as an Option key: %v", k, probs)
-		}
+// l goes to the comments screen: it cannot answer an Ask. o is free again
+// (enter opens a comment there).
+func TestLIsAViewerKey(t *testing.T) {
+	_, probs, _ := Parse("<Ask id=\"q\">q\n<Option key=\"l\">a</Option>\n<Option key=\"b\">b</Option>\n</Ask>")
+	if len(probs) != 1 || !strings.Contains(probs[0].Msg, "viewer key") {
+		t.Errorf("l as an Option key: %v", probs)
+	}
+	if _, probs, _ := Parse("<Ask id=\"q\">q\n<Option key=\"o\">a</Option>\n<Option key=\"b\">b</Option>\n</Ask>"); len(probs) != 0 {
+		t.Errorf("o as an Option key: %v", probs)
 	}
 }
 

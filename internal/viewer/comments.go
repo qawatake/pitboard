@@ -194,7 +194,7 @@ func (a *app) goToComment(t *board.Thought) {
 	a.view = viewReport
 }
 
-// canGo says whether enter takes comment t to its line.
+// canGo says whether g takes comment t to its line.
 func (a *app) canGo(t *board.Thought) bool {
 	if t == nil || t.ID == "" {
 		return false

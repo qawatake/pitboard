@@ -218,9 +218,10 @@ func (a *app) enter(pv *view) {
 
 // ---- the comments screen ----
 
-// handleList is the keys on the comments screen: j k move, enter goes to
-// the comment's line in the report, o opens it, e x rewrite and take it
-// back, l tab q esc go back to the report.
+// handleList is the keys on the comments screen: j k move, enter opens
+// the comment (its whole text and what the AI wrote) and closes it, g goes
+// to its line in the report, e x rewrite and take it back, l tab q esc go
+// back to the report.
 func (a *app) handleList(k key) (quit bool) {
 	ts := a.listed()
 	i := 0
@@ -250,9 +251,9 @@ func (a *app) handleList(k key) (quit bool) {
 	case scrollKey(k, a.t.h) != 0:
 		a.ltop, a.lfollow = max(a.ltop+scrollKey(k, a.t.h), 0), false
 	case k.name == "enter" && len(ts) > 0 && a.lcurShown:
-		a.goToComment(ts[i])
-	case k.r == 'o' && len(ts) > 0 && a.lcurShown:
 		a.lopen[ts[i].N] = !a.lopen[ts[i].N]
+	case k.r == 'g' && len(ts) > 0 && a.lcurShown:
+		a.goToComment(ts[i])
 	case k.r == 'x' && len(ts) > 0 && a.lcurShown:
 		a.retract(ts, ts[i].N, func(n int) { a.lcur, a.lfollow = n, true })
 	case k.r == 'e' && len(ts) > 0 && a.lcurShown:

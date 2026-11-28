@@ -80,7 +80,7 @@ const maxListLevel = 2
 
 // ViewerKeys are the keys the viewer uses for itself; an Option cannot use
 // them as its key.
-const ViewerKeys = "cgjklmoqrsux"
+const ViewerKeys = "cgjklmqrsux"
 
 // ViewerKeyList is ViewerKeys spaced out for messages ("c j k ...").
 func ViewerKeyList() string { return strings.Join(strings.Split(ViewerKeys, ""), " ") }

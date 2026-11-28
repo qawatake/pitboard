@@ -56,7 +56,11 @@ export function intentOf(e, ui, page) {
     case 'm': return { do: 'write' };
     case 'H': return ui.panel ? null : { do: 'showHidden' };
     case 'A': return ui.panel ? null : { do: 'readAll' };
-    case 'g': return canGoto(ui, page) ? { do: 'startGoto' } : null;
+    // In the panel, g goes to the comment's line (as the terminal's
+    // comments screen; enter does too: the panel shows each whole).
+    case 'g':
+      if (ui.panel) return cursorComment(page, ui) ? { do: 'toggle' } : null;
+      return canGoto(ui, page) ? { do: 'startGoto' } : null;
     // l opens the comment panel and closes it again (the terminal's l
     // goes to its comments screen and back), as the bar's コメント N.
     case 'l':

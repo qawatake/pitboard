@@ -184,7 +184,7 @@ func TestEditKey(t *testing.T) {
 	a := testApp(t, st)
 	a.handle(key{name: "tab"})
 	a.render()
-	if s := hintLine(a); !strings.Contains(s, "o 開く  e 直す  x 取り消す") {
+	if s := hintLine(a); !strings.Contains(s, "enter 開く  e 直す  x 取り消す") {
 		t.Errorf("comments screen hints %q", s)
 	}
 	a.handle(key{r: 'e'})

@@ -135,10 +135,10 @@ func TestCommentsScreen(t *testing.T) {
 	if r := rowOf(ls, "とても長いコメント"); r >= 0 && width(ls[r+1]) - width(strings.TrimLeft(ls[r+1], " ")) != width(ls[r][:strings.Index(ls[r], "とても")]) {
 		t.Errorf("not aligned:\n%s", s)
 	}
-	if s := hintLine(a); s != "      enter 行へ  o 開く  e 直す  x 取り消す  l 報告へ  s 送る  m 書く  ? キー" {
+	if s := hintLine(a); s != "      enter 開く  g 行へ  e 直す  x 取り消す  l 報告へ  s 送る  m 書く  ? キー" {
 		t.Errorf("hints %q", s)
 	}
-	// o opens the whole text and what the AI wrote in full.
+	// enter opens the whole text and what the AI wrote in full.
 	for _, k := range "jjj" {
 		a.handle(key{r: k})
 		a.render()
@@ -146,20 +146,20 @@ func TestCommentsScreen(t *testing.T) {
 	if a.lcur != 2 {
 		t.Fatalf("lcur %d", a.lcur)
 	}
-	if s := hintLine(a); s != "      o 開く  e 直す  x 取り消す  l 報告へ  s 送る  m 書く  ? キー" {
-		t.Errorf("no line, no enter: %q", s)
+	if s := hintLine(a); s != "      enter 開く  e 直す  x 取り消す  l 報告へ  s 送る  m 書く  ? キー" {
+		t.Errorf("no line, no g: %q", s)
 	}
-	a.handle(key{r: 'o'})
+	a.handle(key{name: "enter"})
 	a.render()
-	if s := listText(a); !strings.Contains(s, "対応: あとで決めることにした") || !strings.Contains(s, "二行目") {
-		t.Errorf("o:\n%s", s)
+	if s := listText(a); !strings.Contains(s, "対応: あとで決めることにした") || !strings.Contains(s, "二行目") || a.view != viewComments {
+		t.Errorf("enter:\n%s", s)
 	}
-	if s := hintLine(a); !strings.Contains(s, "o 閉じる") {
+	if s := hintLine(a); !strings.Contains(s, "enter 閉じる") {
 		t.Errorf("open hints %q", s)
 	}
 	// Nothing is recorded on a comment by other letters.
 	n := len(st.Events())
-	for _, r := range "ycHa" {
+	for _, r := range "ycHao" {
 		a.handle(key{r: r})
 	}
 	if len(st.Events()) != n {
@@ -167,10 +167,10 @@ func TestCommentsScreen(t *testing.T) {
 	}
 }
 
-// enter goes to the comment's line in the report: the Folds around it
-// open, the cursor on it. A comment on no line, a line gone, or a hidden
-// one stays, and says why.
-func TestEnterGoesToTheCommentsLine(t *testing.T) {
+// g goes to the comment's line in the report: the Folds around it open,
+// the cursor on it. A comment on no line, a line gone, or a hidden one
+// stays, and says why.
+func TestGGoesToTheCommentsLine(t *testing.T) {
 	st := testStore(t)
 	os.WriteFile(st.ReportPath(), []byte(`<Item id="top">上の行</Item>
 <Fold title="中">
@@ -206,10 +206,10 @@ func TestEnterGoesToTheCommentsLine(t *testing.T) {
 	for _, c := range tries {
 		a.lcur, a.lfollow = c.n, true
 		a.render()
-		if strings.Contains(hintLine(a), "enter") {
-			t.Errorf("%d: enter offered: %q", c.n, hintLine(a))
+		if strings.Contains(hintLine(a), "g 行へ") {
+			t.Errorf("%d: g offered: %q", c.n, hintLine(a))
 		}
-		a.handle(key{name: "enter"})
+		a.handle(key{r: 'g'})
 		a.render()
 		if a.view != viewComments || a.msg != c.msg {
 			t.Errorf("%d: view %d msg %q, want %q", c.n, a.view, a.msg, c.msg)
@@ -221,10 +221,10 @@ func TestEnterGoesToTheCommentsLine(t *testing.T) {
 	}
 	a.lcur, a.lfollow = 1, true
 	a.render()
-	a.handle(key{name: "enter"})
+	a.handle(key{r: 'g'})
 	a.render()
 	if a.view != viewReport || pv.nodeAt(pv.cur) == nil || pv.nodeAt(pv.cur).ID != "deep" || !pv.curShown {
-		t.Fatalf("enter: view %d cursor %q shown %v", a.view, pv.cur, pv.curShown)
+		t.Fatalf("g: view %d cursor %q shown %v", a.view, pv.cur, pv.curShown)
 	}
 	if s := shown(a); !strings.Contains(s, "> ") || !strings.Contains(s, "奥の行") {
 		t.Errorf("the Fold did not open:\n%s", s)
@@ -332,8 +332,8 @@ func TestCommentsScreenScrolls(t *testing.T) {
 	}
 }
 
-// enter reaches a Fold without an id: its comments go by its title.
-func TestEnterGoesToAFoldWithoutID(t *testing.T) {
+// g reaches a Fold without an id: its comments go by its title.
+func TestGGoesToAFoldWithoutID(t *testing.T) {
 	st := testStore(t)
 	os.WriteFile(st.ReportPath(), []byte("<Item id=\"top\">上の行</Item>\n<Fold title=\"外\">\n<Fold title=\"題なしの内\">\n<Item id=\"deep\">奥</Item>\n</Fold>\n</Fold>\n"), 0o644)
 	st.Append(board.Event{Op: "thought", ID: "Fold|title=題なしの内", Title: "題なしの内", Text: "内へ"})
@@ -345,17 +345,17 @@ func TestEnterGoesToAFoldWithoutID(t *testing.T) {
 	if s := listText(a); !strings.Contains(s, "← 題なしの内") {
 		t.Fatalf("comments screen:\n%s", s)
 	}
-	if s := hintLine(a); !strings.Contains(s, "enter 行へ") {
+	if s := hintLine(a); !strings.Contains(s, "g 行へ") {
 		t.Errorf("hints %q", s)
 	}
-	a.handle(key{name: "enter"})
+	a.handle(key{r: 'g'})
 	a.render()
 	if n := pv.nodeAt(pv.cur); a.view != viewReport || n == nil || n.Text != "題なしの内" || !pv.curShown {
-		t.Fatalf("enter: view %d cursor %q msg %q", a.view, pv.cur, a.msg)
+		t.Fatalf("g: view %d cursor %q msg %q", a.view, pv.cur, a.msg)
 	}
 }
 
-// At 80 columns x stays when a comment is opened (o 閉じる is wider).
+// At 80 columns x stays when a comment is opened (enter 閉じる is wider).
 func TestRetractKeyStaysWhenOpened(t *testing.T) {
 	st := testStore(t)
 	st.Append(board.Event{Op: "thought", ID: "hook", Text: "一"})
@@ -368,7 +368,7 @@ func TestRetractKeyStaysWhenOpened(t *testing.T) {
 	}
 	for _, open := range []bool{false, true} {
 		if open {
-			a.handle(key{r: 'o'})
+			a.handle(key{name: "enter"})
 			a.render()
 		}
 		if s := hintLine(a); !strings.Contains(s, "x 取り消す") || !strings.Contains(s, "l 報告へ") {

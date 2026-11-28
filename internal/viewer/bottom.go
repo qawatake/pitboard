@@ -72,7 +72,7 @@ func (a *app) helpRows() []row {
 		{"space", "カーソルより下で、いちばん近い印のある行 (黄の ●・人待ちの項目・緑の ●) へ。下に無ければ上から。折りたたみは開く"},
 		{"r", "読んだ: カーソルの行の緑の ● (右上の「未読」) を消す (カーソルを当てる・開くだけでは消えない。答え・コメント・x でも消える)"},
 		{"A", "いま報告にある行をすべて読んだことにする (緑の ● を消す)"},
-		{"enter", "開く・閉じる (コメントの画面では、そのコメントの行へ)"},
+		{"enter", "開く・閉じる (コメントの画面では、そのコメントの全文と AI の対応)"},
 		{"u", "元に戻す: 直前の操作を取り消す (答え・コメントを置く / 直す / 取り消す・隠す / 表示に戻す・r・A。新しい順に 1 つずつ。送ったあとなら、取り消しを次に送る)"},
 		{"a b …", "問いに答える (選択肢のキー。問いを開いているときだけ。閉じていれば開く)"},
 		{"c", "この行にコメントを書く"},
@@ -81,7 +81,7 @@ func (a *app) helpRows() []row {
 		{"x", "この行を隠す (隠した行の上では表示に戻す)"},
 		{"H", "隠した行を表示する / しない"},
 		{"l", "コメントの画面 / 報告へ (押すたびに切り替わる。tab も)。報告のカーソルと開閉はそのまま"},
-		{"o (コメント)", "コメントの画面で、そのコメントを開く・閉じる (全文と AI の対応)"},
+		{"g (コメント)", "コメントの画面で、そのコメントの行へ (折りたたみは開く。g - で戻る)"},
 		{"x (コメント)", "コメントの画面で、そのコメントを取り消す"},
 		{"e (コメント)", "コメントの画面で、そのコメントを直す (enter で置き換える。esc でやめる)"},
 		{"?", "このキーの一覧"},
@@ -188,13 +188,13 @@ func (a *app) bottom() []string {
 	var keys []hint
 	if a.onComments() {
 		if t := a.listCur(); t != nil && a.lcurShown {
-			if a.canGo(t) {
-				keys = append(keys, hint{k: "enter", d: page.WordGo, rank: rankEnter})
-			}
 			if a.lopen[t.N] {
-				keys = append(keys, hint{k: "o", d: page.WordClose, rank: rankEnter})
+				keys = append(keys, hint{k: "enter", d: page.WordClose, rank: rankEnter})
 			} else {
-				keys = append(keys, hint{k: "o", d: "開く", rank: rankEnter})
+				keys = append(keys, hint{k: "enter", d: "開く", rank: rankEnter})
+			}
+			if a.canGo(t) {
+				keys = append(keys, hint{k: "g", d: page.WordGo, rank: rankEnter})
 			}
 			keys = append(keys, commentHints(a.canWrite())...)
 		}
